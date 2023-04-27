@@ -26,7 +26,7 @@ https://github.com/QingYang1807/EfficientOffice.git
 2. 前端项目配置：
 
 ```bash
-cd efficient-office/frontend
+cd EfficientOffice/frontend
 npm install
 npm run serve
 ```
@@ -34,7 +34,7 @@ npm run serve
 3. 后端项目配置：
 
 ```bash
-cd efficient-office/backend
+cd EfficientOffice/backend
 ./mvnw spring-boot:run
 ```
 
