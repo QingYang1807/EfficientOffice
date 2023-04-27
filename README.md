@@ -1,6 +1,7 @@
 # EfficientOffice
 Efficient Office 是一款专为打工人打造的高效办公平台。结合STAR法则与四象限法，帮助您更有效地管理待办事项和优化任务安排。平台提供时间提醒、任务耗时记录、日/周总结等功能，让您全面掌握工作进度。Efficient Office 还支持数据可视化和智能建议，助您深入分析工作状态，持续提升办公效率。立即加入Efficient Office，开启高效办公新篇章！
 
+![image](D:\picture\markdown\README\234753129-effe1b12-360a-4a03-b176-da3a597e120f.png)
 
 
 ## 功能介绍
@@ -54,13 +55,13 @@ cd efficient-office/backend
 
 ## 贡献指南
 
-如果您有兴趣为本项目做出贡献，请阅读 [CONTRIBUTING.md](https://chat.openai.com/CONTRIBUTING.md) 了解如何提交 Issue 和 Pull Request。
+如果您有兴趣为本项目做出贡献，请阅读 [CONTRIBUTING.md](https://github.com/QingYang1807/EfficientOffice/blob/main/CONTRIBUTING.md) 了解如何提交 Issue 和 Pull Request。
 
 ## 许可证
 
 本项目基于MIT许可证授权，附加以下自定义条款：
 
-1. 二次开发：如需进行二次开发或制作衍生作品，您必须征得原作者（您的名字）的书面许可，并在衍生作品中署名。
+1. 二次开发：如需进行二次开发或制作衍生作品，您必须征得原作者（QingYang Lin）的书面许可，并在衍生作品中署名。
 2. 商业用途：本项目的源代码仅允许原作者（QingYang Lin）进行商业用途。其他人在未经原作者书面许可的情况下不得将本项目用于商业目的。
 
 如需申请许可或咨询相关事宜，请联系：linqingyang_a@163.com
