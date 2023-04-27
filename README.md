@@ -63,14 +63,14 @@ cd efficient-office/backend
 1. 二次开发：如需进行二次开发或制作衍生作品，您必须征得原作者（您的名字）的书面许可，并在衍生作品中署名。
 2. 商业用途：本项目的源代码仅允许原作者（QingYang Lin）进行商业用途。其他人在未经原作者书面许可的情况下不得将本项目用于商业目的。
 
-如需申请许可或咨询相关事宜，请联系：linqingyanga@163.com
+如需申请许可或咨询相关事宜，请联系：linqingyang_a@163.com
 
 ## 支持与反馈
 
 如您在使用过程中遇到问题或有任何建议，请通过以下方式联系我们：
 
 1. 提交 [GitHub Issues](https://github.com/yourusername/efficient-office/issues)
-2. 发送电子邮件至：linqingyanga@163.com
+2. 发送电子邮件至：linqingyang_a@163.com
 
 我们非常感谢您的反馈，这将有助于我们不断完善平台。
 
