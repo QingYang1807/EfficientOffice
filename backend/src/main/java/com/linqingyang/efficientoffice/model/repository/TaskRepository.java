@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.model.repository;public class TaskRepository {
+package com.linqingyang.efficientoffice.model.repository;
+
+public class TaskRepository {
 }

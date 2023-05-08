@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.util;public class Constants {
+package com.linqingyang.efficientoffice.util;
+
+public class Constants {
 }

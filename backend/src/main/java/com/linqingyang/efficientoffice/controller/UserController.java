@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.controller;public class UserController {
+package com.linqingyang.efficientoffice.controller;
+
+public class UserController {
 }

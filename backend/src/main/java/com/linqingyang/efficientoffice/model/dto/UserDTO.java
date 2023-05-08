@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.model.dto;public class UserDTO {
+package com.linqingyang.efficientoffice.model.dto;
+
+public class UserDTO {
 }

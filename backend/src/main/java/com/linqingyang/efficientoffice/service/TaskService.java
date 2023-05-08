@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.service;public class TaskService {
+package com.linqingyang.efficientoffice.service;
+
+public class TaskService {
 }

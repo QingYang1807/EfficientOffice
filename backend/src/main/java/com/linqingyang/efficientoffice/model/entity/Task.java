@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.model.entity;public class Task {
+package com.linqingyang.efficientoffice.model.entity;
+
+public class Task {
 }

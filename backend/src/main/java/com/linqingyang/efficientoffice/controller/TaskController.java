@@ -1,2 +1,4 @@
-package com.linqingyang.efficientoffice.controller;public class TaskController {
+package com.linqingyang.efficientoffice.controller;
+
+public class TaskController {
 }
