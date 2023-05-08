@@ -3,7 +3,7 @@
     <div class="content">
       <h1>Welcome to Efficient Office</h1>
       <p>A platform to boost your office productivity</p>
-      <button>Get Started</button>
+      <router-link to="/get-start" class="btn btn-primary">Get Started</router-link>
     </div>
   </div>
 </template>
@@ -21,7 +21,6 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
 }
 
 .background {
