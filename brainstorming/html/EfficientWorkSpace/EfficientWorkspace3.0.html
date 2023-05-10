@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 加载 Bootstrap 框架 -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <title>My Efficient Office</title>
+    <style>
+        /* 添加一些样式 */
+        body {
+            background-color: #f5f5f5;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .navbar-nav {
+            margin-left: auto;
+        }
+
+        .navbar-nav li {
+            margin-right: 10px;
+        }
+
+        .form-control {
+            width: 300px;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .btn-primary:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+
+        .file-browser {
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow: auto;
+        }
+
+        .widget {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .widget-header {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+
+        .widget-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .widget-content {
+            padding: 10px;
+        }
+
+        .note {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">My Efficient Office</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item active">
+                    <a class="nav-link" href="#">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Documents</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Contacts</a>
+                </li>
+            </ul>
+            <form class="form-inline my-2 my-lg-0">
+                <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+                <button class="btn btn-primary my-2 my-sm-0" type="submit">Search</button>
+            </form>
+        </div>
+    </nav>
+    <div class="container mt-3">
+        <div class="row">
+            <div class="col-md-9">
+                <div class="file-browser">
+                    <h3>Files</h3>
+                    <ul>
+                        <li><a href="#">Document 1</a></li>
+                        <li><a href="#">Document 2</a></li>
+                        <li><a href="#">Document 3</a></li>
+                        <li><a href="#">Document 4</a></li>
+                        <li><a href="#">Document 5</a></li>
+                        <li><a href="#">Document 6</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>Tools</h4>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary btn-block">New Document</button>
+                        <button class="btn btn-primary btn-block">Save</button>
+                        <button class="btn btn-primary btn-block">Print</button>
+                        <button class="btn btn-primary btn-block" id="add-widget">Add Widget</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 新增今日计划区 -->
+        <div class="row">
+            <div class="col-md-9">
+                <div class="widget" draggable="true">
+                    <div class="widget-header">
+                        <h3>Today's 5-Minute Plan</h3>
+                        <button class="btn btn-danger delete-widget" style="display: none;">Delete</button>
+                    </div>
+                    <div class="widget-content">
+                        <textarea class="form-control" rows="5"
+                            placeholder="Enter your 5-minute plan for today"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增 TODO List 区 -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="widget" draggable="true">
+                    <div class="widget-header">
+                        <h3>TODO List</h3>
+                        <button class="btn btn-danger delete-widget" style="display: none;">Delete</button>
+                    </div>
+                    <div class="widget-content">
+                        <ul class="list-group">
+                            <li class="list-group-item">Item 1</li>
+                            <li class="list-group-item">Item 2</li>
+                            <li class="list-group-item">Item 3</li>
+                        </ul>
+                        <form class="form-inline mt-3">
+                            <input class="form-control mr-2" type="text" placeholder="Add new item">
+                            <button class="btn btn-primary" type="submit">Add</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新增便签区 -->
+            <div class="col-md-4">
+                <div class="widget" draggable="true">
+                    <div class="widget-header">
+                        <h3>Notes</h3>
+                        <button class="btn btn-danger delete-widget" style="display: none;">Delete</button>
+                    </div>
+                    <div class="widget-content">
+                        <div class="note">
+                            <textarea class="form-control" rows="3" placeholder="Enter your note"></textarea>
+                        </div>
+                        <div class="note">
+                            <textarea class="form-control" rows="3" placeholder="Enter your note"></textarea>
+                        </div>
+                        <div class="note">
+                            <textarea class="form-control" rows="3" placeholder="Enter your note"></textarea>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-primary">Add note</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 新增当日总结反思区 -->
+            <div class="col-md-4">
+                <div class="widget" draggable="true">
+                    <div class="widget-header">
+                        <h3>Reflection</h3>
+                        <button class="btn btn-danger delete-widget" style="display: none;">Delete</button>
+                    </div>
+                    <div class="widget-content">
+                        <div class="form-group">
+                            <label for="daily-report">Daily report</label>
+                            <textarea class="form-control" id="daily-report" rows="5"
+                                placeholder="Enter your daily report"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="weekly-report">Weekly report</label>
+                            <textarea class="form-control" id="weekly-report" rows="5"
+                                placeholder="Enter your weekly report"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="widgetModal" tabindex="-1" role="dialog" aria-labelledby="widgetModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="widgetModalLabel">New Widget</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="form-group">
+                            <label for="widget-name" class="col-form-label">Widget Name:</label>
+                            <input type="text" class="form-control" id="widget-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="widget-type" class="col-form-label">Widget Type:</label>
+                            <select class="form-control" id="widget-type">
+                                <!-- Here you can add your own widget types -->
+                                <option>TODO List</option>
+                                <option>Notes</option>
+                                <option>Reflection</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="create-widget">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 加载 Bootstrap 依赖的 jQuery 库和 JavaScript 插件 -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+
+    <script>
+        $(document).ready(function () {
+            // Show delete button on hover
+            $(".widget").hover(function () {
+                $(this).find(".delete-widget").show();
+            }, function () {
+                $(this).find(".delete-widget").hide();
+            });
+
+            // Delete a widget
+            $(document).on("click", ".delete-widget", function () {
+                $(this).closest(".widget").remove();
+            });
+
+            // Show the modal to create a widget
+            $("#add-widget").click(function () {
+                $("#widgetModal").modal("show");
+            });
+
+            // Create a widget
+            $("#create-widget").click(function () {
+                var widgetName = $("#widget-name").val();
+                var widgetType = $("#widget-type").val();
+                // Here you can create your own widget structure
+                var newWidget = $('<div class="widget" draggable="true"><div class="widget-header"><h3>' + widgetName + '</h3><button class="btn btn-danger delete-widget" style="display: none;">Delete</button></div><div class="widget-content">' + widgetType + '</div></div>');
+                $(".container").append(newWidget);
+                // Close the modal
+                $("#widgetModal").modal("hide");
+                // Clear the form
+                $("#widget-name").val("");
+                $("#widget-type").val("");
+            });
+        });
+
+    </script>
+</body>
+
+</html>
