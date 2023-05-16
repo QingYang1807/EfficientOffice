@@ -1,14 +1,14 @@
 <template>
     <div class="todo-list">
         <h1 class="title">待办清单</h1>
-        <div class="add-todo">
-            <el-input v-model="newTodo" placeholder="有什么需要完成的事项?" @keyup.enter="addTodo" class="add-input"></el-input>
-            <el-button @click="addTodo" class="add-button">添加</el-button>
-        </div>
         <div class="todo-container">
             <todo-item v-for="todo in todos" :key="todo.id" :todoItem="todo" @delete="deleteTodo" @update="updateTodo"
                 class="todo-item">
             </todo-item>
+        </div>
+        <div class="add-todo">
+            <el-input v-model="newTodo" placeholder="有什么需要完成的事项?" @keyup.enter="addTodo" class="add-input"></el-input>
+            <el-button @click="addTodo" class="add-button">添加</el-button>
         </div>
     </div>
 </template>
@@ -60,6 +60,11 @@ export default {
     display: flex;
     justify-content: center;
     margin-bottom: 1rem;
+
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    padding: 0 10rem;
 }
 
 .add-input {

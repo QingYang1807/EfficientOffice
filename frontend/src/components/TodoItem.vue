@@ -1,7 +1,8 @@
 <template>
-  <div class="todo-item">
+  <div class="todo-item" @mouseover="hover=true" @mouseout="hover=false">
     <el-checkbox v-model="todoItem.completed" class="todo-checkbox"></el-checkbox>
-    <el-input v-model="todoItem.text" @blur="updateTodo" class=""></el-input>
+    <el-input v-if="hover" v-model="todoItem.text" @blur="updateTodo" class=""></el-input>
+    <p v-else>{{ todoItem.text }}</p>
     <el-button @click="deleteTodo" class="todo-button">删除</el-button>
   </div>
 </template>
@@ -15,6 +16,11 @@ export default {
     ElCheckbox,
     ElButton,
     ElInput
+  },
+  data() {
+    return {
+      hover: false,
+    }
   },
   methods: {
     deleteTodo() {
@@ -43,10 +49,16 @@ export default {
   height: 1rem;
   flex-shrink: 0;
 }
-
+/* 
 .todo-input {
   flex-grow: 1;
   margin-left: 1rem;
+} */
+
+.todo-input {
+    margin-right: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #ced4da;
 }
 
 .todo-button {
