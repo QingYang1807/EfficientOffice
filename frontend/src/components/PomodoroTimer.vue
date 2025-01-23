@@ -6,7 +6,7 @@
         <span class="emoji">{{ currentEmoji }}</span>
       </div>
       <div class="controls">
-        <button class="start-btn" @click="startTimer" :disabled="timerRunning">
+        <button class="start-btn" @click="toggleTimer" :disabled="!selectedTask">
           <span v-if="!timerRunning">▶️</span>
           <span v-else>⏸️</span>
         </button>
@@ -54,6 +54,7 @@
               v-for="task in filteredIncompleteTodos"
               :key="task.id"
               class="task-item"
+              :class="{ 'selected-task': selectedTask && selectedTask.id === task.id }"
             >
               <span class="task-name">{{ task.text }}</span>
               <button class="start-task-btn" @click="selectTask(task)">▶️</button>
@@ -87,10 +88,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, onMounted, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
-// import { Modal } from 'ant-design-vue';
+import { ref, computed, onUnmounted, onMounted, nextTick, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { message } from 'ant-design-vue';
 
+const route = useRoute();
 const todos = ref([]);
 const timer = ref(null);
 const time = ref(0);
@@ -150,26 +152,36 @@ const selectTask = (task) => {
   startTimer();
 };
 
-const startTimer = () => {
+const toggleTimer = () => {
   if (!selectedTask.value) {
-    alert('请先选择一个任务。');
+    message.warning('请先选择一个任务');
     return;
   }
+
   if (timerRunning.value) {
+    // 暂停计时器
     clearInterval(timer.value);
     timerRunning.value = false;
     currentEmoji.value = '⏸️';
-    return;
+  } else {
+    // 开始或继续计时器
+    startTimer();
   }
+};
+
+const startTimer = () => {
   timerRunning.value = true;
   currentEmoji.value = '🍅';
   const pomodoroTimeInSeconds = pomodoroDuration.value * 60;
+  
   timer.value = setInterval(() => {
     time.value++;
     percentage.value = (time.value / pomodoroTimeInSeconds) * 100;
+    
     if (time.value % 300 === 0) {
       currentEmoji.value = emojis[Math.floor(Math.random() * emojis.length)];
     }
+    
     if (time.value >= pomodoroTimeInSeconds) {
       clearInterval(timer.value);
       timerRunning.value = false;
@@ -180,6 +192,11 @@ const startTimer = () => {
 };
 
 const resetTimer = () => {
+  if (timerRunning.value) {
+    const shouldReset = confirm('计时器正在运行，确定要重置吗？');
+    if (!shouldReset) return;
+  }
+  
   clearInterval(timer.value);
   timerRunning.value = false;
   time.value = 0;
@@ -265,8 +282,38 @@ const goToTodoPage = () => {
   });
 };
 
+const selectTaskFromRoute = () => {
+  const taskId = route.query.taskId;
+  if (taskId) {
+    const task = todos.value.find(t => t.id === Number(taskId));
+    if (task) {
+      selectedTask.value = task;
+      // 将选中的任务移到列表顶部
+      const index = todos.value.findIndex(t => t.id === task.id);
+      if (index > 0) {
+        todos.value.splice(index, 1);
+        todos.value.unshift(task);
+        localStorage.setItem('todos', JSON.stringify(todos.value));
+      }
+      // 显示提醒消息
+      message.success(`已选择任务"${task.text}"，准备开始番茄钟`);
+    }
+  }
+};
+
+// 监听路由变化
+watch(
+  () => route.query.taskId,
+  (newTaskId) => {
+    if (newTaskId) {
+      selectTaskFromRoute();
+    }
+  }
+);
+
 onMounted(() => {
   loadTodosFromStorage();
+  selectTaskFromRoute();
 });
 
 onUnmounted(() => {
@@ -318,9 +365,15 @@ onUnmounted(() => {
   border: none;
   cursor: pointer;
   transition: transform 0.2s ease;
+  opacity: 1;
 }
 
-.start-btn:hover,
+.start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.start-btn:not(:disabled):hover,
 .reset-btn:hover {
   transform: scale(1.1);
 }
@@ -456,6 +509,15 @@ onUnmounted(() => {
 .confetti-canvas {
   width: 100%;
   height: 100%;
+}
+
+.selected-task {
+  background-color: #e3f2fd;
+  border-left: 3px solid #1976d2;
+}
+
+.task-item {
+  transition: all 0.3s ease;
 }
 </style>
   

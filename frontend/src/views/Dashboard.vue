@@ -1,158 +1,219 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="dashboard">
-    <!-- 统计卡片行 -->
-    <el-row :gutter="20" class="statistics-row">
-      <el-col :span="6" v-for="stat in statistics" :key="stat.title">
-        <el-card class="stat-card" :body-style="{ padding: '20px' }">
-          <el-row align="middle">
-            <el-col :span="16">
-              <h3>{{ stat.title }}</h3>
-              <div class="stat-value">{{ stat.value }}</div>
-            </el-col>
-            <el-col :span="8" class="stat-icon">
-              <el-icon :size="40" :color="stat.color">
-                <component :is="stat.icon" />
-              </el-icon>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 主要内容区域 -->
-    <el-row :gutter="20" class="main-content-row">
-      <!-- 左侧待办事项 -->
-      <el-col :span="16">
-        <el-card class="todo-card">
-          <template #header>
-            <div class="card-header">
-              <span>待办事项</span>
-              <el-button type="primary" size="small">添加任务</el-button>
+  <div class="dashboard-container">
+    <div class="stats-container">
+      <el-row :gutter="20">
+        <el-col :span="4" v-for="stat in stats" :key="stat.title">
+          <el-card class="stat-card" :class="stat.class" shadow="hover">
+            <div class="stat-content">
+              <div class="stat-title">{{ stat.title }}</div>
+              <div class="stat-number">{{ stat.value }}</div>
             </div>
-          </template>
-          <el-table :data="todoList" style="width: 100%">
-            <el-table-column prop="title" label="任务" />
-            <el-table-column prop="priority" label="优先级" width="100" />
-            <el-table-column prop="deadline" label="截止日期" width="120" />
-            <el-table-column prop="status" label="状态" width="100" />
-          </el-table>
-        </el-card>
-      </el-col>
-
-      <!-- 右侧快捷工具 -->
-      <el-col :span="8">
-        <el-card class="tools-card">
-          <template #header>
-            <div class="card-header">
-              <span>快捷工具</span>
+          </el-card>
+        </el-col>
+        <el-col :span="4">
+          <el-card class="stat-card add-task-card" shadow="hover" @click="goToTodo">
+            <div class="stat-content">
+              <div class="stat-title">添加任务</div>
+              <div class="stat-icon">
+                <el-icon><Plus /></el-icon>
+              </div>
             </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+
+    <div class="recent-todos">
+      <h3>最近待办</h3>
+      <el-table :data="recentTodos" style="width: 100%">
+        <el-table-column prop="text" label="任务内容"></el-table-column>
+        <el-table-column prop="priority" label="优先级" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getPriorityType(row.priority)">{{ row.priority }}</el-tag>
           </template>
-          <div class="tools-grid">
-            <el-button v-for="tool in quickTools" 
-                       :key="tool.name"
-                       class="tool-button"
-                       @click="navigateTo(tool.route)">
-              <el-icon><component :is="tool.icon" /></el-icon>
-              <span>{{ tool.name }}</span>
-            </el-button>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+        </el-table-column>
+        <el-table-column prop="dueDate" label="截止日期" width="180">
+          <template #default="{ row }">
+            <span :class="{ 'text-red-500': isOverdue(row.dueDate) }">
+              {{ formatDate(row.dueDate) }}
+            </span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
   </div>
 </template>
 
-<script>
-import { ref } from 'vue'
+<script setup>
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Plus } from '@element-plus/icons-vue'
 
-export default {
-  name: 'dash-board',
-  setup() {
-    const router = useRouter()
+const router = useRouter()
+const todos = ref([])
 
-    const statistics = ref([
-      { title: '待办任务', value: '8', icon: 'List', color: '#409EFF' },
-      { title: '已完成', value: '12', icon: 'Check', color: '#67C23A' },
-      { title: '进行中', value: '3', icon: 'Loading', color: '#E6A23C' },
-      { title: '已逾期', value: '2', icon: 'Warning', color: '#F56C6C' },
-    ])
-
-    const todoList = ref([
-      { title: '完成周报', priority: '高', deadline: '2024-03-20', status: '进行中' },
-      { title: '项目会议', priority: '中', deadline: '2024-03-21', status: '待处理' },
-      { title: '代码审查', priority: '高', deadline: '2024-03-22', status: '待处理' },
-    ])
-
-    const quickTools = ref([
-      { name: '番茄钟', icon: 'Timer', route: '/pomodoro-timer' },
-      { name: '密码生成', icon: 'Key', route: '/password-generator' },
-      { name: '周报生成', icon: 'Document', route: '/report-summary' },
-    ])
-
-    const navigateTo = (route) => {
-      router.push(route)
-    }
-
-    return {
-      statistics,
-      todoList,
-      quickTools,
-      navigateTo
-    }
+// 从 localStorage 加载待办事项
+const loadTodos = () => {
+  const stored = localStorage.getItem('todos')
+  if (stored) {
+    todos.value = JSON.parse(stored)
   }
 }
+
+// 统计数据
+const stats = computed(() => [
+  {
+    title: '待办任务',
+    value: todos.value.filter(t => !t.completed).length,
+    class: 'todo-card'
+  },
+  {
+    title: '已完成',
+    value: todos.value.filter(t => t.completed).length,
+    class: 'completed-card'
+  },
+  {
+    title: '进行中',
+    value: todos.value.filter(t => !t.completed && t.pomodoros > 0).length,
+    class: 'in-progress-card'
+  },
+  {
+    title: '已逾期',
+    value: todos.value.filter(t => !t.completed && isOverdue(t.dueDate)).length,
+    class: 'overdue-card'
+  }
+])
+
+// 最近的待办任务（未完成的前5个）
+const recentTodos = computed(() => {
+  return todos.value
+    .filter(t => !t.completed)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 5)
+})
+
+// 跳转到待办事项页面
+const goToTodo = () => {
+  router.push('/todo')
+  // 等待路由切换完成后聚焦输入框
+  setTimeout(() => {
+    const input = document.querySelector('.add_task_input input')
+    if (input) {
+      input.focus()
+    }
+  }, 100)
+}
+
+// 辅助函数
+const getPriorityType = (priority) => {
+  const types = {
+    '高': 'danger',
+    '中': 'warning',
+    '低': 'success'
+  }
+  return types[priority] || 'info'
+}
+
+const formatDate = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const isOverdue = (date) => {
+  if (!date) return false
+  return new Date(date) < new Date()
+}
+
+// 初始化
+onMounted(() => {
+  loadTodos()
+})
 </script>
 
 <style scoped>
-.dashboard {
+.dashboard-container {
   padding: 20px;
 }
 
-.statistics-row {
-  margin-bottom: 20px;
+.stats-container {
+  margin-bottom: 30px;
 }
 
 .stat-card {
+  height: 120px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-content {
   height: 100%;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  margin-top: 8px;
-}
-
-.stat-icon {
-  text-align: right;
-}
-
-.main-content-row {
-  margin-bottom: 20px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.tool-button {
-  height: 80px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 8px;
 }
 
-.tool-button .el-icon {
+.stat-title {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.stat-number {
   font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+.stat-icon {
+  font-size: 24px;
+  color: #409EFF;
+}
+
+.todo-card {
+  background-color: #e3f2fd;
+}
+
+.completed-card {
+  background-color: #e8f5e9;
+}
+
+.in-progress-card {
+  background-color: #fff3e0;
+}
+
+.overdue-card {
+  background-color: #ffebee;
+}
+
+.add-task-card {
+  background-color: #f5f5f5;
+}
+
+.recent-todos {
+  margin-top: 20px;
+}
+
+.recent-todos h3 {
+  margin-bottom: 20px;
+  font-size: 18px;
+  color: #333;
+}
+
+:deep(.el-card__body) {
+  height: 100%;
+  padding: 15px;
 }
 </style> 

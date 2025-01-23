@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
+    "@antv/g6": "^4.8.24",
+    "@element-plus/icons-vue": "^2.3.1",
     "ant-design-vue": "^4.0.0",
     "axios": "^1.6.7",
     "bootstrap": "^5.3.2",
@@ -16,12 +18,19 @@
     "canvas-confetti": "^1.9.2",
     "core-js": "^3.8.3",
     "element-plus": "^2.5.6",
+    "simple-mind-map": "^0.13.0",
     "vue": "^3.2.13",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.16",
-    "@babel/eslint-parser": "^7.12.16",
+    "@babel/core": "^7.26.0",
+    "@babel/eslint-parser": "^7.26.5",
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
+    "@babel/plugin-proposal-private-methods": "^7.18.6",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@babel/plugin-transform-private-methods": "^7.25.9",
+    "@babel/preset-env": "^7.26.0",
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-eslint": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
@@ -53,10 +62,18 @@
   ],
   "babel": {
     "presets": [
-      "@vue/cli-plugin-babel/preset"
+      ["@vue/cli-plugin-babel/preset", {
+        "targets": {
+          "node": "current"
+        }
+      }]
     ],
     "plugins": [
-      "@vue/babel-plugin-jsx"
+      "@vue/babel-plugin-jsx",
+      "@babel/plugin-transform-private-methods",
+      "@babel/plugin-proposal-private-methods",
+      "@babel/plugin-proposal-class-properties",
+      "@babel/plugin-proposal-private-property-in-object"
     ]
   }
 }

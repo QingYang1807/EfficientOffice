@@ -85,32 +85,45 @@
               />
             </template>
             <template v-else>
-              <div class="group flex items-center">
+              <div class="group flex items-center" :class="{ 'in-progress': record.pomodoros > 0 && !record.completed }">
                 <span 
-                  :class="{ 'line-through text-gray-400': record.completed }"
+                  :class="{ 
+                    'line-through text-gray-400': record.completed,
+                    'in-progress-text': record.pomodoros > 0 && !record.completed 
+                  }"
                   class="flex-1"
                 >
                   {{ record.text }}
                 </span>
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="action-buttons flex items-center gap-2 transition-opacity">
+                  <!-- 开始任务按钮 -->
+                  <a-button 
+                    v-if="!record.completed"
+                    type="text" 
+                    @click="startTask(record)"
+                    class="action-btn !px-2 hover:!bg-blue-50 hover:!text-blue-500"
+                    :title="record.pomodoros > 0 ? '继续任务' : '开始任务'"
+                  >
+                    <template #icon>
+                      <clock-circle-outlined />
+                    </template>
+                  </a-button>
                   <a-button 
                     type="text" 
                     @click="startEdit(record)"
-                    class="!px-2 hover:!bg-gray-100"
+                    class="action-btn !px-2 hover:!bg-gray-100"
+                    title="编辑"
                   >
                     <template #icon><edit-outlined /></template>
                   </a-button>
-                  <a-popconfirm
-                    title="确定要删除这个任务吗？"
-                    @confirm="deleteTodo(record.id)"
+                  <a-button 
+                    type="text" 
+                    @click="deleteTodo(record)"
+                    class="action-btn !px-2 hover:!bg-red-50 hover:!text-red-500"
+                    title="删除"
                   >
-                    <a-button 
-                      type="text" 
-                      class="!px-2 hover:!bg-red-50 hover:!text-red-500"
-                    >
-                      <template #icon><delete-outlined /></template>
-                    </a-button>
-                  </a-popconfirm>
+                    <template #icon><delete-outlined /></template>
+                  </a-button>
                 </div>
               </div>
             </template>
@@ -125,6 +138,11 @@
           <!-- 番茄钟列 -->
           <template v-else-if="column.key === 'pomodoros'">
             <span class="pomodoro-count">🍅 x {{ record.pomodoros || 0 }}</span>
+          </template>
+
+          <!-- 创建时间列 -->
+          <template v-else-if="column.key === 'createdAt'">
+            <span>{{ formatDate(record.createdAt) }}</span>
           </template>
         </template>
       </a-table>
@@ -205,15 +223,20 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import { message } from 'ant-design-vue'
+import { useRouter } from 'vue-router'
 import { 
   PlusOutlined, 
   EditOutlined, 
   DeleteOutlined,
   SearchOutlined,
-  DownOutlined
+  DownOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons-vue'
+
+// 初始化 router
+const router = useRouter()
 
 // 状态
 const todos = ref([])
@@ -227,50 +250,40 @@ const newDueDate = ref(null)
 const datePickerVisible = ref(false)
 const tempDueDate = ref(null)
 
+// 添加删除历史记录
+const deleteHistory = ref([])
+
 // 表格列定义
 const columns = [
   {
     title: '状态',
     key: 'completed',
-    width: 80,
-    align: 'center'
-  },
-  {
-    title: '优先级',
-    key: 'priority',
-    width: 90,
-    align: 'center',
-    sorter: (a, b) => {
-      const priority = { '高': 3, '中': 2, '低': 1 };
-      return (priority[a.priority] || 0) - (priority[b.priority] || 0);
-    }
+    width: 60
   },
   {
     title: '任务内容',
     key: 'text',
-    ellipsis: true,
-    sorter: (a, b) => a.text.localeCompare(b.text)
+    ellipsis: true
   },
   {
-    title: '截止日期',
-    key: 'dueDate',
-    width: 150,
-    align: 'center',
-    sorter: (a, b) => (a.dueDate || 0) - (b.dueDate || 0)
-  },
-  {
-    title: '番茄钟',
-    key: 'pomodoros',
-    width: 100,
-    align: 'center'
+    title: '优先级',
+    key: 'priority',
+    width: 100
   },
   {
     title: '创建时间',
     key: 'createdAt',
-    width: 150,
-    align: 'right',
-    sorter: (a, b) => a.createdAt - b.createdAt,
-    customRender: ({ text }) => formatDate(text)
+    width: 180
+  },
+  {
+    title: '截止日期',
+    key: 'dueDate',
+    width: 180
+  },
+  {
+    title: '番茄数',
+    key: 'pomodoros',
+    width: 100
   }
 ]
 
@@ -334,29 +347,59 @@ const isOverdue = (date) => {
 
 // 方法
 const addTodo = () => {
-  if (!newTodo.value.trim()) return
-  
-  todos.value.push({
+  if (!newTodo.value.trim()) {
+    message.warning('请输入任务内容')
+    return
+  }
+
+  const todo = {
     id: Date.now(),
     text: newTodo.value.trim(),
     completed: false,
-    createdAt: Date.now(),
-    priority: newTodoPriority.value,
+    priority: newTodoPriority.value || '中',
     dueDate: newDueDate.value,
-    pomodoros: 0
-  })
-  
+    pomodoros: 0,
+    createdAt: Date.now() // 添加创建时间
+  }
+
+  todos.value.push(todo)
+  saveTodosToStorage()
   newTodo.value = ''
   newTodoPriority.value = null
   newDueDate.value = null
-  saveTodosToStorage()
-  message.success('任务添加成功')
+  message.success('添加成功')
 }
 
-const deleteTodo = (id) => {
-  todos.value = todos.value.filter(todo => todo.id !== id)
-  saveTodosToStorage()
-  message.success('任务删除成功')
+const deleteTodo = (todo) => {
+  const index = todos.value.findIndex(t => t.id === todo.id)
+  if (index !== -1) {
+    // 保存删除记录
+    deleteHistory.value.push({
+      todo: { ...todo },
+      index,
+      timestamp: Date.now()
+    })
+    
+    // 从列表中删除
+    todos.value.splice(index, 1)
+    saveTodosToStorage()
+    
+    // 显示可撤销提示
+    message.info({
+      content: h('div', [
+        h('span', '任务已删除 '),
+        h('a', {
+          style: {
+            color: '#1890ff',
+            cursor: 'pointer'
+          },
+          onClick: () => undoDelete(deleteHistory.value[deleteHistory.value.length - 1])
+        }, 'Ctrl+Z撤销'),
+        h('span', ' (10秒内有效)')
+      ]),
+      duration: 10
+    })
+  }
 }
 
 const startEdit = (todo) => {
@@ -435,6 +478,71 @@ const toggleTodo = (todo, checked) => {
   todo.completed = checked
   saveTodosToStorage()
 }
+
+// 开始任务函数
+const startTask = (task) => {
+  router.push({
+    path: '/pomodoro-timer',
+    query: { taskId: task.id }
+  })
+}
+
+// 添加撤销删除方法
+const undoDelete = (deleteRecord) => {
+  if (!deleteRecord) return
+  
+  // 检查是否在10秒内
+  if (Date.now() - deleteRecord.timestamp > 10000) {
+    message.error('撤销时间已过')
+    return
+  }
+  
+  // 恢复任务
+  todos.value.splice(deleteRecord.index, 0, deleteRecord.todo)
+  saveTodosToStorage()
+  
+  // 从历史记录中移除
+  const index = deleteHistory.value.findIndex(h => h.timestamp === deleteRecord.timestamp)
+  if (index !== -1) {
+    deleteHistory.value.splice(index, 1)
+  }
+  
+  message.success('已撤销删除')
+}
+
+// 添加键盘快捷键监听
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+
+const handleKeyDown = (e) => {
+  // 检查是否按下 Ctrl+Z
+  if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+    e.preventDefault()
+    const lastDelete = deleteHistory.value[deleteHistory.value.length - 1]
+    if (lastDelete) {
+      undoDelete(lastDelete)
+    }
+  }
+}
+
+// 定期清理过期的删除历史
+const cleanupDeleteHistory = () => {
+  const now = Date.now()
+  deleteHistory.value = deleteHistory.value.filter(
+    record => now - record.timestamp <= 10000
+  )
+}
+
+// 每秒清理一次历史记录
+onMounted(() => {
+  const cleanup = setInterval(cleanupDeleteHistory, 1000)
+  onUnmounted(() => clearInterval(cleanup))
+})
 
 // 初始化
 loadTodosFromStorage()
@@ -599,5 +707,162 @@ loadTodosFromStorage()
 
 :deep(.custom-checkbox.ant-checkbox-wrapper:hover .ant-checkbox-inner) {
   @apply !border-blue-400;
+}
+
+/* 进行中任务的流光溢彩效果 */
+.in-progress {
+  position: relative;
+  overflow: hidden;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(
+    90deg,
+    rgba(64, 158, 255, 0.1),
+    rgba(64, 158, 255, 0.2),
+    rgba(64, 158, 255, 0.1)
+  );
+}
+
+.in-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shine 2s infinite linear;
+}
+
+.in-progress-text {
+  position: relative;
+  color: #409EFF;
+  font-weight: 500;
+}
+
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* 添加一个小图标表示进行中状态 */
+.in-progress-text::after {
+  content: '🔄';
+  margin-left: 8px;
+  font-size: 0.9em;
+  animation: spin 2s infinite linear;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 确保表格行有足够的高度来显示动画效果 */
+:deep(.ant-table-row) {
+  height: 54px;
+  overflow: visible !important;
+}
+
+:deep(.ant-table-cell) {
+  overflow: visible !important;
+}
+
+/* 优化进行中任务的悬停效果 */
+.in-progress:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(64, 158, 255, 0.15),
+    rgba(64, 158, 255, 0.25),
+    rgba(64, 158, 255, 0.15)
+  );
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+  position: relative;
+  opacity: 0.6;
+  padding-left: 8px;
+  z-index: 1;
+}
+
+.group:hover .action-buttons {
+  opacity: 1;
+}
+
+.action-btn {
+  position: relative;
+  color: #666;
+  transition: all 0.2s ease-in-out;
+}
+
+.action-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 修改之前的按钮组样式 */
+.group .opacity-0 {
+  opacity: 0.6 !important;
+}
+
+.group:hover .opacity-0 {
+  opacity: 1 !important;
+}
+
+/* 确保表格行有足够的空间显示按钮 */
+:deep(.ant-table-row) {
+  height: 54px;
+}
+
+/* 修改按钮提示效果 */
+.action-btn::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+  white-space: nowrap;
+  z-index: 1000;
+}
+
+.action-btn:hover::after {
+  opacity: 1;
+  z-index: 9999;
+}
+
+/* 修改表格单元格样式 */
+:deep(.ant-table-cell) {
+  position: relative;
+}
+
+/* 添加删除动画 */
+.ant-table-tbody > tr {
+  transition: all 0.3s ease-out;
+}
+
+.ant-table-tbody > tr.deleting {
+  opacity: 0;
+  transform: translateX(100%);
 }
 </style>

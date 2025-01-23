@@ -1,121 +1,115 @@
 <template>
-  <el-container class="h-screen">
-    <!-- 顶部导航 -->
-    <el-header height="60px" class="flex-none bg-white border-b border-gray-200">
-      <div class="flex justify-between items-center h-full px-6">
-        <div class="flex items-center gap-4">
-          <el-button type="text" @click="toggleSidebar">
-            <el-icon><Fold v-if="isCollapse" /><Expand v-else /></el-icon>
-          </el-button>
-          <h2 class="text-xl font-semibold text-blue-600">EFFICENTOFFICE</h2>
-        </div>
-        <div class="flex items-center">
-          <el-dropdown>
-            <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item>个人信息</el-dropdown-item>
-                <el-dropdown-item>设置</el-dropdown-item>
-                <el-dropdown-item divided>退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+  <el-container class="layout-container">
+    <el-aside width="200px">
+      <div class="logo">
+        <img src="@/assets/logo.png" alt="Logo" />
+        <span>高效办公</span>
       </div>
-    </el-header>
-
-    <el-container class="flex-1 overflow-hidden">
-      <!-- 侧边栏 -->
-      <el-aside 
-        :width="isCollapse ? '64px' : '200px'" 
-        class="bg-white border-r border-gray-200 transition-all duration-300 flex-none"
+      <el-menu
+        :default-active="activeMenu"
+        class="el-menu-vertical"
+        :collapse="isCollapse"
+        @select="handleSelect"
       >
-        <el-menu
-          :collapse="isCollapse"
-          :collapse-transition="false"
-          :router="true"
-          class="h-full border-none"
-        >
-          <el-menu-item index="/dashboard">
-            <el-icon><Grid /></el-icon>
-            <template #title>首页概览</template>
-          </el-menu-item>
-          <el-menu-item index="/todo">
-            <el-icon><List /></el-icon>
-            <template #title>待办事项</template>
-          </el-menu-item>
-          <el-menu-item index="/pomodoro-timer">
-            <el-icon><Timer /></el-icon>
-            <template #title>番茄钟</template>
-          </el-menu-item>
-          <el-menu-item index="/report-summary">
-            <el-icon><Document /></el-icon>
-            <template #title>工作汇报</template>
-          </el-menu-item>
-          <el-menu-item index="/password-generator">
-            <el-icon><Key /></el-icon>
-            <template #title>密码生成器</template>
-          </el-menu-item>
-        </el-menu>
-      </el-aside>
-
-      <!-- 主内容区 -->
-      <el-main class="flex-1 p-0 overflow-hidden bg-gray-50">
-        <div class="h-full overflow-auto">
-          <router-view></router-view>
+        <el-menu-item index="/">
+          <el-icon><home-filled /></el-icon>
+          <span>仪表盘</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/todos">
+          <el-icon><list /></el-icon>
+          <span>待办事项</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/pomodoro-timer">
+          <el-icon><timer /></el-icon>
+          <span>番茄钟</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/goals">
+          <el-icon><aim /></el-icon>
+          <span>目标管理</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+    
+    <el-container>
+      <el-header>
+        <div class="header-left">
+          <el-button @click="toggleCollapse">
+            <el-icon><fold /></el-icon>
+          </el-button>
         </div>
+        <div class="header-right">
+          <!-- 用户信息等 -->
+        </div>
+      </el-header>
+      
+      <el-main>
+        <router-view />
       </el-main>
     </el-container>
   </el-container>
 </template>
 
-<script>
-import { ref } from 'vue'
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import {
+  HomeFilled,
+  List,
+  Timer,
+  Aim,
+  Fold,
+} from '@element-plus/icons-vue'
 
-export default {
-  name: 'MainLayout',
-  setup() {
-    const isCollapse = ref(false)
-    
-    const toggleSidebar = () => {
-      isCollapse.value = !isCollapse.value
-    }
+const router = useRouter()
+const route = useRoute()
 
-    return {
-      isCollapse,
-      toggleSidebar
-    }
-  }
+const isCollapse = ref(false)
+const activeMenu = computed(() => route.path)
+
+const handleSelect = (key) => {
+  router.push(key)
+}
+
+const toggleCollapse = () => {
+  isCollapse.value = !isCollapse.value
 }
 </script>
 
 <style scoped>
-:deep(.el-menu) {
-  @apply w-full;
+.layout-container {
+  height: 100vh;
 }
 
-:deep(.el-menu-item.is-active) {
-  @apply bg-blue-50;
+.logo {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  color: var(--el-menu-active-color);
+  font-size: 18px;
+  font-weight: bold;
 }
 
-:deep(.el-menu-item:hover) {
-  @apply bg-gray-50 !important;
+.logo img {
+  height: 32px;
+  margin-right: 12px;
 }
 
-/* 自定义滚动条 */
-.overflow-auto::-webkit-scrollbar {
-  @apply w-1.5;
+.el-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--el-border-color-light);
 }
 
-.overflow-auto::-webkit-scrollbar-track {
-  @apply bg-transparent;
+.el-aside {
+  border-right: 1px solid var(--el-border-color-light);
 }
 
-.overflow-auto::-webkit-scrollbar-thumb {
-  @apply bg-gray-200 rounded-full;
-}
-
-.overflow-auto::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-300;
+.el-menu-vertical:not(.el-menu--collapse) {
+  width: 200px;
 }
 </style> 
