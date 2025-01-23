@@ -122,6 +122,10 @@
               {{ formatDate(record.dueDate) }}
             </span>
           </template>
+          <!-- 番茄钟列 -->
+          <template v-else-if="column.key === 'pomodoros'">
+            <span class="pomodoro-count">🍅 x {{ record.pomodoros || 0 }}</span>
+          </template>
         </template>
       </a-table>
     </div>
@@ -132,7 +136,7 @@
         <a-input
           v-model:value="newTodo"
           placeholder="添加新任务..."
-          class="!rounded-full flex-1"
+          class="add_task_input !rounded-full flex-1"
           :bordered="true"
           @keyup.enter="addTodo"
         >
@@ -255,6 +259,12 @@ const columns = [
     sorter: (a, b) => (a.dueDate || 0) - (b.dueDate || 0)
   },
   {
+    title: '番茄钟',
+    key: 'pomodoros',
+    width: 100,
+    align: 'center'
+  },
+  {
     title: '创建时间',
     key: 'createdAt',
     width: 150,
@@ -332,7 +342,8 @@ const addTodo = () => {
     completed: false,
     createdAt: Date.now(),
     priority: newTodoPriority.value,
-    dueDate: newDueDate.value
+    dueDate: newDueDate.value,
+    pomodoros: 0
   })
   
   newTodo.value = ''
