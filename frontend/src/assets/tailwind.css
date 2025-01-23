@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 处理与其他框架的样式冲突 */
+@layer base {
+  :root {
+    --el-color-primary: theme('colors.todo-blue');
+  }
+}
+
+/* 确保 Tailwind 的工具类优先级更高 */
+@layer utilities {
+  .tw-* {
+    @apply !important;
+  }
+} 

@@ -1,35 +1,40 @@
 <template>
-  <el-container class="layout-container">
+  <el-container class="h-screen">
     <!-- 顶部导航 -->
-    <el-header height="60px" class="main-header">
-      <div class="header-left">
-        <el-button type="text" @click="toggleSidebar">
-          <el-icon><Fold v-if="isCollapse" /><Expand v-else /></el-icon>
-        </el-button>
-        <h2 class="logo">EFFICENTOFFICE</h2>
-      </div>
-      <div class="header-right">
-        <el-dropdown>
-          <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item>个人信息</el-dropdown-item>
-              <el-dropdown-item>设置</el-dropdown-item>
-              <el-dropdown-item divided>退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+    <el-header height="60px" class="flex-none bg-white border-b border-gray-200">
+      <div class="flex justify-between items-center h-full px-6">
+        <div class="flex items-center gap-4">
+          <el-button type="text" @click="toggleSidebar">
+            <el-icon><Fold v-if="isCollapse" /><Expand v-else /></el-icon>
+          </el-button>
+          <h2 class="text-xl font-semibold text-blue-600">EFFICENTOFFICE</h2>
+        </div>
+        <div class="flex items-center">
+          <el-dropdown>
+            <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item>个人信息</el-dropdown-item>
+                <el-dropdown-item>设置</el-dropdown-item>
+                <el-dropdown-item divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </div>
     </el-header>
 
-    <el-container>
+    <el-container class="flex-1 overflow-hidden">
       <!-- 侧边栏 -->
-      <el-aside :width="isCollapse ? '64px' : '200px'" class="main-aside">
+      <el-aside 
+        :width="isCollapse ? '64px' : '200px'" 
+        class="bg-white border-r border-gray-200 transition-all duration-300 flex-none"
+      >
         <el-menu
           :collapse="isCollapse"
           :collapse-transition="false"
           :router="true"
-          class="main-menu"
+          class="h-full border-none"
         >
           <el-menu-item index="/dashboard">
             <el-icon><Grid /></el-icon>
@@ -55,8 +60,10 @@
       </el-aside>
 
       <!-- 主内容区 -->
-      <el-main class="main-content">
-        <router-view></router-view>
+      <el-main class="flex-1 p-0 overflow-hidden bg-gray-50">
+        <div class="h-full overflow-auto">
+          <router-view></router-view>
+        </div>
       </el-main>
     </el-container>
   </el-container>
@@ -83,43 +90,32 @@ export default {
 </script>
 
 <style scoped>
-.layout-container {
-  height: 100vh;
+:deep(.el-menu) {
+  @apply w-full;
 }
 
-.main-header {
-  background-color: #fff;
-  border-bottom: 1px solid #dcdfe6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+:deep(.el-menu-item.is-active) {
+  @apply bg-blue-50;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+:deep(.el-menu-item:hover) {
+  @apply bg-gray-50 !important;
 }
 
-.logo {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #409EFF;
+/* 自定义滚动条 */
+.overflow-auto::-webkit-scrollbar {
+  @apply w-1.5;
 }
 
-.main-aside {
-  background-color: #fff;
-  border-right: 1px solid #dcdfe6;
-  transition: width 0.3s;
+.overflow-auto::-webkit-scrollbar-track {
+  @apply bg-transparent;
 }
 
-.main-menu {
-  border-right: none;
+.overflow-auto::-webkit-scrollbar-thumb {
+  @apply bg-gray-200 rounded-full;
 }
 
-.main-content {
-  background-color: #f5f7fa;
-  padding: 20px;
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-300;
 }
 </style> 
