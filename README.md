@@ -17,6 +17,17 @@ Efficient Office 是一款专为打工人打造的高效办公平台。结合STA
 
 ![image](https://github.com/user-attachments/assets/44d74cd3-a44b-41d0-afc3-b6067c152e0c)
 
+![image](https://github.com/user-attachments/assets/bfab82e3-18b0-4d5e-84cb-8afcba7ffeb5)
+
+![image](https://github.com/user-attachments/assets/aeb78337-8d0b-41b9-bed7-f9418bccc609)
+
+![image](https://github.com/user-attachments/assets/7eea9a43-5dff-4e6d-90c9-36b0d1a9ee3d)
+
+![image](https://github.com/user-attachments/assets/f4bac1f9-83d2-4b13-94a8-a5e54ffe7791)
+![image](https://github.com/user-attachments/assets/a238b714-effd-442f-ae52-758d13d89d36)
+![image](https://github.com/user-attachments/assets/ea86391b-d458-4248-ac37-0783289fda47)
+
+
 ## 功能介绍
 
 1. 待办事项管理：使用STAR法则记录和管理待办事项。
