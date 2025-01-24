@@ -95,7 +95,7 @@ const recentTodos = computed(() => {
 
 // 跳转到待办事项页面
 const goToTodo = () => {
-  router.push('/todo')
+  router.push('/todos')
   // 等待路由切换完成后聚焦输入框
   setTimeout(() => {
     const input = document.querySelector('.add_task_input input')

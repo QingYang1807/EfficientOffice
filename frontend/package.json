@@ -38,6 +38,8 @@
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
     "postcss": "^8.4.33",
+    "sass": "^1.83.4",
+    "sass-loader": "^16.0.4",
     "tailwindcss": "^3.4.1"
   },
   "eslintConfig": {
@@ -62,11 +64,14 @@
   ],
   "babel": {
     "presets": [
-      ["@vue/cli-plugin-babel/preset", {
-        "targets": {
-          "node": "current"
+      [
+        "@vue/cli-plugin-babel/preset",
+        {
+          "targets": {
+            "node": "current"
+          }
         }
-      }]
+      ]
     ],
     "plugins": [
       "@vue/babel-plugin-jsx",
