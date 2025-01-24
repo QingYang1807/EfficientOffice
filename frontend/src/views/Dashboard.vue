@@ -1,22 +1,19 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="dashboard-container">
+    <!-- 统计卡片 -->
     <div class="stats-container">
       <el-row :gutter="20">
-        <el-col :span="4" v-for="stat in stats" :key="stat.title">
+        <el-col :span="6" v-for="stat in stats" :key="stat.title">
           <el-card class="stat-card" :class="stat.class" shadow="hover">
             <div class="stat-content">
-              <div class="stat-title">{{ stat.title }}</div>
-              <div class="stat-number">{{ stat.value }}</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="4">
-          <el-card class="stat-card add-task-card" shadow="hover" @click="goToTodo">
-            <div class="stat-content">
-              <div class="stat-title">添加任务</div>
               <div class="stat-icon">
-                <el-icon><Plus /></el-icon>
+                <el-icon><component :is="stat.icon" /></el-icon>
+              </div>
+              <div class="stat-info">
+                <div class="stat-title">{{ stat.title }}</div>
+                <div class="stat-number">{{ stat.value }}</div>
+                <div class="stat-desc">{{ stat.description }}</div>
               </div>
             </div>
           </el-card>
@@ -24,8 +21,87 @@
       </el-row>
     </div>
 
-    <div class="recent-todos">
-      <h3>最近待办</h3>
+    <!-- 图表区域 -->
+    <el-row :gutter="20" class="charts-container">
+      <!-- 任务完成趋势图 -->
+      <el-col :span="16">
+        <el-card class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>任务完成趋势</span>
+              <el-radio-group v-model="trendTimeRange" size="small">
+                <el-radio-button label="week">本周</el-radio-button>
+                <el-radio-button label="month">本月</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <v-chart class="chart" :option="taskTrendOption" autoresize />
+        </el-card>
+      </el-col>
+
+      <!-- 目标完成进度 -->
+      <el-col :span="8">
+        <el-card class="chart-card">
+          <template #header>
+            <div class="chart-header">
+              <span>目标完成进度</span>
+            </div>
+          </template>
+          <v-chart class="chart" :option="goalProgressOption" autoresize />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 活动时间线和活跃度图表 -->
+    <el-row :gutter="20" class="bottom-container">
+      <!-- 近期活动时间线 -->
+      <el-col :span="12">
+        <el-card class="timeline-card">
+          <template #header>
+            <div class="card-header">
+              <span>近期活动</span>
+            </div>
+          </template>
+          <el-timeline>
+            <el-timeline-item
+              v-for="activity in recentActivities"
+              :key="activity.id"
+              :timestamp="activity.time"
+              :type="activity.type"
+            >
+              {{ activity.content }}
+            </el-timeline-item>
+          </el-timeline>
+        </el-card>
+      </el-col>
+
+      <!-- 活跃度热力图 -->
+      <el-col :span="12">
+        <el-card class="heatmap-card">
+          <template #header>
+            <div class="card-header">
+              <span>活跃度统计</span>
+              <el-tooltip content="统计近一年的活动数据">
+                <el-icon><info-filled /></el-icon>
+              </el-tooltip>
+            </div>
+          </template>
+          <v-chart class="heatmap-chart" :option="heatmapOption" autoresize />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 最近待办列表 -->
+    <el-card class="recent-todos">
+      <template #header>
+        <div class="card-header">
+          <span>最近待办</span>
+          <el-button type="primary" link @click="goToTodo">
+            查看全部
+            <el-icon class="el-icon--right"><arrow-right /></el-icon>
+          </el-button>
+        </div>
+      </template>
       <el-table :data="recentTodos" style="width: 100%">
         <el-table-column prop="text" label="任务内容"></el-table-column>
         <el-table-column prop="priority" label="优先级" width="100">
@@ -35,23 +111,62 @@
         </el-table-column>
         <el-table-column prop="dueDate" label="截止日期" width="180">
           <template #default="{ row }">
-            <span :class="{ 'text-red-500': isOverdue(row.dueDate) }">
+            <span :class="{ 'text-danger': isOverdue(row.dueDate) }">
               {{ formatDate(row.dueDate) }}
             </span>
           </template>
         </el-table-column>
       </el-table>
-    </div>
+    </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus } from '@element-plus/icons-vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import {
+  LineChart,
+  PieChart,
+  HeatmapChart,
+} from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  ToolboxComponent,
+  CalendarComponent,
+  VisualMapComponent,
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+import {
+  Plus,
+  Timer,
+  List,
+  Check,
+  Warning,
+  InfoFilled,
+  ArrowRight,
+} from '@element-plus/icons-vue'
+
+// 注册 ECharts 组件
+use([
+  CanvasRenderer,
+  LineChart,
+  PieChart,
+  HeatmapChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  ToolboxComponent,
+  CalendarComponent,
+  VisualMapComponent,
+])
 
 const router = useRouter()
 const todos = ref([])
+const trendTimeRange = ref('week')
 
 // 从 localStorage 加载待办事项
 const loadTodos = () => {
@@ -66,22 +181,184 @@ const stats = computed(() => [
   {
     title: '待办任务',
     value: todos.value.filter(t => !t.completed).length,
-    class: 'todo-card'
+    description: '个待处理任务',
+    class: 'todo-card',
+    icon: 'List'
   },
   {
-    title: '已完成',
-    value: todos.value.filter(t => t.completed).length,
-    class: 'completed-card'
+    title: '专注时长',
+    value: '12.5',
+    description: '小时',
+    class: 'focus-card',
+    icon: 'Timer'
   },
   {
-    title: '进行中',
-    value: todos.value.filter(t => !t.completed && t.pomodoros > 0).length,
-    class: 'in-progress-card'
+    title: '完成率',
+    value: '85%',
+    description: '较上周 +5%',
+    class: 'completed-card',
+    icon: 'Check'
   },
   {
-    title: '已逾期',
+    title: '逾期任务',
     value: todos.value.filter(t => !t.completed && isOverdue(t.dueDate)).length,
-    class: 'overdue-card'
+    description: '需要关注',
+    class: 'overdue-card',
+    icon: 'Warning'
+  }
+])
+
+// 任务完成趋势图配置
+const taskTrendOption = computed(() => ({
+  tooltip: {
+    trigger: 'axis'
+  },
+  legend: {
+    data: ['已完成', '新增']
+  },
+  grid: {
+    left: '3%',
+    right: '4%',
+    bottom: '3%',
+    containLabel: true
+  },
+  xAxis: {
+    type: 'category',
+    boundaryGap: false,
+    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+  },
+  yAxis: {
+    type: 'value'
+  },
+  series: [
+    {
+      name: '已完成',
+      type: 'line',
+      data: [5, 8, 6, 9, 7, 4, 6],
+      smooth: true,
+      areaStyle: {}
+    },
+    {
+      name: '新增',
+      type: 'line',
+      data: [3, 6, 4, 8, 5, 3, 5],
+      smooth: true,
+      areaStyle: {}
+    }
+  ]
+}))
+
+// 目标完成进度图配置
+const goalProgressOption = computed(() => ({
+  tooltip: {
+    trigger: 'item'
+  },
+  legend: {
+    orient: 'vertical',
+    left: 'left'
+  },
+  series: [
+    {
+      name: '目标完成情况',
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: {
+        borderRadius: 10,
+        borderColor: '#fff',
+        borderWidth: 2
+      },
+      label: {
+        show: false,
+        position: 'center'
+      },
+      emphasis: {
+        label: {
+          show: true,
+          fontSize: '20',
+          fontWeight: 'bold'
+        }
+      },
+      labelLine: {
+        show: false
+      },
+      data: [
+        { value: 35, name: '工作目标' },
+        { value: 25, name: '学习目标' },
+        { value: 20, name: '生活目标' },
+        { value: 15, name: '其他目标' }
+      ]
+    }
+  ]
+}))
+
+// 活跃度热力图配置
+const heatmapOption = computed(() => {
+  const date = new Date()
+  const data = getVirtualData(date.getFullYear())
+  return {
+    visualMap: {
+      min: 0,
+      max: 10,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      inRange: {
+        color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+      }
+    },
+    calendar: {
+      top: 30,
+      left: 30,
+      right: 30,
+      cellSize: ['auto', 13],
+      range: date.getFullYear(),
+      itemStyle: {
+        borderWidth: 0.5
+      },
+      yearLabel: { show: false }
+    },
+    series: {
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data: data
+    }
+  }
+})
+
+// 生成虚拟的活跃度数据
+function getVirtualData(year) {
+  const data = []
+  for (let i = 0; i < 365; i++) {
+    const date = new Date(year, 0, i + 1)
+    data.push([
+      formatDate(date, 'yyyy-MM-dd'),
+      Math.floor(Math.random() * 10)
+    ])
+  }
+  return data
+}
+
+// 近期活动数据
+const recentActivities = ref([
+  {
+    id: 1,
+    content: '完成了任务 "完善仪表盘设计"',
+    time: '2024-01-20 10:30:00',
+    type: 'success'
+  },
+  {
+    id: 2,
+    content: '新建目标 "学习 Vue.js 高级特性"',
+    time: '2024-01-20 09:15:00',
+    type: 'primary'
+  },
+  {
+    id: 3,
+    content: '完成了 25 分钟专注',
+    time: '2024-01-20 08:45:00',
+    type: 'warning'
   }
 ])
 
@@ -144,76 +421,99 @@ onMounted(() => {
 }
 
 .stats-container {
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   height: 120px;
-  cursor: pointer;
   transition: transform 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
 }
 
 .stat-content {
   height: 100%;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
+  padding: 0 20px;
+}
+
+.stat-icon {
+  font-size: 48px;
+  margin-right: 20px;
+}
+
+.stat-info {
+  flex: 1;
 }
 
 .stat-title {
-  font-size: 16px;
-  color: #666;
-  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
 }
 
 .stat-number {
   font-size: 24px;
   font-weight: bold;
-  color: #333;
+  margin: 8px 0;
 }
 
-.stat-icon {
-  font-size: 24px;
-  color: #409EFF;
+.stat-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
-.todo-card {
-  background-color: #e3f2fd;
-}
-
-.completed-card {
-  background-color: #e8f5e9;
-}
-
-.in-progress-card {
-  background-color: #fff3e0;
-}
-
-.overdue-card {
-  background-color: #ffebee;
-}
-
-.add-task-card {
-  background-color: #f5f5f5;
-}
-
-.recent-todos {
-  margin-top: 20px;
-}
-
-.recent-todos h3 {
+.charts-container {
   margin-bottom: 20px;
-  font-size: 18px;
-  color: #333;
 }
 
-:deep(.el-card__body) {
-  height: 100%;
-  padding: 15px;
+.chart-card {
+  margin-bottom: 20px;
+}
+
+.chart {
+  height: 300px;
+}
+
+.heatmap-chart {
+  height: 200px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timeline-card,
+.heatmap-card {
+  height: 400px;
+  overflow-y: auto;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 统计卡片颜色 */
+.todo-card .stat-icon { color: var(--el-color-primary); }
+.focus-card .stat-icon { color: var(--el-color-success); }
+.completed-card .stat-icon { color: var(--el-color-warning); }
+.overdue-card .stat-icon { color: var(--el-color-danger); }
+
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
 }
 </style> 
