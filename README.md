@@ -1,9 +1,27 @@
 # EfficientOffice
 Efficient Office 是一款专为打工人打造的高效办公平台。结合STAR法则与四象限法，帮助您更有效地管理待办事项和优化任务安排。平台提供时间提醒、任务耗时记录、日/周总结等功能，让您全面掌握工作进度。Efficient Office 还支持数据可视化和智能建议，助您深入分析工作状态，持续提升办公效率。立即加入Efficient Office，开启高效办公新篇章！
 
-![image](https://user-images.githubusercontent.com/41716258/234753129-effe1b12-360a-4a03-b176-da3a597e120f.png)
+## v5
+![image](https://github.com/user-attachments/assets/afa822b3-c064-4411-9a9a-bb998d830c4f)
 
-![card menu](https://1-1256857171.cos.ap-beijing.myqcloud.com/linqingyang/202305061621310.png)
+
+## v4
+![image](https://github.com/user-attachments/assets/f4bac1f9-83d2-4b13-94a8-a5e54ffe7791)
+![image](https://github.com/user-attachments/assets/a238b714-effd-442f-ae52-758d13d89d36)
+![image](https://github.com/user-attachments/assets/ea86391b-d458-4248-ac37-0783289fda47)
+
+## v3
+
+![image](https://github.com/user-attachments/assets/44d74cd3-a44b-41d0-afc3-b6067c152e0c)
+
+![image](https://github.com/user-attachments/assets/bfab82e3-18b0-4d5e-84cb-8afcba7ffeb5)
+
+![image](https://github.com/user-attachments/assets/aeb78337-8d0b-41b9-bed7-f9418bccc609)
+
+![image](https://github.com/user-attachments/assets/7eea9a43-5dff-4e6d-90c9-36b0d1a9ee3d)
+
+
+## v2
 
 ![image](https://github.com/user-attachments/assets/006ffc43-694e-4c70-91f2-40034caf1ce1)
 
@@ -15,17 +33,10 @@ Efficient Office 是一款专为打工人打造的高效办公平台。结合STA
 
 ![image](https://github.com/user-attachments/assets/c4a6f3fd-df40-4179-bc8b-f05dcc20aa8d)
 
-![image](https://github.com/user-attachments/assets/44d74cd3-a44b-41d0-afc3-b6067c152e0c)
+## V1
+![image](https://user-images.githubusercontent.com/41716258/234753129-effe1b12-360a-4a03-b176-da3a597e120f.png)
 
-![image](https://github.com/user-attachments/assets/bfab82e3-18b0-4d5e-84cb-8afcba7ffeb5)
-
-![image](https://github.com/user-attachments/assets/aeb78337-8d0b-41b9-bed7-f9418bccc609)
-
-![image](https://github.com/user-attachments/assets/7eea9a43-5dff-4e6d-90c9-36b0d1a9ee3d)
-
-![image](https://github.com/user-attachments/assets/f4bac1f9-83d2-4b13-94a8-a5e54ffe7791)
-![image](https://github.com/user-attachments/assets/a238b714-effd-442f-ae52-758d13d89d36)
-![image](https://github.com/user-attachments/assets/ea86391b-d458-4248-ac37-0783289fda47)
+![card menu](https://1-1256857171.cos.ap-beijing.myqcloud.com/linqingyang/202305061621310.png)
 
 
 ## 功能介绍
