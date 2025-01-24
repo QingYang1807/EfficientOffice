@@ -11,6 +11,5 @@ import TodoItems from '../components/TodoItems.vue'
 <style scoped>
 .todo-list-container {
   height: 100%;
-  padding: 20px;
 }
 </style> 

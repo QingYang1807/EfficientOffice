@@ -1,7 +1,7 @@
 <template>
-  <div class="h-full flex flex-col bg-white">
+  <div class="h-full flex flex-col">
     <!-- 顶部标题区 -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div class="flex-none flex items-center justify-between px-6 py-4 border-b border-gray-100">
       <div class="flex items-center gap-3">
         <div class="w-1 h-6 bg-blue-500 rounded-full"></div>
         <h1 class="text-xl font-medium text-gray-900">待办事项 📝</h1>
@@ -18,7 +18,7 @@
     </div>
 
     <!-- 搜索和筛选区 -->
-    <div class="flex items-center gap-3 px-6 py-3 bg-white border-b border-gray-100">
+    <div class="flex-none flex items-center gap-3 px-6 py-3 bg-white border-b border-gray-100">
       <div class="flex-1 max-w-md">
         <a-input-search
           v-model:value="searchText"
@@ -45,16 +45,17 @@
       />
     </div>
 
-    <!-- 表格区域 -->
+    <!-- 表格区域 - 使用 flex-1 让它占据剩余空间 -->
     <div class="flex-1 px-6 overflow-hidden">
       <a-table
         :dataSource="filteredTodos"
         :columns="columns"
         :pagination="false"
-        :scroll="{ y: 'calc(100vh - 280px)' }"
+        :scroll="{ y: 'calc(100vh - 340px)' }"
         :bordered="false"
         size="middle"
         class="custom-table -mx-4"
+        @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
           <!-- 完成状态列 -->
@@ -149,60 +150,63 @@
     </div>
 
     <!-- 底部添加任务区 -->
-    <div class="flex-none px-6 py-4 bg-white border-t border-gray-100">
-      <div class="flex items-center gap-3">
-        <a-input
-          v-model:value="newTodo"
-          placeholder="添加新任务..."
-          class="add_task_input !rounded-full flex-1"
-          :bordered="true"
-          @keyup.enter="addTodo"
-        >
-          <template #prefix>
-            <div class="flex items-center gap-2">
-              <!-- 优先级标记点 -->
-              <div 
-                v-if="newTodoPriority" 
-                class="w-3 h-3 rounded-full"
-                :class="getPriorityDot(newTodoPriority)"
-              ></div>
-              <plus-outlined class="text-gray-400" />
-            </div>
-          </template>
-        </a-input>
-        <a-dropdown>
-          <a-button class="!rounded-full">
-            更多选项
-            <down-outlined />
-          </a-button>
-          <template #overlay>
-            <a-menu>
-              <a-menu-item key="high" @click="setPriority('高')">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                  <span>高优先级</span>
-                </div>
-              </a-menu-item>
-              <a-menu-item key="medium" @click="setPriority('中')">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-                  <span>中优先级</span>
-                </div>
-              </a-menu-item>
-              <a-menu-item key="low" @click="setPriority('低')">
-                <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                  <span>低优先级</span>
-                </div>
-              </a-menu-item>
-              <a-menu-divider />
-              <a-menu-item key="date" @click="setDueDate">
-                📅 设置截止日期
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
-      </div>
+    <div class="flex-none px-6 py-4">
+      <a-input
+        v-model:value="newTodo"
+        placeholder="添加新任务..."
+        class="add-task-input"
+        :bordered="true"
+        @keyup.enter="addTodo"
+      >
+        <!-- 左侧前缀图标和下拉菜单 -->
+        <template #prefix>
+          <div class="flex items-center gap-2">
+            <div 
+              v-if="newTodoPriority" 
+              class="w-3 h-3 rounded-full"
+              :class="getPriorityDot(newTodoPriority)"
+            ></div>
+            <a-dropdown>
+              <plus-outlined class="text-gray-400 cursor-pointer hover:text-blue-500 text-lg" />
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="high" @click="setPriority('高')">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span>高优先级</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="medium" @click="setPriority('中')">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                      <span>中优先级</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="low" @click="setPriority('低')">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span>低优先级</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-divider />
+                  <a-menu-item key="date" @click="setDueDate">
+                    📅 设置截止日期
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </div>
+        </template>
+
+        <!-- 右侧回车提示图标 -->
+        <template #suffix>
+          <enter-outlined 
+            v-if="newTodo.trim()"
+            class="text-gray-300 text-lg"
+            title="按回车键添加任务"
+          />
+        </template>
+      </a-input>
     </div>
 
     <!-- 添加日期选择器到模板中 -->
@@ -231,7 +235,7 @@ import {
   EditOutlined, 
   DeleteOutlined,
   SearchOutlined,
-  DownOutlined,
+  EnterOutlined,  // 添加回车图标
   ClockCircleOutlined
 } from '@ant-design/icons-vue'
 
@@ -253,37 +257,58 @@ const tempDueDate = ref(null)
 // 添加删除历史记录
 const deleteHistory = ref([])
 
+// 添加排序状态
+const sortState = ref({
+  columnKey: 'createdAt',  // 默认按创建时间排序
+  order: 'descend'         // 默认降序
+})
+
 // 表格列定义
 const columns = [
   {
     title: '状态',
     key: 'completed',
-    width: 60
+    width: 60,
+    sorter: (a, b) => Number(a.completed) - Number(b.completed),
   },
   {
     title: '任务内容',
     key: 'text',
-    ellipsis: true
+    ellipsis: true,
+    sorter: (a, b) => a.text.localeCompare(b.text),
   },
   {
     title: '优先级',
     key: 'priority',
-    width: 100
+    width: 100,
+    sorter: (a, b) => {
+      const priorityWeight = { '高': 3, '中': 2, '低': 1 }
+      return priorityWeight[a.priority] - priorityWeight[b.priority]
+    },
   },
   {
     title: '创建时间',
     key: 'createdAt',
-    width: 180
+    width: 180,
+    defaultSortOrder: 'descend', // 默认降序
+    sorter: (a, b) => a.createdAt - b.createdAt,
   },
   {
     title: '截止日期',
     key: 'dueDate',
-    width: 180
+    width: 180,
+    sorter: (a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0
+      if (!a.dueDate) return 1
+      if (!b.dueDate) return -1
+      return a.dueDate - b.dueDate
+    },
   },
   {
     title: '番茄数',
     key: 'pomodoros',
-    width: 100
+    width: 100,
+    sorter: (a, b) => (a.pomodoros || 0) - (b.pomodoros || 0),
   }
 ]
 
@@ -311,6 +336,19 @@ const filteredTodos = computed(() => {
     result = result.filter(todo => 
       filterStatus.value === 'completed' ? todo.completed : !todo.completed
     )
+  }
+  
+  // 排序
+  if (sortState.value.columnKey && sortState.value.order) {
+    const { columnKey, order } = sortState.value
+    const column = columns.find(col => col.key === columnKey)
+    
+    if (column && column.sorter) {
+      result.sort((a, b) => {
+        const result = column.sorter(a, b)
+        return order === 'ascend' ? result : -result
+      })
+    }
   }
   
   return result
@@ -384,20 +422,30 @@ const deleteTodo = (todo) => {
     todos.value.splice(index, 1)
     saveTodosToStorage()
     
-    // 显示可撤销提示
+    // 显示可撤销提示，修改为3秒
     message.info({
-      content: h('div', [
+      content: h('div', {
+        class: 'undo-message'
+      }, [
         h('span', '任务已删除 '),
         h('a', {
           style: {
             color: '#1890ff',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            marginLeft: '4px'
           },
           onClick: () => undoDelete(deleteHistory.value[deleteHistory.value.length - 1])
         }, 'Ctrl+Z撤销'),
-        h('span', ' (10秒内有效)')
+        h('span', {
+          style: {
+            color: '#999',
+            fontSize: '12px',
+            marginLeft: '4px'
+          }
+        }, '(3秒内有效)')
       ]),
-      duration: 10
+      duration: 3,  // 修改为3秒
+      class: 'custom-message'
     })
   }
 }
@@ -487,12 +535,12 @@ const startTask = (task) => {
   })
 }
 
-// 添加撤销删除方法
+// 修改撤销时间检查为3秒
 const undoDelete = (deleteRecord) => {
   if (!deleteRecord) return
   
-  // 检查是否在10秒内
-  if (Date.now() - deleteRecord.timestamp > 10000) {
+  // 检查是否在3秒内
+  if (Date.now() - deleteRecord.timestamp > 3000) {  // 修改为3000毫秒
     message.error('撤销时间已过')
     return
   }
@@ -508,6 +556,14 @@ const undoDelete = (deleteRecord) => {
   }
   
   message.success('已撤销删除')
+}
+
+// 修改清理时间为3秒
+const cleanupDeleteHistory = () => {
+  const now = Date.now()
+  deleteHistory.value = deleteHistory.value.filter(
+    record => now - record.timestamp <= 3000  // 修改为3000毫秒
+  )
 }
 
 // 添加键盘快捷键监听
@@ -530,19 +586,19 @@ const handleKeyDown = (e) => {
   }
 }
 
-// 定期清理过期的删除历史
-const cleanupDeleteHistory = () => {
-  const now = Date.now()
-  deleteHistory.value = deleteHistory.value.filter(
-    record => now - record.timestamp <= 10000
-  )
-}
-
 // 每秒清理一次历史记录
 onMounted(() => {
   const cleanup = setInterval(cleanupDeleteHistory, 1000)
   onUnmounted(() => clearInterval(cleanup))
 })
+
+// 添加表格变化处理函数
+const handleTableChange = (pagination, filters, sorter) => {
+  sortState.value = {
+    columnKey: sorter.field,
+    order: sorter.order
+  }
+}
 
 // 初始化
 loadTodosFromStorage()
@@ -630,14 +686,23 @@ loadTodosFromStorage()
   @apply pb-4;
 }
 
-/* 优化表格排序图标 */
+/* 添加排序图标样式 */
 :deep(.ant-table-column-sorter) {
-  @apply ml-1;
+  margin-left: 4px;
 }
 
 :deep(.ant-table-column-sorter-up.active),
 :deep(.ant-table-column-sorter-down.active) {
-  @apply text-blue-500;
+  color: var(--ant-color-primary);
+}
+
+/* 优化表头悬浮样式 */
+:deep(.ant-table-thead th.ant-table-column-sort) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+:deep(.ant-table-thead th:hover) {
+  background-color: rgba(0, 0, 0, 0.04) !important;
 }
 
 /* 添加选择框样式 */
@@ -864,5 +929,142 @@ loadTodosFromStorage()
 .ant-table-tbody > tr.deleting {
   opacity: 0;
   transform: translateX(100%);
+}
+
+/* 修改底部输入框样式 */
+.add-task-input {
+  height: 56px !important;
+  border-radius: 28px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.3s ease;
+}
+
+.add-task-input:hover,
+.add-task-input:focus {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-1px);
+}
+
+:deep(.add-task-input .ant-input) {
+  font-size: 16px !important;
+  padding: 0 !important;
+}
+
+:deep(.add-task-input .ant-input-prefix) {
+  margin-right: 13px !important;
+  margin-left: 8px !important;
+  margin-bottom: 4px;
+  font-size: 18px !important;
+  cursor: pointer;
+}
+
+:deep(.add-task-input .ant-input-suffix) {
+  margin-left: 12px !important;
+  margin-right: 11px !important;
+  margin-bottom: 6px;
+}
+
+.options-btn {
+  padding: 0 12px !important;
+  font-size: 16px !important;
+  color: var(--ant-color-text-secondary) !important;
+}
+
+.options-btn:hover {
+  color: var(--ant-color-primary) !important;
+}
+
+/* 调整表格滚动区域的高度，为底部输入框留出空间 */
+:deep(.ant-table-body) {
+  height: calc(100vh - 380px) !important;
+}
+
+/* 确保父容器占满整个视口高度 */
+.h-full {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 调整表格容器样式 */
+.flex-1 {
+  flex: 1;
+  min-height: 0; /* 重要：防止 flex 子项溢出 */
+}
+
+/* 优化表格在小屏幕上的显示 */
+:deep(.ant-table-body) {
+  overflow-y: auto !important;
+}
+
+/* 确保底部区域不会被表格内容遮挡 */
+.bottom-container {
+  position: relative;
+  z-index: 11;
+  background: white;
+}
+
+/* 添加自定义消息样式 */
+:deep(.custom-message) {
+  .ant-message-notice-content {
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.undo-message {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  
+  a {
+    font-weight: 500;
+    text-decoration: none;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* 添加加号图标悬浮效果 */
+.plus-icon {
+  transition: all 0.3s ease;
+}
+
+.plus-icon:hover {
+  transform: rotate(90deg);
+  color: var(--ant-color-primary);
+}
+
+/* 右侧回车图标样式 */
+:deep(.add-task-input .ant-input-suffix .anticon) {
+  position: relative;
+}
+
+:deep(.add-task-input .ant-input-suffix .anticon::after) {
+  content: attr(title);
+  position: absolute;
+  bottom: 130%;
+  right: 0;
+  white-space: nowrap;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+:deep(.add-task-input .ant-input-suffix .anticon:hover::after) {
+  opacity: 1;
+}
+
+/* 优先级点的样式调整 */
+.priority-dot {
+  margin-right: 8px !important;  /* 优先级点与加号的间距 */
 }
 </style>
