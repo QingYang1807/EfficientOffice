@@ -691,18 +691,56 @@ onMounted(() => {
 
 /* 自定义滚动条样式 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
+  background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ddd;
-  border-radius: 3px;
+  background-color: #c1c1c1;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #a8a8a8;
+  border: 2px solid transparent;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f5f5f5;
-  border-radius: 3px;
+  background: transparent;
+  border-radius: 4px;
+}
+
+/* Firefox 滚动条样式 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 transparent;
+}
+
+/* 卡片内部滚动条样式 */
+.timeline-card,
+.heatmap-card {
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: #c1c1c1;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background-color: transparent;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
 }
 
 /* 添加可点击样式 */

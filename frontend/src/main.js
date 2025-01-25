@@ -23,6 +23,8 @@ import 'bootstrap-vue/dist/bootstrap-vue.min.css'
 import MdEditor from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 
+import './styles/index.css'  // 引入全局样式
+
 const app = createApp(App)
 const pinia = createPinia()
 
