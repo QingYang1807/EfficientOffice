@@ -97,6 +97,41 @@
                   {{ record.text }}
                 </span>
                 <div class="action-buttons flex items-center gap-2 transition-opacity">
+                  <!-- 优先级下拉框 -->
+                  <a-dropdown>
+                    <a-button 
+                      type="text" 
+                      class="action-btn !px-2 hover:!bg-gray-100"
+                      title="修改优先级"
+                    >
+                      <div 
+                        class="w-2 h-2 rounded-full"
+                        :class="getPriorityDot(record.priority)"
+                      ></div>
+                    </a-button>
+                    <template #overlay>
+                      <a-menu @click="({ key }) => changePriority(record, key)">
+                        <a-menu-item key="高">
+                          <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                            <span>高优先级</span>
+                          </div>
+                        </a-menu-item>
+                        <a-menu-item key="中">
+                          <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                            <span>中优先级</span>
+                          </div>
+                        </a-menu-item>
+                        <a-menu-item key="低">
+                          <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span>低优先级</span>
+                          </div>
+                        </a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
                   <!-- 开始任务按钮 -->
                   <a-button 
                     v-if="!record.completed"
@@ -132,9 +167,26 @@
 
           <!-- 截止日期列 -->
           <template v-else-if="column.key === 'dueDate'">
-            <span :class="{ 'text-red-500': isOverdue(record.dueDate) }">
-              {{ formatDate(record.dueDate) }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span 
+                :class="{ 'text-red-500': isOverdue(record.dueDate) }"
+                class="cursor-pointer hover:text-blue-500"
+                @click="openDatePicker(record)"
+              >
+                {{ formatDate(record.dueDate) || '设置截止日期' }}
+              </span>
+              <a-button
+                v-if="record.dueDate"
+                type="text"
+                class="action-btn !px-1"
+                @click="clearDueDate(record)"
+                title="清除截止日期"
+              >
+                <template #icon>
+                  <close-outlined />
+                </template>
+              </a-button>
+            </div>
           </template>
           <!-- 番茄钟列 -->
           <template v-else-if="column.key === 'pomodoros'">
@@ -236,8 +288,10 @@ import {
   DeleteOutlined,
   SearchOutlined,
   EnterOutlined,  // 添加回车图标
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  CloseOutlined  // 添加关闭图标
 } from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
 
 // 初始化 router
 const router = useRouter()
@@ -253,6 +307,7 @@ const newTodoPriority = ref(null) // 新任务的优先级
 const newDueDate = ref(null)
 const datePickerVisible = ref(false)
 const tempDueDate = ref(null)
+const editingDueDate = ref(null)  // 当前正在编辑截止日期的任务
 
 // 添加删除历史记录
 const deleteHistory = ref([])
@@ -505,21 +560,29 @@ const handleDateChange = (date) => {
 }
 
 const handleDateOk = () => {
-  if (tempDueDate.value) {
-    newDueDate.value = tempDueDate.value.valueOf()
+  if (editingDueDate.value) {
+    // 更新现有任务的截止日期
+    editingDueDate.value.dueDate = tempDueDate.value ? tempDueDate.value.valueOf() : null
+    saveTodosToStorage()
     datePickerVisible.value = false
+    editingDueDate.value = null
+    tempDueDate.value = null
     message.success('已设置截止日期')
   }
 }
 
-// 添加优先级相关的辅助函数
+// 获取优先级对应的样式类
 const getPriorityDot = (priority) => {
-  const colors = {
-    '高': 'bg-red-500',
-    '中': 'bg-yellow-500',
-    '低': 'bg-green-500'
+  switch (priority) {
+    case '高':
+      return 'bg-red-500'
+    case '中':
+      return 'bg-yellow-500'
+    case '低':
+      return 'bg-green-500'
+    default:
+      return 'bg-gray-300'
   }
-  return colors[priority] || ''
 }
 
 const toggleTodo = (todo, checked) => {
@@ -598,6 +661,32 @@ const handleTableChange = (pagination, filters, sorter) => {
     columnKey: sorter.field,
     order: sorter.order
   }
+}
+
+// 修改优先级
+const changePriority = (todo, priority) => {
+  const updatedTodo = {
+    ...todo,
+    priority
+  }
+  todos.value = todos.value.map(t => 
+    t.id === todo.id ? updatedTodo : t
+  )
+  saveTodosToStorage()
+}
+
+// 打开日期选择器
+const openDatePicker = (todo) => {
+  editingDueDate.value = todo
+  tempDueDate.value = todo.dueDate ? dayjs(todo.dueDate) : null
+  datePickerVisible.value = true
+}
+
+// 清除截止日期
+const clearDueDate = (todo) => {
+  todo.dueDate = null
+  saveTodosToStorage()
+  message.success('已清除截止日期')
 }
 
 // 初始化
@@ -1066,5 +1155,28 @@ loadTodosFromStorage()
 /* 优先级点的样式调整 */
 .priority-dot {
   margin-right: 8px !important;  /* 优先级点与加号的间距 */
+}
+
+/* 优先级下拉按钮样式 */
+.priority-dropdown {
+  @apply flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors;
+}
+
+.priority-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+/* 截止日期样式 */
+.due-date {
+  @apply cursor-pointer hover:text-blue-500 transition-colors;
+}
+
+/* 日期选择器弹窗样式 */
+:deep(.ant-modal-body) {
+  @apply flex justify-center py-6;
+}
+
+:deep(.ant-picker) {
+  @apply w-full;
 }
 </style>

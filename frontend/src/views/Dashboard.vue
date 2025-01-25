@@ -5,7 +5,12 @@
     <div class="stats-container">
       <el-row :gutter="20">
         <el-col :span="6" v-for="stat in stats" :key="stat.title">
-          <el-card class="stat-card" :class="stat.class" shadow="hover">
+          <el-card 
+            class="stat-card" 
+            :class="[stat.class, 'clickable']" 
+            shadow="hover"
+            @click="handleStatClick(stat.type)"
+          >
             <div class="stat-content">
               <div class="stat-icon">
                 <el-icon><component :is="stat.icon" /></el-icon>
@@ -193,28 +198,32 @@ const stats = computed(() => [
     value: todos.value.filter(t => !t.completed).length,
     description: '个待处理任务',
     class: 'todo-card',
-    icon: 'List'
+    icon: 'List',
+    type: 'todo'
   },
   {
     title: '专注时长',
     value: getTotalPomodoros(),
     description: '个番茄钟',
     class: 'focus-card',
-    icon: 'Timer'
+    icon: 'Timer',
+    type: 'pomodoro'
   },
   {
     title: '完成率',
     value: getCompletionRate(),
     description: getCompletionTrend(),
     class: 'completed-card',
-    icon: 'Check'
+    icon: 'Check',
+    type: 'completed'
   },
   {
     title: '逾期任务',
     value: getOverdueTasks().length,
     description: '需要关注',
     class: 'overdue-card',
-    icon: 'Warning'
+    icon: 'Warning',
+    type: 'overdue'
   }
 ])
 
@@ -398,7 +407,8 @@ watch(() => todos.value, () => {
 // 目标完成进度图配置
 const goalProgressOption = computed(() => ({
   tooltip: {
-    trigger: 'item'
+    trigger: 'item',
+    formatter: '{b}: {c}%'  // 显示百分比
   },
   legend: {
     orient: 'vertical',
@@ -416,8 +426,11 @@ const goalProgressOption = computed(() => ({
         borderWidth: 2
       },
       label: {
-        show: false,
-        position: 'center'
+        show: true,
+        position: 'inside',
+        formatter: '{c}%',  // 显示百分比
+        fontSize: 14,
+        color: '#fff'
       },
       emphasis: {
         label: {
@@ -430,10 +443,26 @@ const goalProgressOption = computed(() => ({
         show: false
       },
       data: [
-        { value: 35, name: '工作目标' },
-        { value: 25, name: '学习目标' },
-        { value: 20, name: '生活目标' },
-        { value: 15, name: '其他目标' }
+        { 
+          value: 35, 
+          name: '工作目标',
+          itemStyle: { color: '#409EFF' }  // 主要
+        },
+        { 
+          value: 25, 
+          name: '学习目标',
+          itemStyle: { color: '#67C23A' }  // 成功
+        },
+        { 
+          value: 20, 
+          name: '生活目标',
+          itemStyle: { color: '#E6A23C' }  // 警告
+        },
+        { 
+          value: 15, 
+          name: '其他目标',
+          itemStyle: { color: '#909399' }  // 信息
+        }
       ]
     }
   ]
@@ -543,6 +572,30 @@ const isOverdue = (date) => {
   return new Date(date) < new Date()
 }
 
+// 处理统计卡片点击
+const handleStatClick = (type) => {
+  switch (type) {
+    case 'todo':
+      router.push('/todos')  // 跳转到待办列表
+      break
+    case 'pomodoro':
+      router.push('/pomodoro-timer')  // 跳转到番茄钟页面
+      break
+    case 'completed':
+      router.push({ 
+        path: '/todos',
+        query: { filter: 'completed' }  // 跳转到待办列表并筛选已完成
+      })
+      break
+    case 'overdue':
+      router.push({
+        path: '/todos',
+        query: { filter: 'overdue' }  // 跳转到待办列表并筛选逾期
+      })
+      break
+  }
+}
+
 // 初始化
 onMounted(() => {
   loadTodos()
@@ -650,5 +703,15 @@ onMounted(() => {
 ::-webkit-scrollbar-track {
   background: #f5f5f5;
   border-radius: 3px;
+}
+
+/* 添加可点击样式 */
+.stat-card.clickable {
+  cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 </style> 
