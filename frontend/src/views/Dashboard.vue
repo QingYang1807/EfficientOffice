@@ -122,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -176,7 +176,17 @@ const loadTodos = () => {
   }
 }
 
-// 统计数据
+// 添加保存到 localStorage 的函数
+const saveTodosToStorage = () => {
+  localStorage.setItem('todos', JSON.stringify(todos.value))
+}
+
+// 添加 todos 的 watch
+watch(() => todos.value, () => {
+  saveTodosToStorage()
+}, { deep: true })
+
+// 修改统计数据计算方式
 const stats = computed(() => [
   {
     title: '待办任务',
@@ -187,66 +197,203 @@ const stats = computed(() => [
   },
   {
     title: '专注时长',
-    value: '12.5',
-    description: '小时',
+    value: getTotalPomodoros(),
+    description: '个番茄钟',
     class: 'focus-card',
     icon: 'Timer'
   },
   {
     title: '完成率',
-    value: '85%',
-    description: '较上周 +5%',
+    value: getCompletionRate(),
+    description: getCompletionTrend(),
     class: 'completed-card',
     icon: 'Check'
   },
   {
     title: '逾期任务',
-    value: todos.value.filter(t => !t.completed && isOverdue(t.dueDate)).length,
+    value: getOverdueTasks().length,
     description: '需要关注',
     class: 'overdue-card',
     icon: 'Warning'
   }
 ])
 
-// 任务完成趋势图配置
-const taskTrendOption = computed(() => ({
-  tooltip: {
-    trigger: 'axis'
-  },
-  legend: {
-    data: ['已完成', '新增']
-  },
-  grid: {
-    left: '3%',
-    right: '4%',
-    bottom: '3%',
-    containLabel: true
-  },
-  xAxis: {
-    type: 'category',
-    boundaryGap: false,
-    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-  },
-  yAxis: {
-    type: 'value'
-  },
-  series: [
-    {
-      name: '已完成',
-      type: 'line',
-      data: [5, 8, 6, 9, 7, 4, 6],
-      smooth: true,
-      areaStyle: {}
+// 计算番茄钟总数
+const getTotalPomodoros = () => {
+  return todos.value.reduce((sum, task) => sum + (task.pomodoros || 0), 0)
+}
+
+// 计算完成率
+const getCompletionRate = () => {
+  const total = todos.value.length
+  if (total === 0) return '0%'
+  const completed = todos.value.filter(t => t.completed).length
+  return Math.round((completed / total) * 100) + '%'
+}
+
+// 计算完成率趋势
+const getCompletionTrend = () => {
+  // 获取一周前的完成率
+  const lastWeek = new Date()
+  lastWeek.setDate(lastWeek.getDate() - 7)
+  
+  const oldTasks = todos.value.filter(t => t.createdAt < lastWeek.getTime())
+  const oldCompleted = oldTasks.filter(t => t.completed).length
+  const oldRate = oldTasks.length ? oldCompleted / oldTasks.length : 0
+  
+  const currentRate = parseFloat(getCompletionRate()) / 100
+  const diff = currentRate - oldRate
+  
+  if (Math.abs(diff) < 0.01) return '持平'
+  return diff > 0 ? `较上周 +${Math.round(diff * 100)}%` : `较上周 ${Math.round(diff * 100)}%`
+}
+
+// 获取逾期任务
+const getOverdueTasks = () => {
+  return todos.value.filter(t => !t.completed && isOverdue(t.dueDate))
+}
+
+// 修改任务完成趋势图数据
+const taskTrendOption = computed(() => {
+  const dates = getLast7Days()
+  const completedData = dates.map(date => getCompletedTasksForDate(date))
+  const newData = dates.map(date => getNewTasksForDate(date))
+  
+  return {
+    tooltip: {
+      trigger: 'axis'
     },
-    {
-      name: '新增',
-      type: 'line',
-      data: [3, 6, 4, 8, 5, 3, 5],
-      smooth: true,
-      areaStyle: {}
-    }
-  ]
-}))
+    legend: {
+      data: ['已完成', '新增']
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: dates.map(date => formatDateShort(date))
+    },
+    yAxis: {
+      type: 'value'
+    },
+    series: [
+      {
+        name: '已完成',
+        type: 'line',
+        data: completedData,
+        smooth: true,
+        areaStyle: {}
+      },
+      {
+        name: '新增',
+        type: 'line',
+        data: newData,
+        smooth: true,
+        areaStyle: {}
+      }
+    ]
+  }
+})
+
+// 获取最近7天的日期
+const getLast7Days = () => {
+  const dates = []
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(date.getDate() - i)
+    date.setHours(0, 0, 0, 0)
+    dates.push(date)
+  }
+  return dates
+}
+
+// 获取指定日期完成的任务数
+const getCompletedTasksForDate = (date) => {
+  const nextDay = new Date(date)
+  nextDay.setDate(date.getDate() + 1)
+  return todos.value.filter(task => 
+    task.completed && 
+    task.completedAt >= date.getTime() && 
+    task.completedAt < nextDay.getTime()
+  ).length
+}
+
+// 获取指定日期新增的任务数
+const getNewTasksForDate = (date) => {
+  const nextDay = new Date(date)
+  nextDay.setDate(date.getDate() + 1)
+  return todos.value.filter(task => 
+    task.createdAt >= date.getTime() && 
+    task.createdAt < nextDay.getTime()
+  ).length
+}
+
+// 格式化短日期（仅显示月日）
+const formatDateShort = (date) => {
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
+// 修改活跃度热力图数据
+const getVirtualData = (year) => {
+  const data = []
+  const startDate = new Date(year, 0, 1)
+  const endDate = new Date()
+  
+  for (let time = startDate.getTime(); time <= endDate.getTime(); time += 86400000) {
+    const date = new Date(time)
+    const dateStr = formatDate(date, 'yyyy-MM-dd')
+    const completedCount = getCompletedTasksForDate(date)
+    const newCount = getNewTasksForDate(date)
+    data.push([dateStr, completedCount + newCount])
+  }
+  
+  return data
+}
+
+// 修改最近活动数据
+const updateRecentActivities = () => {
+  const activities = []
+  const now = Date.now()
+  const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000)
+  
+  // 添加完成的任务
+  todos.value
+    .filter(task => task.completed && task.completedAt > threeDaysAgo)
+    .forEach(task => {
+      activities.push({
+        id: `complete-${task.id}`,
+        content: `完成了任务 "${task.text}"`,
+        time: formatDate(task.completedAt),
+        type: 'success'
+      })
+    })
+    
+  // 添加新建的任务
+  todos.value
+    .filter(task => task.createdAt > threeDaysAgo)
+    .forEach(task => {
+      activities.push({
+        id: `create-${task.id}`,
+        content: `创建了新任务 "${task.text}"`,
+        time: formatDate(task.createdAt),
+        type: 'primary'
+      })
+    })
+  
+  // 按时间排序并只保留最近的活动
+  recentActivities.value = activities
+    .sort((a, b) => new Date(b.time) - new Date(a.time))
+    .slice(0, 5)
+}
+
+// 监听 todos 变化，更新活动列表
+watch(() => todos.value, () => {
+  updateRecentActivities()
+}, { deep: true })
 
 // 目标完成进度图配置
 const goalProgressOption = computed(() => ({
@@ -327,19 +474,6 @@ const heatmapOption = computed(() => {
   }
 })
 
-// 生成虚拟的活跃度数据
-function getVirtualData(year) {
-  const data = []
-  for (let i = 0; i < 365; i++) {
-    const date = new Date(year, 0, i + 1)
-    data.push([
-      formatDate(date, 'yyyy-MM-dd'),
-      Math.floor(Math.random() * 10)
-    ])
-  }
-  return data
-}
-
 // 近期活动数据
 const recentActivities = ref([
   {
@@ -412,6 +546,7 @@ const isOverdue = (date) => {
 // 初始化
 onMounted(() => {
   loadTodos()
+  updateRecentActivities()
 })
 </script>
 
