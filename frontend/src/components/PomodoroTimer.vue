@@ -426,7 +426,7 @@ const showFullScreenConfetti = async () => {
 };
 
 const goToTodoPage = () => {
-  router.push('/todo');
+  router.push('/todos');
   // Focus on the input after navigation
   nextTick(() => {
     const input = document.querySelector('.add_task_input input');

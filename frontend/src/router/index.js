@@ -11,6 +11,8 @@ import GoalManager from '../views/GoalManager.vue';
 import LoginView from '@/views/LoginView.vue'
 import ProfileView from '@/views/ProfileView.vue'
 import SettingsView from '@/views/SettingsView.vue'
+import NotesView from '../views/NotesView.vue'
+import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
 
 // 路由配置
 export const routes = [
@@ -40,6 +42,26 @@ export const routes = [
         component: SettingsView, 
         meta: { 
           title: '系统设置',
+          requiresAuth: true 
+        }
+      },
+      { 
+        path: 'notes', 
+        name: 'Notes', 
+        component: NotesView, 
+        meta: { 
+          title: '便签记录',
+          icon: 'Memo',
+          requiresAuth: true 
+        }
+      },
+      { 
+        path: 'knowledge', 
+        name: 'KnowledgeBase', 
+        component: KnowledgeBaseView, 
+        meta: { 
+          title: '知识库',
+          icon: 'Collection',
           requiresAuth: true 
         }
       }

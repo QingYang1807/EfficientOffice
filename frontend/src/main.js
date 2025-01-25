@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
+import { createPinia } from 'pinia'
 
 // 引入 Ant Design Vue
 import Antd from 'ant-design-vue'
@@ -18,7 +19,12 @@ import * as ElementPlusIcons from '@element-plus/icons-vue'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-vue/dist/bootstrap-vue.min.css'
 
+// 引入 md-editor-v3
+import MdEditor from 'md-editor-v3'
+import 'md-editor-v3/lib/style.css'
+
 const app = createApp(App)
+const pinia = createPinia()
 
 // 注册所有图标
 for (const [key, component] of Object.entries(ElementPlusIcons)) {
@@ -28,6 +34,8 @@ for (const [key, component] of Object.entries(ElementPlusIcons)) {
 // 注册插件
 app.use(Antd)
 app.use(ElementPlus)
+app.use(pinia)
+app.component('MdEditor', MdEditor)
 app.use(router)
 
 app.mount('#app')

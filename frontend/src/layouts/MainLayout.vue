@@ -30,6 +30,16 @@
           <el-icon><aim /></el-icon>
           <span>目标管理</span>
         </el-menu-item>
+        
+        <el-menu-item index="/notes">
+          <el-icon><memo /></el-icon>
+          <span>便签记录</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/knowledge">
+          <el-icon><collection /></el-icon>
+          <span>知识库</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -89,6 +99,8 @@ import {
   User,
   Setting,
   SwitchButton,
+  Memo,
+  Collection
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
