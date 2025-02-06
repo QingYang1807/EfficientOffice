@@ -1,67 +1,146 @@
 <template>
   <div class="goal-manager">
-    <!-- 左侧导航 -->
-    <div class="nav-section">
-      <el-button 
-        type="primary" 
-        class="create-button" 
-        @click="showCreateDialog = true"
-      >
+    <!-- 引导提示 -->
+    <el-empty
+      v-if="!goals.length"
+      description="开始创建你的第一个目标吧！"
+      class="empty-state"
+    >
+      <el-button type="primary" @click="showCreateDialog = true">
         创建新目标
       </el-button>
-
-      <div class="view-switcher">
-        <el-radio-group v-model="viewMode">
-          <el-radio-button label="mind-map">思维导图</el-radio-button>
-          <el-radio-button label="list">列表视图</el-radio-button>
-          <el-radio-button label="kanban">看板视图</el-radio-button>
-        </el-radio-group>
+      <div class="guide-text">
+        <p>💡 目标管理可以帮助你：</p>
+        <ul>
+          <li>📝 制定清晰的目标计划</li>
+          <li>✅ 分解目标为可执行的子任务</li>
+          <li>📊 追踪目标完成进度</li>
+          <li>🎯 保持专注和动力</li>
+        </ul>
       </div>
-      
-      <div class="quick-filters">
-        <el-tag 
-          v-for="filter in quickFilters" 
-          :key="filter.value"
-          :type="filter.type"
-          :effect="currentFilter === filter.value ? 'dark' : 'light'"
-          @click="applyFilter(filter)"
+    </el-empty>
+
+    <!-- 主界面内容 -->
+    <template v-else>
+      <!-- 左侧导航 -->
+      <div class="nav-section">
+        <div class="nav-header">
+          <h2>目标管理</h2>
+          <el-tooltip content="目标完成概览" placement="right">
+            <div class="goal-stats">
+              <el-progress
+                type="circle"
+                :percentage="completionRate"
+                :status="completionRate >= 80 ? 'success' : 'primary'"
+                :width="60"
+              />
+              <div class="stats-text">
+                <div>总目标: {{ goals.length }}</div>
+                <div>已完成: {{ completedGoals }}</div>
+              </div>
+            </div>
+          </el-tooltip>
+        </div>
+
+        <el-button 
+          type="primary" 
+          class="create-button" 
+          @click="showCreateDialog = true"
         >
-          {{ filter.label }}
-        </el-tag>
+          创建新目标
+        </el-button>
+
+        <div class="view-switcher">
+          <el-radio-group v-model="viewMode">
+            <el-radio-button label="mind-map">思维导图</el-radio-button>
+            <el-radio-button label="list">列表视图</el-radio-button>
+            <el-radio-button label="kanban">看板视图</el-radio-button>
+          </el-radio-group>
+        </div>
+        
+        <!-- 优化筛选器显示 -->
+        <div class="filter-section">
+          <h4>快速筛选</h4>
+          <div class="quick-filters">
+            <el-tag 
+              v-for="filter in quickFilters" 
+              :key="filter.value"
+              :type="filter.type"
+              :effect="currentFilter === filter.value ? 'dark' : 'light'"
+              @click="applyFilter(filter)"
+              class="filter-tag"
+            >
+              <el-icon><component :is="filter.icon" /></el-icon>
+              {{ filter.label }}
+              <span class="count">({{ getFilterCount(filter.value) }})</span>
+            </el-tag>
+          </div>
+        </div>
+
+        <!-- 添加帮助提示 -->
+        <div class="help-section">
+          <el-collapse>
+            <el-collapse-item title="使用帮助" name="1">
+              <div class="help-content">
+                <p>1. 创建目标并设置关键信息</p>
+                <p>2. 将目标分解为可执行的子任务</p>
+                <p>3. 使用不同视图管理目标</p>
+                <p>4. 实时追踪目标完成进度</p>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
       </div>
-    </div>
 
-    <!-- 主内容区 -->
-    <div class="main-content">
-      <!-- 思维导图视图 -->
-      <mind-map-view 
-        v-if="viewMode === 'mind-map'"
-        :goals="filteredGoals"
-        @node-click="handleNodeClick"
-      />
-      
-      <!-- 列表视图 -->
-      <list-view 
-        v-else-if="viewMode === 'list'"
-        :goals="filteredGoals"
-        @select="handleGoalSelect"
-      />
-      
-      <!-- 看板视图 -->
-      <kanban-view
-        v-else
-        :goals="filteredGoals"
-        @card-click="handleGoalSelect"
-      />
-    </div>
+      <!-- 主内容区 -->
+      <div class="main-content">
+        <!-- 视图切换提示 -->
+        <div class="view-info">
+          <el-alert
+            v-if="viewMode === 'mind-map'"
+            type="info"
+            show-icon
+            :closable="false"
+          >
+            思维导图视图可以帮助你更好地理解目标之间的关系
+          </el-alert>
+          <el-alert
+            v-if="viewMode === 'kanban'"
+            type="info"
+            show-icon
+            :closable="false"
+          >
+            看板视图适合管理目标的执行状态和进度
+          </el-alert>
+        </div>
 
-    <!-- 右侧详情面板 -->
+        <!-- 各种视图组件 -->
+        <component
+          :is="currentViewComponent"
+          :goals="filteredGoals"
+          @select="handleGoalSelect"
+          @update="handleGoalUpdate"
+        />
+      </div>
+    </template>
+
+    <!-- 目标详情抽屉 -->
     <el-drawer
       v-model="showDetail"
       title="目标详情"
       size="500px"
-      :with-header="false"
+      :show-close="true"
+      :with-header="true"
     >
+      <template #header>
+        <div class="drawer-header">
+          <h3>目标详情</h3>
+          <el-button-group>
+            <el-button size="small" @click="editGoal">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteGoal">删除</el-button>
+          </el-button-group>
+        </div>
+      </template>
       <goal-detail
         v-if="selectedGoal"
         :goal="selectedGoal"
@@ -74,19 +153,30 @@
       v-model="showCreateDialog"
       title="创建新目标"
       width="60%"
+      :before-close="handleCreateDialogClose"
     >
+      <div class="dialog-header">
+        <el-steps :active="createStep" finish-status="success">
+          <el-step title="基本信息" />
+          <el-step title="分解任务" />
+          <el-step title="确认创建" />
+        </el-steps>
+      </div>
       <goal-creator
         :ai-enabled="true"
         @create="handleGoalCreate"
         @cancel="showCreateDialog = false"
+        :current-step="createStep"
+        @step-change="handleStepChange"
       />
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, provide } from 'vue'
-import { message } from 'ant-design-vue'
+import { ref, computed, provide, nextTick, getCurrentInstance } from 'vue'
+import { message, ElMessage } from 'ant-design-vue'
+import { ElMessageBox } from 'element-plus'
 
 // 导入需要的组件
 import MindMapView from '../components/goals/GoalMindMap.vue'
@@ -158,9 +248,20 @@ const handleGoalUpdate = (updatedGoal) => {
 
 // 处理目标创建
 const handleGoalCreate = (newGoal) => {
-  goals.value.push(newGoal)
+  // 确保 goals 是响应式数组
+  goals.value = [...goals.value, newGoal]
   showCreateDialog.value = false
-  message.success('目标创建成功')
+  ElMessage.success('目标创建成功')
+  
+  // 强制更新思维导图
+  nextTick(() => {
+    if (viewMode.value === 'mind-map') {
+      const mindMapComponent = getCurrentInstance().refs.mindMap
+      if (mindMapComponent) {
+        mindMapComponent.initMindMap()
+      }
+    }
+  })
 }
 
 // 获取状态类型 - 用于标签颜色
@@ -214,6 +315,50 @@ provide('goalState', {
   handleGoalCreate,
   handleGoalSelect
 })
+
+// 添加新的响应式数据
+const createStep = ref(1)
+const completedGoals = computed(() => goals.value.filter(g => g.status === 'completed').length)
+const completionRate = computed(() => Math.round((completedGoals.value / goals.value.length) * 100) || 0)
+
+// 获取当前视图组件
+const currentViewComponent = computed(() => {
+  switch (viewMode.value) {
+    case 'mind-map': return MindMapView
+    case 'list': return ListView
+    case 'kanban': return KanbanView
+    default: return ListView
+  }
+})
+
+// 获取筛选器数量
+const getFilterCount = (filterValue) => {
+  switch (filterValue) {
+    case 'all': return goals.value.length
+    case 'in_progress': return goals.value.filter(g => g.status === 'in_progress').length
+    case 'completed': return completedGoals.value
+    case 'overdue': return goals.value.filter(g => {
+      const deadline = new Date(g.deadline)
+      return deadline < new Date() && g.status !== 'completed'
+    }).length
+    default: return 0
+  }
+}
+
+// 处理创建对话框关闭
+const handleCreateDialogClose = (done) => {
+  ElMessageBox.confirm('确认关闭？未保存的内容将会丢失')
+    .then(() => {
+      createStep.value = 1
+      done()
+    })
+    .catch(() => {})
+}
+
+// 处理创建步骤变化
+const handleStepChange = (step) => {
+  createStep.value = step
+}
 </script>
 
 <style scoped>
@@ -324,5 +469,89 @@ provide('goalState', {
 .create-button {
   width: 100%;
   margin-bottom: 1rem;
+}
+
+/* 添加新样式 */
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.guide-text {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.guide-text ul {
+  list-style: none;
+  padding: 0;
+}
+
+.guide-text li {
+  margin: 0.5rem 0;
+}
+
+.nav-header {
+  margin-bottom: 1rem;
+}
+
+.goal-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--el-bg-color-page);
+  border-radius: 8px;
+}
+
+.stats-text {
+  font-size: 0.875rem;
+  color: var(--el-text-color-secondary);
+}
+
+.filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.filter-tag:hover {
+  transform: translateX(5px);
+}
+
+.count {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.help-section {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.help-content {
+  font-size: 0.875rem;
+  color: var(--el-text-color-regular);
+}
+
+.view-info {
+  margin-bottom: 1rem;
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-header {
+  margin-bottom: 2rem;
 }
 </style> 

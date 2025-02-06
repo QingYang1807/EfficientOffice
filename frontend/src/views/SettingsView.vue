@@ -28,6 +28,10 @@
               <el-icon><operation /></el-icon>
               <span>快捷键设置</span>
             </el-menu-item>
+            <el-menu-item index="data-management">
+              <el-icon><document /></el-icon>
+              <span>数据管理</span>
+            </el-menu-item>
           </el-menu>
         </el-card>
       </el-col>
@@ -266,6 +270,40 @@
           </el-form>
         </el-card>
 
+        <div v-if="activeMenu === 'data-management'" class="space-y-6">
+          <h2 class="text-lg font-medium mb-4">数据管理</h2>
+          
+          <div class="bg-white p-4 rounded-lg border border-gray-100">
+            <h3 class="text-base font-medium mb-2">导出数据</h3>
+            <p class="text-sm text-gray-500 mb-4">
+              将您的待办事项数据导出为 JSON 文件，以便备份或迁移到其他设备。
+            </p>
+            <a-button type="primary" @click="exportData">
+              <template #icon><download-outlined /></template>
+              导出数据
+            </a-button>
+          </div>
+
+          <div class="bg-white p-4 rounded-lg border border-gray-100">
+            <h3 class="text-base font-medium mb-2">导入数据</h3>
+            <p class="text-sm text-gray-500 mb-4">
+              从之前导出的 JSON 文件中恢复您的待办事项数据。
+              <br>
+              <span class="text-yellow-500">注意：导入数据将覆盖当前的所有数据！</span>
+            </p>
+            <a-upload
+              accept=".json"
+              :show-upload-list="false"
+              :before-upload="handleImport"
+            >
+              <a-button>
+                <template #icon><upload-outlined /></template>
+                导入数据
+              </a-button>
+            </a-upload>
+          </div>
+        </div>
+
         <div class="settings-actions">
           <el-button type="primary" @click="handleSave">保存设置</el-button>
           <el-button @click="handleReset">恢复默认</el-button>
@@ -285,8 +323,11 @@ import {
   Operation,
   Sunny,
   Moon,
-  Monitor
+  Monitor,
+  Document
 } from '@element-plus/icons-vue'
+import { message } from 'ant-design-vue'
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
 
 const activeMenu = ref('appearance')
 
@@ -338,6 +379,88 @@ const handleReset = () => {
     autoStartBreak: false,
     autoStartNextRound: false
   })
+}
+
+const exportData = () => {
+  try {
+    // 获取所有 localStorage 数据
+    const data = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      try {
+        // 尝试解析 JSON 数据
+        data[key] = JSON.parse(localStorage.getItem(key))
+      } catch {
+        // 如果不是 JSON 格式,直接存储原始值
+        data[key] = localStorage.getItem(key)
+      }
+    }
+
+    // 添加导出时间戳
+    data._exportedAt = new Date().toISOString()
+
+    // 创建并下载文件
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `efficient-office-backup-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    message.success('数据导出成功！')
+  } catch (error) {
+    console.error('导出数据失败:', error)
+    message.error('导出数据失败，请重试！')
+  }
+}
+
+const handleImport = (file) => {
+  const reader = new FileReader()
+  
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result)
+      
+      // 验证数据格式
+      if (!data || typeof data !== 'object') {
+        throw new Error('无效的数据格式')
+      }
+
+      // 显示确认对话框
+      const confirmImport = window.confirm(
+        '导入数据将覆盖当前的所有数据，确定要继续吗？'
+      )
+
+      if (confirmImport) {
+        // 清空当前 localStorage
+        localStorage.clear()
+        
+        // 导入所有数据
+        Object.entries(data).forEach(([key, value]) => {
+          // 跳过导出时间戳
+          if (key !== '_exportedAt') {
+            localStorage.setItem(key, JSON.stringify(value))
+          }
+        })
+
+        message.success('数据导入成功！请刷新页面以加载新数据。')
+        
+        // 自动刷新页面
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      }
+    } catch (error) {
+      console.error('导入数据失败:', error)
+      message.error('导入数据失败，请确保文件格式正确！')
+    }
+  }
+
+  reader.readAsText(file)
+  return false // 阻止自动上传
 }
 </script>
 

@@ -20,30 +20,79 @@ const emit = defineEmits(['node-click'])
 const mindMapContainer = ref(null)
 let mindMap = null
 
+// 添加日期格式化函数
+const formatDate = (date) => {
+  if (!date) return '未设置'
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // 将目标数据转换为思维导图数据结构
 const transformGoalsToMindMap = (goals) => {
-  return {
+  console.log('转换目标数据:', goals)
+  const currentYear = new Date().getFullYear()
+  const result = {
     data: {
-      text: '目标总览',
+      text: `${currentYear}年目标`,
       expand: true,
       isActive: false,
+      style: {
+        fontSize: '18px',
+        fontWeight: 'bold',
+        color: '#409EFF'
+      },
       children: (goals || []).map(goal => ({
         text: goal.title || '',
         id: goal.id,
         expand: true,
         isActive: false,
+        // 增加优先级视觉提示
+        style: {
+          fontSize: '16px',
+          color: getPriorityColor(goal.priority),
+          border: `2px solid ${getPriorityColor(goal.priority)}`
+        },
+        // 添加目标信息提示
+        tooltip: `
+          优先级: ${goal.priority}
+          开始: ${formatDate(goal.startDate)}
+          截止: ${formatDate(goal.deadline)}
+          进度: ${goal.progress}%
+        `,
         children: (goal.steps || []).map(step => ({
           text: step.title || '',
           id: `${goal.id}-step-${step.id}`,
           expand: true,
           isActive: false,
           style: {
-            color: step.completed ? '#67C23A' : '#909399'
-          }
+            color: step.completed ? '#67C23A' : '#909399',
+            fontSize: '14px'
+          },
+          // 添加子任务信息提示
+          tooltip: `
+            完成标准: ${step.criteria}
+            截止日期: ${formatDate(step.deadline)}
+            权重: ${step.weight}%
+          `
         }))
       }))
     }
   }
+  console.log('转换后的思维导图数据:', result)
+  return result
+}
+
+// 添加优先级颜色映射
+const getPriorityColor = (priority) => {
+  const colors = {
+    high: '#F56C6C',
+    medium: '#E6A23C',
+    low: '#67C23A'
+  }
+  return colors[priority] || '#909399'
 }
 
 // 调整视图以适应内容
@@ -71,35 +120,54 @@ const adjustView = () => {
 
 // 初始化思维导图
 const initMindMap = () => {
+  console.log('初始化思维导图, 容器:', mindMapContainer.value)
   if (!mindMapContainer.value) return
 
   try {
     const data = transformGoalsToMindMap(props.goals)
+    console.log('思维导图配置:', data)
     
-    // 创建思维导图实例
     mindMap = new MindMap({
       el: mindMapContainer.value,
       data: data,
-      layout: 'mindMap',
-      direction: 2, // 从左到右布局
+      // 修改为环形布局
+      layout: 'circle',
+      // 移除 direction 配置，环形布局不需要方向
       theme: {
         template: 'classic',
         config: {
+          // 修改主题配置
           backgroundColor: '#fff',
           lineColor: '#91d5ff',
           lineWidth: 2,
           fontSize: 14,
           fontFamily: 'Arial',
-          color: '#333'
+          color: '#333',
+          // 添加连接线样式
+          lineStyle: 'curve',
+          // 添加节点样式
+          nodeStyle: {
+            borderRadius: '50%',
+            border: '2px solid #91d5ff',
+            padding: '8px 16px'
+          }
         }
       },
       width: mindMapContainer.value.clientWidth || 800,
       height: mindMapContainer.value.clientHeight || 600,
-      xGap: 20,
-      yGap: 20,
+      // 调整节点间距
+      xGap: 60,
+      yGap: 60,
       mousewheelAction: 'zoom',
       enableFreeDrag: true,
-      textOverflow: 'ellipsis'
+      textOverflow: 'ellipsis',
+      // 添加动画效果
+      enableAnimation: true,
+      // 添加节点展开/收起动画
+      expandAnimation: {
+        enable: true,
+        duration: 300
+      }
     })
 
     // 注册节点点击事件
@@ -185,6 +253,7 @@ onBeforeUnmount(() => {
   min-height: 600px;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(to bottom right, #f0f2f5, #ffffff);
 }
 
 .mind-map {
@@ -192,7 +261,16 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 600px;
   border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  border-radius: 8px;
   background: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+}
+
+/* 添加响应式样式 */
+@media screen and (max-width: 768px) {
+  .mind-map-container,
+  .mind-map {
+    min-height: 400px;
+  }
 }
 </style> 

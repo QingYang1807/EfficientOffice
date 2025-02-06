@@ -18,12 +18,22 @@
     "bootstrap-vue": "^2.23.1",
     "canvas-confetti": "^1.9.2",
     "core-js": "^3.8.3",
+    "date-fns": "^4.1.0",
     "echarts": "^5.6.0",
     "element-plus": "^2.5.6",
+    "html2canvas": "^1.4.1",
+    "https-browserify": "^1.0.0",
+    "lunar-calendar": "^0.1.4",
+    "lunar-javascript": "^1.6.13",
+    "markdown-it": "^13.0.1",
+    "marked": "^15.0.6",
     "md-editor-v3": "^5.2.1",
+    "os-browserify": "^0.3.0",
     "pinia": "^2.3.1",
     "prismjs": "^1.29.0",
     "simple-mind-map": "^0.13.0",
+    "solarlunar": "^2.0.7",
+    "stream-http": "^3.2.0",
     "vue": "^3.2.13",
     "vue-echarts": "^7.0.3",
     "vue-router": "^4.2.5",
@@ -37,15 +47,19 @@
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@babel/plugin-transform-private-methods": "^7.25.9",
     "@babel/preset-env": "^7.26.7",
+    "@vue/babel-plugin-jsx": "^1.2.5",
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-eslint": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
     "autoprefixer": "^10.4.17",
+    "crypto-browserify": "^3.12.1",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
+    "path-browserify": "^1.0.1",
     "postcss": "^8.4.33",
     "sass": "^1.83.4",
     "sass-loader": "^16.0.4",
+    "stream-browserify": "^3.0.0",
     "tailwindcss": "^3.4.1"
   },
   "eslintConfig": {
@@ -71,10 +85,14 @@
   "babel": {
     "presets": [
       [
-        "@vue/cli-plugin-babel/preset",
+        "@babel/preset-env",
         {
           "targets": {
-            "node": "current"
+            "browsers": [
+              "> 1%",
+              "last 2 versions",
+              "not ie <= 8"
+            ]
           }
         }
       ]

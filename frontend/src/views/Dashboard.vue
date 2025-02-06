@@ -37,6 +37,7 @@
               <el-radio-group v-model="trendTimeRange" size="small">
                 <el-radio-button label="week">本周</el-radio-button>
                 <el-radio-button label="month">本月</el-radio-button>
+                <el-radio-button label="year">本年</el-radio-button>
               </el-radio-group>
             </div>
           </template>
@@ -53,6 +54,82 @@
             </div>
           </template>
           <v-chart class="chart" :option="goalProgressOption" autoresize />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 在 bottom-container 之前添加复盘区域 -->
+    <el-row :gutter="20" class="review-container">
+      <el-col :span="24">
+        <el-card class="review-card">
+          <template #header>
+            <div class="card-header">
+              <span>复盘记录</span>
+              <div class="review-actions">
+                <el-button-group>
+                  <el-button 
+                    type="primary" 
+                    :plain="reviewType !== 'daily'"
+                    @click="reviewType = 'daily'"
+                  >
+                    日复盘
+                  </el-button>
+                  <el-button 
+                    type="primary" 
+                    :plain="reviewType !== 'weekly'"
+                    @click="reviewType = 'weekly'"
+                  >
+                    周复盘
+                  </el-button>
+                  <el-button 
+                    type="primary" 
+                    :plain="reviewType !== 'monthly'"
+                    @click="reviewType = 'monthly'"
+                  >
+                    月复盘
+                  </el-button>
+                </el-button-group>
+                <el-button type="primary" @click="openReviewDialog">
+                  <el-icon><plus /></el-icon>新建复盘
+                </el-button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 复盘列表 -->
+          <el-timeline>
+            <el-timeline-item
+              v-for="review in filteredReviews"
+              :key="review.id"
+              :timestamp="review.date"
+              :type="getReviewType(review.type)"
+            >
+              <el-card class="review-item">
+                <template #header>
+                  <div class="review-item-header">
+                    <el-tag :type="getReviewTagType(review.type)">
+                      {{ getReviewTypeText(review.type) }}
+                    </el-tag>
+                    <span class="review-title">{{ review.title }}</span>
+                  </div>
+                </template>
+                <div class="review-content">
+                  <div v-if="review.achievements" class="review-section">
+                    <h4>🎯 主要成就</h4>
+                    <p>{{ review.achievements }}</p>
+                  </div>
+                  <div v-if="review.lessons" class="review-section">
+                    <h4>📝 经验教训</h4>
+                    <p>{{ review.lessons }}</p>
+                  </div>
+                  <div v-if="review.plans" class="review-section">
+                    <h4>📋 下步计划</h4>
+                    <p>{{ review.plans }}</p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
         </el-card>
       </el-col>
     </el-row>
@@ -123,6 +200,58 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 添加复盘对话框 -->
+    <el-dialog
+      v-model="reviewDialogVisible"
+      :title="getReviewDialogTitle"
+      width="60%"
+    >
+      <el-form :model="reviewForm" ref="reviewFormRef" :rules="reviewRules">
+        <el-form-item label="复盘类型" prop="type">
+          <el-select v-model="reviewForm.type">
+            <el-option label="日复盘" value="daily" />
+            <el-option label="周复盘" value="weekly" />
+            <el-option label="月复盘" value="monthly" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="reviewForm.title" placeholder="请输入复盘标题" />
+        </el-form-item>
+        <el-form-item label="主要成就" prop="achievements">
+          <el-input
+            v-model="reviewForm.achievements"
+            type="textarea"
+            :rows="3"
+            placeholder="记录本阶段的主要成就和进展"
+          />
+        </el-form-item>
+        <el-form-item label="经验教训" prop="lessons">
+          <el-input
+            v-model="reviewForm.lessons"
+            type="textarea"
+            :rows="3"
+            placeholder="总结经验教训和改进点"
+          />
+        </el-form-item>
+        <el-form-item label="下步计划" prop="plans">
+          <el-input
+            v-model="reviewForm.plans"
+            type="textarea"
+            :rows="3"
+            placeholder="制定下一阶段的计划和目标"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="reviewDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReview">
+            确认
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -145,6 +274,7 @@ import {
   VisualMapComponent,
 } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { ElMessage } from 'element-plus'
 import {
   Plus,
   Timer,
@@ -154,6 +284,7 @@ import {
   InfoFilled,
   ArrowRight,
 } from '@element-plus/icons-vue'
+import { useReviewStore } from '@/stores/review'
 
 // 注册 ECharts 组件
 use([
@@ -172,6 +303,8 @@ use([
 const router = useRouter()
 const todos = ref([])
 const trendTimeRange = ref('week')
+
+const reviewStore = useReviewStore()
 
 // 从 localStorage 加载待办事项
 const loadTodos = () => {
@@ -262,15 +395,116 @@ const getOverdueTasks = () => {
   return todos.value.filter(t => !t.completed && isOverdue(t.dueDate))
 }
 
-// 修改任务完成趋势图数据
+// 获取指定日期完成的任务数
+const getCompletedTasksForDate = (date) => {
+  if (trendTimeRange.value === 'year') {
+    // 按月统计
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const startDate = new Date(year, month, 1)
+    const endDate = new Date(year, month + 1, 0)
+    return todos.value.filter(task => 
+      task.completed && 
+      task.completedAt >= startDate.getTime() && 
+      task.completedAt <= endDate.getTime()
+    ).length
+  } else {
+    // 按日统计
+    const nextDay = new Date(date)
+    nextDay.setDate(date.getDate() + 1)
+    return todos.value.filter(task => 
+      task.completed && 
+      task.completedAt >= date.getTime() && 
+      task.completedAt < nextDay.getTime()
+    ).length
+  }
+}
+
+// 获取指定日期新增的任务数
+const getNewTasksForDate = (date) => {
+  if (trendTimeRange.value === 'year') {
+    // 按月统计
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const startDate = new Date(year, month, 1)
+    const endDate = new Date(year, month + 1, 0)
+    return todos.value.filter(task => 
+      task.createdAt >= startDate.getTime() && 
+      task.createdAt <= endDate.getTime()
+    ).length
+  } else {
+    // 按日统计
+    const nextDay = new Date(date)
+    nextDay.setDate(date.getDate() + 1)
+    return todos.value.filter(task => 
+      task.createdAt >= date.getTime() && 
+      task.createdAt < nextDay.getTime()
+    ).length
+  }
+}
+
+// 修改获取日期范围的函数
+const getDateRange = computed(() => {
+  const dates = []
+  const today = new Date()
+  let year, month, daysInMonth, currentYear
+  
+  switch (trendTimeRange.value) {
+    case 'week': {
+      // 获取最近7天
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date()
+        date.setDate(date.getDate() - i)
+        date.setHours(0, 0, 0, 0)
+        dates.push(date)
+      }
+      break
+    }
+      
+    case 'month': {
+      // 获取本月所有日期
+      year = today.getFullYear()
+      month = today.getMonth()
+      daysInMonth = new Date(year, month + 1, 0).getDate()
+      
+      for (let i = 0; i < daysInMonth; i++) {
+        const date = new Date(year, month, i + 1)
+        date.setHours(0, 0, 0, 0)
+        dates.push(date)
+      }
+      break
+    }
+      
+    case 'year': {
+      // 获取本年每月的数据
+      currentYear = today.getFullYear()
+      for (let month = 0; month < 12; month++) {
+        const date = new Date(currentYear, month, 1)
+        dates.push(date)
+      }
+      break
+    }
+  }
+  
+  return dates
+})
+
+// 修改任务完成趋势图配置
 const taskTrendOption = computed(() => {
-  const dates = getLast7Days()
+  const dates = getDateRange.value
   const completedData = dates.map(date => getCompletedTasksForDate(date))
   const newData = dates.map(date => getNewTasksForDate(date))
   
   return {
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      formatter: function(params) {
+        const date = dates[params[0].dataIndex]
+        return formatDate(date) + '<br/>' +
+          params.map(param => 
+            param.seriesName + ': ' + param.value
+          ).join('<br/>')
+      }
     },
     legend: {
       data: ['已完成', '新增']
@@ -284,10 +518,15 @@ const taskTrendOption = computed(() => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: dates.map(date => formatDateShort(date))
+      data: dates.map(date => formatDateShort(date)),
+      axisLabel: {
+        interval: trendTimeRange.value === 'week' ? 0 : 'auto',
+        rotate: trendTimeRange.value === 'month' ? 30 : 0
+      }
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      minInterval: 1
     },
     series: [
       {
@@ -295,56 +534,54 @@ const taskTrendOption = computed(() => {
         type: 'line',
         data: completedData,
         smooth: true,
-        areaStyle: {}
+        areaStyle: {
+          opacity: 0.1
+        },
+        itemStyle: {
+          color: '#67C23A'
+        },
+        lineStyle: {
+          width: 2
+        }
       },
       {
         name: '新增',
         type: 'line',
         data: newData,
         smooth: true,
-        areaStyle: {}
+        areaStyle: {
+          opacity: 0.1
+        },
+        itemStyle: {
+          color: '#409EFF'
+        },
+        lineStyle: {
+          width: 2
+        }
       }
     ]
   }
 })
 
-// 获取最近7天的日期
-const getLast7Days = () => {
-  const dates = []
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    date.setHours(0, 0, 0, 0)
-    dates.push(date)
-  }
-  return dates
-}
-
-// 获取指定日期完成的任务数
-const getCompletedTasksForDate = (date) => {
-  const nextDay = new Date(date)
-  nextDay.setDate(date.getDate() + 1)
-  return todos.value.filter(task => 
-    task.completed && 
-    task.completedAt >= date.getTime() && 
-    task.completedAt < nextDay.getTime()
-  ).length
-}
-
-// 获取指定日期新增的任务数
-const getNewTasksForDate = (date) => {
-  const nextDay = new Date(date)
-  nextDay.setDate(date.getDate() + 1)
-  return todos.value.filter(task => 
-    task.createdAt >= date.getTime() && 
-    task.createdAt < nextDay.getTime()
-  ).length
-}
-
-// 格式化短日期（仅显示月日）
+// 修改日期格式化函数
 const formatDateShort = (date) => {
-  return `${date.getMonth() + 1}/${date.getDate()}`
+  switch (trendTimeRange.value) {
+    case 'week':
+      return `${date.getMonth() + 1}/${date.getDate()}`
+    case 'month':
+      return `${date.getDate()}日`
+    case 'year':
+      return `${date.getMonth() + 1}月`
+    default:
+      return `${date.getMonth() + 1}/${date.getDate()}`
+  }
 }
+
+// 添加 watch 以监听时间范围变化
+watch(() => trendTimeRange.value, () => {
+  // 时间范围改变时自动更新图表
+  // Vue会自动重新计算 taskTrendOption
+})
 
 // 修改活跃度热力图数据
 const getVirtualData = (year) => {
@@ -404,66 +641,99 @@ watch(() => todos.value, () => {
   updateRecentActivities()
 }, { deep: true })
 
-// 目标完成进度图配置
+// 添加目标分类统计函数
+const getGoalProgress = () => {
+  const categories = {
+    '工作目标': { total: 0, completed: 0, target: 100 },
+    '学习目标': { total: 0, completed: 0, target: 80 },
+    '生活目标': { total: 0, completed: 0, target: 60 },
+    '其他目标': { total: 0, completed: 0, target: 50 }
+  }
+  
+  // 统计每个分类的任务数量和完成数量
+  todos.value.forEach(todo => {
+    const category = todo.category || '其他目标'
+    if (categories[category]) {
+      categories[category].total++
+      if (todo.completed) {
+        categories[category].completed++
+      }
+    }
+  })
+  
+  // 计算完成百分比
+  return Object.entries(categories).map(([name, data]) => ({
+    value: data.total ? Math.round((data.completed / data.total) * 100) : 0,
+    target: data.target,
+    name,
+    itemStyle: {
+      color: getCategoryColor(name)
+    }
+  }))
+}
+
+// 获取分类对应的颜色
+const getCategoryColor = (category) => {
+  const colors = {
+    '工作目标': '#409EFF',
+    '学习目标': '#67C23A',
+    '生活目标': '#E6A23C',
+    '其他目标': '#909399'
+  }
+  return colors[category]
+}
+
+// 修改目标完成进度图表的配置
 const goalProgressOption = computed(() => ({
   tooltip: {
-    trigger: 'item',
-    formatter: '{b}: {c}%'  // 显示百分比
+    trigger: 'axis',
+    formatter: function(params) {
+      const data = params[0]
+      return `${data.name}<br/>完成进度: ${data.value}%<br/>目标: ${data.target}%`
+    }
   },
-  legend: {
-    orient: 'vertical',
-    left: 'left'
+  grid: {
+    top: '10%',
+    left: '3%',
+    right: '15%',
+    bottom: '10%',
+    containLabel: true
+  },
+  xAxis: {
+    type: 'value',
+    max: 100,
+    axisLabel: {
+      formatter: '{value}%'
+    }
+  },
+  yAxis: {
+    type: 'category',
+    data: ['工作目标', '学习目标', '生活目标', '其他目标'],
+    axisLine: { show: false },
+    axisTick: { show: false }
   },
   series: [
     {
-      name: '目标完成情况',
-      type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
-      itemStyle: {
-        borderRadius: 10,
-        borderColor: '#fff',
-        borderWidth: 2
-      },
+      type: 'bar',
+      name: '完成进度',
+      data: getGoalProgress(),
+      barWidth: '20px',
       label: {
         show: true,
-        position: 'inside',
-        formatter: '{c}%',  // 显示百分比
-        fontSize: 14,
-        color: '#fff'
-      },
-      emphasis: {
-        label: {
-          show: true,
-          fontSize: '20',
-          fontWeight: 'bold'
+        position: 'right',
+        formatter: function(params) {
+          return `${params.value}%`
         }
       },
-      labelLine: {
-        show: false
-      },
-      data: [
-        { 
-          value: 35, 
-          name: '工作目标',
-          itemStyle: { color: '#409EFF' }  // 主要
-        },
-        { 
-          value: 25, 
-          name: '学习目标',
-          itemStyle: { color: '#67C23A' }  // 成功
-        },
-        { 
-          value: 20, 
-          name: '生活目标',
-          itemStyle: { color: '#E6A23C' }  // 警告
-        },
-        { 
-          value: 15, 
-          name: '其他目标',
-          itemStyle: { color: '#909399' }  // 信息
-        }
-      ]
+      markLine: {
+        symbol: ['none', 'none'],
+        label: { show: false },
+        lineStyle: { type: 'dashed' },
+        data: getGoalProgress().map((item, index) => ([
+          { coord: [item.target, index], lineStyle: { color: item.itemStyle.color } },
+          { coord: [item.target, index + 0.5] }
+        ]))
+      }
     }
   ]
 }))
@@ -600,7 +870,119 @@ const handleStatClick = (type) => {
 onMounted(() => {
   loadTodos()
   updateRecentActivities()
+  reviewStore.loadReviews()
 })
+
+// 复盘相关的状态
+const reviewType = ref('daily')
+const reviewDialogVisible = ref(false)
+const reviewFormRef = ref(null)
+
+const reviewForm = ref({
+  type: 'daily',
+  title: '',
+  achievements: '',
+  lessons: '',
+  plans: '',
+})
+
+const reviewRules = {
+  type: [{ required: true, message: '请选择复盘类型', trigger: 'change' }],
+  title: [{ required: true, message: '请输入复盘标题', trigger: 'blur' }],
+  achievements: [{ required: true, message: '请输入主要成就', trigger: 'blur' }],
+  lessons: [{ required: true, message: '请输入经验教训', trigger: 'blur' }],
+  plans: [{ required: true, message: '请输入下步计划', trigger: 'blur' }],
+}
+
+// 获取最近的复盘记录
+const recentReviews = computed(() => {
+  return reviewStore.getRecentReviews(5)
+})
+
+// 计算属性：根据类型筛选复盘记录
+const filteredReviews = computed(() => {
+  return reviewStore.getFilteredReviews(reviewType.value)
+})
+
+// 获取复盘对话框标题
+const getReviewDialogTitle = computed(() => {
+  const typeMap = {
+    daily: '日复盘',
+    weekly: '周复盘',
+    monthly: '月复盘',
+  }
+  return `新建${typeMap[reviewForm.value.type]}`
+})
+
+// 打开复盘对话框
+const openReviewDialog = () => {
+  reviewForm.value = {
+    type: reviewType.value,
+    title: '',
+    achievements: '',
+    lessons: '',
+    plans: '',
+  }
+  reviewDialogVisible.value = true
+}
+
+// 提交复盘
+const submitReview = async () => {
+  if (!reviewFormRef.value) return
+  
+  await reviewFormRef.value.validate((valid) => {
+    if (valid) {
+      const now = new Date()
+      let reviewDate = now
+      
+      // 设置日期和标题
+      if (!reviewForm.value.title) {
+        // ... 原有的标题生成逻辑保持不变 ...
+      }
+
+      const newReview = {
+        id: Date.now(),
+        ...reviewForm.value,
+        date: formatDate(reviewDate),
+      }
+
+      reviewStore.addReview(newReview)
+      reviewDialogVisible.value = false
+      reviewFormRef.value.resetFields()
+      ElMessage.success('复盘记录已保存')
+    }
+  })
+}
+
+// 获取复盘类型对应的样式
+const getReviewType = (type) => {
+  const typeMap = {
+    daily: 'primary',
+    weekly: 'success',
+    monthly: 'warning',
+  }
+  return typeMap[type] || 'info'
+}
+
+// 获取复盘标签类型
+const getReviewTagType = (type) => {
+  const typeMap = {
+    daily: '',
+    weekly: 'success',
+    monthly: 'warning',
+  }
+  return typeMap[type] || 'info'
+}
+
+// 获取复盘类型文本
+const getReviewTypeText = (type) => {
+  const typeMap = {
+    daily: '日复盘',
+    weekly: '周复盘',
+    monthly: '月复盘',
+  }
+  return typeMap[type] || '未知类型'
+}
 </script>
 
 <style scoped>
@@ -751,5 +1133,57 @@ onMounted(() => {
 .stat-card.clickable:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.review-container {
+  margin-bottom: 20px;
+}
+
+.review-card {
+  margin-bottom: 20px;
+}
+
+.review-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.review-item {
+  margin-bottom: 16px;
+}
+
+.review-item-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-title {
+  font-weight: 500;
+}
+
+.review-content {
+  padding: 8px 0;
+}
+
+.review-section {
+  margin-bottom: 12px;
+}
+
+.review-section h4 {
+  margin: 0 0 8px 0;
+  color: var(--el-text-color-regular);
+}
+
+.review-section p {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  line-height: 1.5;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style> 

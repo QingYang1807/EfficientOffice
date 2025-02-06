@@ -1,7 +1,7 @@
 <template>
-  <div class="h-full flex flex-col">
+  <div class="h-full flex flex-col relative">
     <!-- 顶部标题区 -->
-    <div class="flex-none flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div class="flex-none flex items-center justify-between px-6 py-2 border-b border-gray-100">
       <div class="flex items-center gap-3">
         <div class="w-1 h-6 bg-blue-500 rounded-full"></div>
         <h1 class="text-xl font-medium text-gray-900">待办事项 📝</h1>
@@ -18,7 +18,7 @@
     </div>
 
     <!-- 搜索和筛选区 -->
-    <div class="flex-none flex items-center gap-3 px-6 py-3 bg-white border-b border-gray-100">
+    <div class="flex-none flex items-center gap-3 px-6 py-2 bg-white border-b border-gray-100">
       <div class="flex-1 max-w-md">
         <a-input-search
           v-model:value="searchText"
@@ -69,9 +69,76 @@
 
           <!-- 优先级列 -->
           <template v-else-if="column.key === 'priority'">
-            <a-tag :color="getPriorityColor(record.priority)">
-              {{ record.priority }}
-            </a-tag>
+            <a-dropdown :trigger="['hover']">
+              <a-tag 
+                :color="getPriorityColor(record.priority)"
+                class="cursor-pointer"
+              >
+                {{ record.priority }}
+              </a-tag>
+              <template #overlay>
+                <a-menu @click="({ key }) => changePriority(record, key)">
+                  <a-menu-item key="高">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span>高优先级</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="中">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                      <span>中优先级</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="低">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span>低优先级</span>
+                    </div>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </template>
+
+          <!-- 分类列 -->
+          <template v-else-if="column.key === 'category'">
+            <a-dropdown :trigger="['hover']">
+              <a-tag 
+                :color="getCategoryColor(record.category)"
+                class="cursor-pointer"
+              >
+                {{ record.category || '其他目标' }}
+              </a-tag>
+              <template #overlay>
+                <a-menu @click="({ key }) => changeCategory(record, key)">
+                  <a-menu-item key="工作目标">
+                    <div class="flex items-center gap-2">
+                      <a-tag color="blue" size="small">工作</a-tag>
+                      <span>工作目标</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="学习目标">
+                    <div class="flex items-center gap-2">
+                      <a-tag color="success" size="small">学习</a-tag>
+                      <span>学习目标</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="生活目标">
+                    <div class="flex items-center gap-2">
+                      <a-tag color="warning" size="small">生活</a-tag>
+                      <span>生活目标</span>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="其他目标">
+                    <div class="flex items-center gap-2">
+                      <a-tag color="default" size="small">其他</a-tag>
+                      <span>其他目标</span>
+                    </div>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </template>
 
           <!-- 任务内容列 -->
@@ -86,53 +153,21 @@
               />
             </template>
             <template v-else>
-              <div class="group flex items-center" :class="{ 'in-progress': record.pomodoros > 0 && !record.completed }">
+              <div class="group flex items-center relative">
                 <span 
                   :class="{ 
                     'line-through text-gray-400': record.completed,
                     'in-progress-text': record.pomodoros > 0 && !record.completed 
                   }"
-                  class="flex-1"
+                  class="flex-1 truncate cursor-pointer"
+                  @mouseenter="showDetails(record, $event)"
+                  @mouseleave="hideDetails"
                 >
                   {{ record.text }}
                 </span>
+
+                <!-- 快捷操作按钮 -->
                 <div class="action-buttons flex items-center gap-2 transition-opacity">
-                  <!-- 优先级下拉框 -->
-                  <a-dropdown>
-                    <a-button 
-                      type="text" 
-                      class="action-btn !px-2 hover:!bg-gray-100"
-                      title="修改优先级"
-                    >
-                      <div 
-                        class="w-2 h-2 rounded-full"
-                        :class="getPriorityDot(record.priority)"
-                      ></div>
-                    </a-button>
-                    <template #overlay>
-                      <a-menu @click="({ key }) => changePriority(record, key)">
-                        <a-menu-item key="高">
-                          <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                            <span>高优先级</span>
-                          </div>
-                        </a-menu-item>
-                        <a-menu-item key="中">
-                          <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-                            <span>中优先级</span>
-                          </div>
-                        </a-menu-item>
-                        <a-menu-item key="低">
-                          <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                            <span>低优先级</span>
-                          </div>
-                        </a-menu-item>
-                      </a-menu>
-                    </template>
-                  </a-dropdown>
-                  <!-- 开始任务按钮 -->
                   <a-button 
                     v-if="!record.completed"
                     type="text" 
@@ -160,6 +195,20 @@
                   >
                     <template #icon><delete-outlined /></template>
                   </a-button>
+                </div>
+
+                <!-- 悬浮面板 -->
+                <div 
+                  v-if="isHovering && hoveredTodo?.id === record.id" 
+                  class="tooltip"
+                >
+                  <div class="tooltip-content">
+                    <p class="font-medium mb-2">{{ record.text }}</p>
+                    <p class="text-sm text-gray-500">优先级：{{ record.priority }}</p>
+                    <p class="text-sm text-gray-500">分类：{{ record.category }}</p>
+                    <p class="text-sm text-gray-500">创建时间：{{ new Date(record.createdAt).toLocaleString() }}</p>
+                    <p class="text-sm text-gray-500" v-if="record.dueDate">截止时间：{{ new Date(record.dueDate).toLocaleString() }}</p>
+                  </div>
                 </div>
               </div>
             </template>
@@ -213,33 +262,118 @@
         <!-- 左侧前缀图标和下拉菜单 -->
         <template #prefix>
           <div class="flex items-center gap-2">
-            <div 
-              v-if="newTodoPriority" 
-              class="w-3 h-3 rounded-full"
-              :class="getPriorityDot(newTodoPriority)"
-            ></div>
+            <div class="flex items-center gap-2">
+              <!-- 分类标签 - 添加下拉菜单 -->
+              <a-dropdown :trigger="['hover']" placement="bottomLeft">
+                <a-tag 
+                  v-if="newTodoCategory" 
+                  :color="getCategoryColor(newTodoCategory)"
+                  size="small"
+                  class="hover:cursor-pointer"
+                >
+                  {{ getCategoryShortName(newTodoCategory) }}
+                </a-tag>
+                <template #overlay>
+                  <a-menu @click="({ key }) => setCategory(key)">
+                    <a-menu-item key="工作目标">
+                      <a-tag color="blue" size="small">工作</a-tag>
+                      <span class="ml-2">工作目标</span>
+                    </a-menu-item>
+                    <a-menu-item key="学习目标">
+                      <a-tag color="success" size="small">学习</a-tag>
+                      <span class="ml-2">学习目标</span>
+                    </a-menu-item>
+                    <a-menu-item key="生活目标">
+                      <a-tag color="warning" size="small">生活</a-tag>
+                      <span class="ml-2">生活目标</span>
+                    </a-menu-item>
+                    <a-menu-item key="其他目标">
+                      <a-tag color="default" size="small">其他</a-tag>
+                      <span class="ml-2">其他目标</span>
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+
+              <!-- 优先级标签 - 添加下拉菜单 -->
+              <a-dropdown :trigger="['hover']" placement="bottomLeft">
+                <a-tag 
+                  v-if="newTodoPriority" 
+                  :color="getPriorityColor(newTodoPriority)"
+                  size="small"
+                  class="hover:cursor-pointer"
+                >
+                  {{ newTodoPriority }}
+                </a-tag>
+                <template #overlay>
+                  <a-menu @click="({ key }) => setPriority(key)">
+                    <a-menu-item key="高">
+                      <a-tag color="error" size="small">高</a-tag>
+                      <span class="ml-2">高优先级</span>
+                    </a-menu-item>
+                    <a-menu-item key="中">
+                      <a-tag color="warning" size="small">中</a-tag>
+                      <span class="ml-2">中优先级</span>
+                    </a-menu-item>
+                    <a-menu-item key="低">
+                      <a-tag color="success" size="small">低</a-tag>
+                      <span class="ml-2">低优先级</span>
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+            </div>
             <a-dropdown>
               <plus-outlined class="text-gray-400 cursor-pointer hover:text-blue-500 text-lg" />
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="high" @click="setPriority('高')">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                      <span>高优先级</span>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="medium" @click="setPriority('中')">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      <span>中优先级</span>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="low" @click="setPriority('低')">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                      <span>低优先级</span>
-                    </div>
-                  </a-menu-item>
+                  <a-menu-item-group title="任务分类">
+                    <a-menu-item key="work" @click="setCategory('工作目标')">
+                      <div class="flex items-center gap-2">
+                        <a-tag color="blue" size="small">工作</a-tag>
+                        <span>工作目标</span>
+                      </div>
+                    </a-menu-item>
+                    <a-menu-item key="study" @click="setCategory('学习目标')">
+                      <div class="flex items-center gap-2">
+                        <a-tag color="success" size="small">学习</a-tag>
+                        <span>学习目标</span>
+                      </div>
+                    </a-menu-item>
+                    <a-menu-item key="life" @click="setCategory('生活目标')">
+                      <div class="flex items-center gap-2">
+                        <a-tag color="warning" size="small">生活</a-tag>
+                        <span>生活目标</span>
+                      </div>
+                    </a-menu-item>
+                    <a-menu-item key="other" @click="setCategory('其他目标')">
+                      <div class="flex items-center gap-2">
+                        <a-tag color="default" size="small">其他</a-tag>
+                        <span>其他目标</span>
+                      </div>
+                    </a-menu-item>
+                  </a-menu-item-group>
+                  <a-menu-divider />
+                  <a-menu-item-group title="优先级">
+                    <a-menu-item key="high" @click="setPriority('高')">
+                      <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                        <span>高优先级</span>
+                      </div>
+                    </a-menu-item>
+                    <a-menu-item key="medium" @click="setPriority('中')">
+                      <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                        <span>中优先级</span>
+                      </div>
+                    </a-menu-item>
+                    <a-menu-item key="low" @click="setPriority('低')">
+                      <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span>低优先级</span>
+                      </div>
+                    </a-menu-item>
+                  </a-menu-item-group>
                   <a-menu-divider />
                   <a-menu-item key="date" @click="setDueDate">
                     📅 设置截止日期
@@ -308,6 +442,11 @@ const newDueDate = ref(null)
 const datePickerVisible = ref(false)
 const tempDueDate = ref(null)
 const editingDueDate = ref(null)  // 当前正在编辑截止日期的任务
+const newTodoCategory = ref(null) // 新任务的分类
+const detailsVisible = ref(false)
+const selectedTodoDetails = ref('')
+const isHovering = ref(false)
+const hoveredTodo = ref(null)
 
 // 添加删除历史记录
 const deleteHistory = ref([])
@@ -340,6 +479,12 @@ const columns = [
       const priorityWeight = { '高': 3, '中': 2, '低': 1 }
       return priorityWeight[a.priority] - priorityWeight[b.priority]
     },
+  },
+  {
+    title: '分类',
+    key: 'category',
+    width: 120,
+    sorter: (a, b) => (a.category || '').localeCompare(b.category || ''),
   },
   {
     title: '创建时间',
@@ -449,16 +594,18 @@ const addTodo = () => {
     id: Date.now(),
     text: newTodo.value.trim(),
     completed: false,
+    category: newTodoCategory.value || '其他目标',
     priority: newTodoPriority.value || '中',
     dueDate: newDueDate.value,
     pomodoros: 0,
-    createdAt: Date.now() // 添加创建时间
+    createdAt: Date.now()
   }
 
   todos.value.push(todo)
   saveTodosToStorage()
   newTodo.value = ''
   newTodoPriority.value = null
+  newTodoCategory.value = null
   newDueDate.value = null
   message.success('添加成功')
 }
@@ -505,23 +652,21 @@ const deleteTodo = (todo) => {
   }
 }
 
-const startEdit = (todo) => {
-  editingId.value = todo.id
-  editingText.value = todo.text
+const startEdit = (record) => {
+  editingId.value = record.id
+  editingText.value = record.text
 }
 
 const saveTodo = () => {
-  if (editingId.value === null) return
-  
-  const todo = todos.value.find(t => t.id === editingId.value)
-  if (todo && editingText.value.trim()) {
-    todo.text = editingText.value.trim()
-    saveTodosToStorage()
-    message.success('任务更新成功')
+  if (editingId.value) {
+    const todo = todos.value.find(t => t.id === editingId.value)
+    if (todo) {
+      todo.text = editingText.value
+      saveTodosToStorage()
+    }
+    editingId.value = null
+    editingText.value = ''
   }
-  
-  editingId.value = null
-  editingText.value = ''
 }
 
 const onSearch = () => {
@@ -689,6 +834,65 @@ const clearDueDate = (todo) => {
   message.success('已清除截止日期')
 }
 
+// 在 script 部分添加分类相关方法
+const setCategory = (category) => {
+  newTodoCategory.value = category
+  message.success(`已设置为${category}`)
+}
+
+// 获取分类对应的 Tag 颜色（用于表格中的标签）
+const getCategoryColor = (category) => {
+  const colors = {
+    '工作目标': 'blue',
+    '学习目标': 'success',
+    '生活目标': 'warning',
+    '其他目标': 'default'  // 修改为 default 而不是空字符串
+  }
+  return colors[category] || 'default'
+}
+
+// 添加获取分类简短名称的方法
+const getCategoryShortName = (category) => {
+  const shortNames = {
+    '工作目标': '工作',
+    '学习目标': '学习',
+    '生活目标': '生活',
+    '其他目标': '其他'
+  }
+  return shortNames[category] || '其他'
+}
+
+// 添加分类切换函数
+const changeCategory = (todo, category) => {
+  const updatedTodo = {
+    ...todo,
+    category
+  }
+  todos.value = todos.value.map(t => 
+    t.id === todo.id ? updatedTodo : t
+  )
+  saveTodosToStorage()
+  message.success(`已更新分类为：${category}`)
+}
+
+// 修复悬浮面板显示
+const showDetails = (record, event) => {
+  hoveredTodo.value = record
+  isHovering.value = true
+  // 计算悬浮面板位置
+  const rect = event.target.getBoundingClientRect()
+  const tooltipEl = document.querySelector('.tooltip')
+  if (tooltipEl) {
+    tooltipEl.style.top = `${rect.top - 10}px`
+    tooltipEl.style.left = `${rect.left + (rect.width / 2)}px`
+  }
+}
+
+const hideDetails = () => {
+  hoveredTodo.value = null
+  isHovering.value = false
+}
+
 // 初始化
 loadTodosFromStorage()
 </script>
@@ -742,9 +946,16 @@ loadTodosFromStorage()
   @apply bg-gray-300;
 }
 
-/* 添加优先级点样式 */
+/* 添加优先级标签样式 */
+:deep(.ant-tag) {
+  margin-right: 0;
+  line-height: 1.2;
+}
+
+/* 调整输入框前缀区域的样式 */
 :deep(.ant-input-prefix) {
-  @apply mr-2;
+  @apply mr-2 flex items-center;
+  gap: 8px;
 }
 
 /* 美化搜索框 */
@@ -947,10 +1158,8 @@ loadTodosFromStorage()
 
 /* 操作按钮样式 */
 .action-buttons {
-  position: relative;
-  opacity: 0.6;
-  padding-left: 8px;
-  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
 }
 
 .group:hover .action-buttons {
@@ -958,13 +1167,8 @@ loadTodosFromStorage()
 }
 
 .action-btn {
-  position: relative;
-  color: #666;
-  transition: all 0.2s ease-in-out;
-}
-
-.action-btn:hover {
-  transform: scale(1.1);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 /* 修改之前的按钮组样式 */
@@ -1178,5 +1382,93 @@ loadTodosFromStorage()
 
 :deep(.ant-picker) {
   @apply w-full;
+}
+
+/* 优化标签样式 */
+:deep(.ant-tag) {
+  margin: 0;
+  padding: 0 6px;
+  line-height: 1.4;
+  font-size: 12px;
+}
+
+/* 调整标签间距 */
+.flex.items-center.gap-2 {
+  gap: 4px;
+}
+
+/* 添加标签悬浮效果 */
+:deep(.ant-tag.hover\:cursor-pointer:hover) {
+  opacity: 0.85;
+  transform: translateY(-1px);
+  transition: all 0.2s;
+}
+
+/* 优化下拉菜单样式 */
+:deep(.ant-dropdown-menu-item) {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+}
+
+:deep(.ant-dropdown-menu-item:hover) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* 调整下拉菜单中标签的样式 */
+:deep(.ant-dropdown-menu .ant-tag) {
+  min-width: 32px;
+  text-align: center;
+}
+
+/* 调整下拉菜单的间距 */
+:deep(.ant-dropdown-menu) {
+  padding: 4px;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; /* 确保文本不换行 */
+}
+
+/* 添加列宽拖拽样式 */
+.table-column-resizer {
+  cursor: col-resize;
+  position: relative;
+  width: 5px; /* 调整拖拽宽度 */
+  background-color: transparent; /* 背景透明 */
+}
+
+/* 悬浮提示样式 */
+.tooltip {
+  position: fixed;
+  background-color: white;
+  border: 1px solid #eee;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 99999;
+  min-width: 200px;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background-color: white;
+  border-right: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.tooltip-content {
+  position: relative;
+  z-index: 1;
 }
 </style>

@@ -13,6 +13,10 @@ import ProfileView from '@/views/ProfileView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import NotesView from '../views/NotesView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
+import MindMapView from '../views/MindMapView.vue'
+import ReviewsView from '../views/ReviewsView.vue'
+import CalendarView from '../views/CalendarView.vue'
+import AIChatView from '../views/AIChatView.vue'
 
 // 路由配置
 export const routes = [
@@ -62,6 +66,56 @@ export const routes = [
         meta: { 
           title: '知识库',
           icon: 'Collection',
+          requiresAuth: true 
+        }
+      },
+      { 
+        path: 'mindmap', 
+        name: 'MindMap', 
+        component: MindMapView,
+        meta: { 
+          title: '思维导图',
+          icon: 'Share',
+          requiresAuth: true 
+        }
+      },
+      { 
+        path: 'reviews', 
+        name: 'Reviews', 
+        component: ReviewsView,
+        meta: { 
+          title: '复盘记录',
+          icon: 'DocumentChecked',
+          requiresAuth: true 
+        }
+      },
+      { 
+        path: 'calendar', 
+        name: 'Calendar', 
+        component: CalendarView, 
+        meta: { 
+          title: '日历',
+          icon: 'Calendar',
+          requiresAuth: true 
+        }
+      },
+      {
+        path: 'password',
+        name: 'Password',
+        component: PasswordGenerator,
+        meta: {
+          title: '密码生成器',
+          icon: 'Key',
+          requiresAuth: true
+        }
+      },
+      { 
+        path: 'ai-chat', 
+        name: 'AIChat', 
+        component: AIChatView, 
+        meta: { 
+          title: 'AI问答',
+          icon: 'ChatDotRound',
           requiresAuth: true 
         }
       }

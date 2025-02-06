@@ -8,15 +8,12 @@ module.exports = {
     'plugin:vue/vue3-essential',
     'eslint:recommended'
   ],
+  parser: 'vue-eslint-parser',
   parserOptions: {
-    ecmaVersion: 2020,
     parser: '@babel/eslint-parser',
     requireConfigFile: false,
-    babelOptions: {
-      babelrc: false,
-      configFile: false,
-      presets: ['@babel/preset-env']
-    }
+    ecmaVersion: 2020,
+    sourceType: 'module'
   },
   rules: {
     'vue/multi-word-component-names': 'off',

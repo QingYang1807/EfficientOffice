@@ -22,3 +22,16 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# 忽略所有.venv目录
+.venv/
+
+# 忽略所有 python_service 下的文件
+python_service/
+
+.env
+.env.local
+.env.*.local
+.vscode
+python_server/
+.cursorignore

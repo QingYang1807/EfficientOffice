@@ -9,17 +9,17 @@
         <component :is="isCollapse ? 'Expand' : 'Fold'" />
       </el-icon>
     </div>
-    <el-menu-item 
-      v-for="route in routes" 
-      :key="route.path"
-      :index="route.path"
-      @click="navigateTo(route)"
-    >
-      <el-icon>
-        <component :is="route.meta.icon" />
-      </el-icon>
-      <span>{{ route.meta.title }}</span>
-    </el-menu-item>
+    <template v-for="route in menuRoutes" :key="route.path">
+      <el-menu-item
+        :index="route.path"
+        @click="navigateTo(route)"
+      >
+        <el-icon>
+          <component :is="route.meta?.icon || getDefaultIcon(route)" />
+        </el-icon>
+        <span>{{ route.meta?.title || route.name }}</span>
+      </el-menu-item>
+    </template>
   </el-menu>
 </template>
 
@@ -30,16 +30,29 @@ import {
   HomeFilled,
   List,
   Timer,
-  Aim,  // 添加目标图标
+  CalendarOutlined,
+  KeyOutlined,
   Expand,
-  Fold
+  Fold,
+  Share,
+  Memo,
+  Collection
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 
 // 获取路由配置
-const routes = router.options.routes
+const menuRoutes = computed(() => {
+  // 获取主布局下的子路由
+  const mainRoute = router.options.routes.find(r => r.path === '/')
+  return mainRoute?.children?.filter(route => 
+    // 过滤掉重定向路由和不需要显示的路由
+    route.path !== '' && 
+    route.name && 
+    route.path !== 'login'
+  ) || []
+})
 
 // 当前激活的菜单项
 const activeMenu = computed(() => route.path)
@@ -63,6 +76,24 @@ const emit = defineEmits(['collapse-change'])
 // 导航方法
 const navigateTo = (route) => {
   router.push(route.path)
+}
+
+// 获取默认图标
+const getDefaultIcon = (route) => {
+  const iconMap = {
+    Dashboard: 'HomeFilled',
+    TodoList: 'List',
+    PomodoroTimer: 'Timer',
+    GoalManager: 'Aim',
+    MindMap: 'Share',
+    Notes: 'Memo',
+    KnowledgeBase: 'Collection',
+    Home: 'HomeFilled',
+    Timer: 'Timer',
+    Calendar: 'CalendarOutlined',
+    Password: 'KeyOutlined'
+  }
+  return iconMap[route.name] || 'AppstoreOutlined'
 }
 </script>
 

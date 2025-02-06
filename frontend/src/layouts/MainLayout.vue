@@ -31,6 +31,16 @@
           <span>目标管理</span>
         </el-menu-item>
         
+        <el-menu-item index="/reviews">
+          <el-icon><document-checked /></el-icon>
+          <span>复盘记录</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/mindmap">
+          <el-icon><share /></el-icon>
+          <span>思维导图</span>
+        </el-menu-item>
+        
         <el-menu-item index="/notes">
           <el-icon><memo /></el-icon>
           <span>便签记录</span>
@@ -39,6 +49,16 @@
         <el-menu-item index="/knowledge">
           <el-icon><collection /></el-icon>
           <span>知识库</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/calendar">
+          <el-icon><calendar /></el-icon>
+          <span>日历</span>
+        </el-menu-item>
+        
+        <el-menu-item index="/ai-chat">
+          <el-icon><chat-dot-round /></el-icon>
+          <span>AI问答</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -100,7 +120,11 @@ import {
   Setting,
   SwitchButton,
   Memo,
-  Collection
+  Collection,
+  Share,
+  DocumentChecked,
+  Calendar,
+  ChatDotRound,
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 

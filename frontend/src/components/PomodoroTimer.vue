@@ -468,9 +468,37 @@ watch(
 // 添加悬浮卡片相关状态
 const hoveredTask = ref(null)
 
-// 添加悬浮卡片相关方法
+// 添加鼠标位置状态
+const mousePosition = ref({ x: 0, y: 0 })
+
 const showTaskCard = (task) => {
   hoveredTask.value = task
+  // 获取鼠标位置并设置悬浮卡片位置
+  nextTick(() => {
+    const card = document.querySelector('.task-hover-card')
+    if (card) {
+      const cardRect = card.getBoundingClientRect()
+      const x = mousePosition.value.x - cardRect.width / 2
+      const y = mousePosition.value.y - cardRect.height - 20 // 在鼠标上方20px处
+      
+      // 确保卡片不超出视口边界
+      const maxX = window.innerWidth - cardRect.width - 20
+      const minX = 20
+      const maxY = 20
+      const minY = 20
+      
+      card.style.left = `${Math.min(Math.max(x, minX), maxX)}px`
+      card.style.top = `${Math.min(Math.max(y, minY), maxY)}px`
+    }
+  })
+}
+
+// 添加鼠标移动事件监听
+const handleMouseMove = (event) => {
+  mousePosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
 }
 
 const hideTaskCard = () => {
@@ -518,6 +546,7 @@ const onPomodoroComplete = () => {
 onMounted(() => {
   loadTodosFromStorage();
   selectTaskFromRoute();
+  window.addEventListener('mousemove', handleMouseMove)
 });
 
 onUnmounted(() => {
@@ -525,6 +554,7 @@ onUnmounted(() => {
     clearInterval(timer.value);
     timer.value = null;
   }
+  window.removeEventListener('mousemove', handleMouseMove)
 });
 </script>
 
@@ -626,14 +656,14 @@ onUnmounted(() => {
 /* 中间任务列表区域 */
 .task-section,
 .completed-section {
-  position: relative; /* 为悬浮卡片提供参考 */
-  z-index: 1;
+  position: relative;
+  z-index: auto;
   display: flex;
   flex-direction: column;
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+  overflow: visible !important;
 }
 
 .task-list-container,
@@ -641,6 +671,8 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 0;
+  position: relative;
+  z-index: auto;
 }
 
 /* 列表头部样式 */
@@ -661,7 +693,7 @@ onUnmounted(() => {
 /* 任务项样式 */
 .task-item {
   position: relative;
-  z-index: 1;
+  z-index: auto;
   padding: 0;
   border-bottom: 1px solid #f0f0f0;
   cursor: default;
@@ -704,7 +736,7 @@ onUnmounted(() => {
 
 /* 悬浮效果 */
 .task-item:hover {
-  z-index: 10;
+  z-index: 1;
 }
 
 .task-item:hover .task-content {
@@ -794,17 +826,13 @@ onUnmounted(() => {
 
 /* 悬浮卡片样式 */
 .task-hover-card {
-  position: absolute;
-  left: 100%; /* 从任务项右边开始 */
-  top: 50%;
-  transform: translateY(-50%);
+  position: fixed;
+  z-index: 9999;
   width: 280px;
-  margin-left: 12px; /* 与任务项保持间距 */
   background: white;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   padding: 16px;
-  z-index: 100;
   pointer-events: none;
   animation: fadeIn 0.2s ease;
 }
@@ -813,24 +841,24 @@ onUnmounted(() => {
 .task-hover-card::before {
   content: '';
   position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
   border-style: solid;
-  border-width: 6px 6px 6px 0;
-  border-color: transparent white transparent transparent;
-  filter: drop-shadow(-2px 0px 1px rgba(0, 0, 0, 0.05));
+  border-width: 6px 6px 0 6px;
+  border-color: white transparent transparent transparent;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.05));
 }
 
 /* 修改动画效果 */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translate(10px, -50%);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translate(0, -50%);
+    transform: translateY(0);
   }
 }
 
@@ -864,68 +892,9 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* 修改淡入动画 */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* 优化截止日期样式 */
 .text-red-500 {
   color: #f56c6c;
-}
-
-/* 确保滚动容器不会裁切悬浮卡片 */
-.task-list-container {
-  overflow: visible !important;
-}
-
-.task-section,
-.completed-section {
-  overflow: visible !important;
-}
-
-/* 确保任务项容器可以正确定位悬浮卡片 */
-.task-item {
-  position: relative;
-  z-index: 2;
-}
-
-.task-item:hover {
-  z-index: 10; /* 提高悬浮时的层级 */
-}
-
-/* 优化任务内容布局 */
-.task-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
-  margin: 0;
-  background: white; /* 确保背景色 */
-}
-
-/* 修改任务项和容器的样式 */
-.task-section {
-  position: relative;
-  z-index: 1;
-  overflow: visible !important; /* 允许悬浮卡片溢出显示 */
-}
-
-.task-list-container {
-  position: relative;
-  overflow: visible !important;
-}
-
-.task-item {
-  position: relative;
-  z-index: 1;
 }
 
 /* 对话框样式 */
@@ -986,18 +955,6 @@ onUnmounted(() => {
 .task-name.completed {
   color: var(--el-text-color-secondary);
   text-decoration: line-through;
-}
-
-/* 确保悬浮卡片在已完成列表中也能正常显示 */
-.completed-section {
-  position: relative;
-  z-index: 1;
-  overflow: visible !important;
-}
-
-.completed-list-container {
-  position: relative;
-  overflow: visible !important;
 }
 </style>
   
