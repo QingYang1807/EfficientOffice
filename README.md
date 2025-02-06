@@ -12,6 +12,7 @@ Efficient Office 是一款专为打工人打造的高效办公平台。结合STA
 ![image](https://github.com/user-attachments/assets/f1c6bb48-c7e3-4c98-a348-a8fad7270dba)
 ![image](https://github.com/user-attachments/assets/2b2cd67d-6f0e-4bf9-bd00-6f9303ae99e8)
 ![image](https://github.com/user-attachments/assets/bbef0d5f-1098-46bd-afe3-71ff5485e1bd)
+![image](https://github.com/user-attachments/assets/9e6c9676-380d-477f-9e59-3fb15e2a7aa1)
 
 
 ## v9
