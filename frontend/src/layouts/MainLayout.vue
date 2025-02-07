@@ -60,6 +60,11 @@
           <el-icon><chat-dot-round /></el-icon>
           <span>AI问答</span>
         </el-menu-item>
+        
+        <el-menu-item index="/gratitude-diary">
+          <el-icon><edit-pen /></el-icon>
+          <span>感恩日记</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -125,6 +130,7 @@ import {
   DocumentChecked,
   Calendar,
   ChatDotRound,
+  EditPen,
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 

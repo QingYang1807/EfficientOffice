@@ -17,6 +17,7 @@ import MindMapView from '../views/MindMapView.vue'
 import ReviewsView from '../views/ReviewsView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import AIChatView from '../views/AIChatView.vue'
+import GratitudeDiaryView from '../views/GratitudeDiaryView.vue'
 
 // 路由配置
 export const routes = [
@@ -117,6 +118,16 @@ export const routes = [
           title: 'AI问答',
           icon: 'ChatDotRound',
           requiresAuth: true 
+        }
+      },
+      {
+        path: 'gratitude-diary',
+        name: 'GratitudeDiary',
+        component: GratitudeDiaryView,
+        meta: {
+          title: '感恩日记',
+          icon: 'EditPen',
+          requiresAuth: true
         }
       }
     ]
