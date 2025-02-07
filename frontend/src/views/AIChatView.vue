@@ -637,9 +637,11 @@ onMounted(() => {
 
 // 创建新对话
 const createNewChat = () => {
+  const now = new Date();
+  const formattedDate = `${now.getMonth() + 1}月${now.getDate()}日 ${now.getHours()}:${now.getMinutes()}`;
   currentChat.value = {
     id: Date.now(),
-    title: '新对话',
+    title: `新对话 - ${formattedDate}`,
     time: new Date(),
     messages: [],
     currentModel: currentModel.value  // 记录初始模型
@@ -857,8 +859,9 @@ const saveTitle = (chat) => {
 <style scoped>
 .ai-chat-container {
   display: flex;
-  height: 100vh;
+  height: 100vh; /* 确保容器高度为视口高度 */
   background-color: var(--el-bg-color);
+  overflow: hidden; /* 防止溢出 */
 }
 
 .sidebar {
@@ -904,7 +907,7 @@ const saveTitle = (chat) => {
 
 .chat-history {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* 允许历史记录区域滚动 */
   padding: 0 8px;
 }
 
@@ -968,15 +971,16 @@ const saveTitle = (chat) => {
   display: flex;
   flex-direction: column;
   background-color: var(--el-bg-color);
+  overflow: hidden; /* 防止溢出 */
 }
 
 .messages {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* 允许消息区域滚动 */
   padding: 20px;
   display: flex;
   flex-direction: column;
-  height: 0;
+  height: 0; /* 确保不影响父容器的高度 */
   align-items: flex-start;
   scroll-behavior: smooth;
 }
