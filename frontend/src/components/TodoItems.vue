@@ -43,6 +43,22 @@
           { value: 'completed', label: '已完成 ✅' }
         ]"
       />
+      <div 
+        class="completed-tasks-control"
+        @click="toggleCompletedTasks"
+      >
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50">
+          <div class="completed-count">
+            <span class="number">{{ completedTodos.length }}</span>
+            <span class="label">已完成</span>
+          </div>
+          <div class="toggle-icon" :class="{ 'rotated': !showCompletedTasks }">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 表格区域 - 使用 flex-1 让它占据剩余空间 -->
@@ -56,6 +72,7 @@
         size="middle"
         class="custom-table -mx-4"
         @change="handleTableChange"
+        :rowClassName="getRowClassName"
       >
         <template #bodyCell="{ column, record }">
           <!-- 完成状态列 -->
@@ -502,6 +519,7 @@ const showConfetti = ref(false)
 const confettiCanvas = ref(null)
 const showConfirmationModal = ref(false)
 const completedTask = ref(null)
+const showCompletedTasks = ref(true)
 
 // 表格列定义
 const columns = [
@@ -568,36 +586,12 @@ const today = computed(() => {
 })
 
 const filteredTodos = computed(() => {
-  let result = [...todos.value]
-  
-  // 搜索过滤
-  if (searchText.value) {
-    result = result.filter(todo => 
-      todo.text.toLowerCase().includes(searchText.value.toLowerCase())
-    )
-  }
-  
-  // 状态过滤
-  if (filterStatus.value !== 'all') {
-    result = result.filter(todo => 
-      filterStatus.value === 'completed' ? todo.completed : !todo.completed
-    )
-  }
-  
-  // 排序
-  if (sortState.value.columnKey && sortState.value.order) {
-    const { columnKey, order } = sortState.value
-    const column = columns.find(col => col.key === columnKey)
-    
-    if (column && column.sorter) {
-      result.sort((a, b) => {
-        const result = column.sorter(a, b)
-        return order === 'ascend' ? result : -result
-      })
+  return todos.value.filter(todo => {
+    if (!showCompletedTasks.value && todo.completed) {
+      return false // 隐藏已完成任务
     }
-  }
-  
-  return result
+    return true // 显示其他任务
+  })
 })
 
 const statusCount = computed(() => ({
@@ -1017,6 +1011,34 @@ const showDetails = (record, event) => {
 const hideDetails = () => {
   hoveredTodo.value = null
   isHovering.value = false
+}
+
+// 添加已完成任务的数量计算属性
+const completedTodos = computed(() => {
+  return todos.value.filter(todo => todo.completed)
+})
+
+// 切换已完成任务的显示状态
+const toggleCompletedTasks = () => {
+  showCompletedTasks.value = !showCompletedTasks.value
+  
+  // 添加有趣的动画效果
+  const emoji = showCompletedTasks.value ? '👀' : '🙈'
+  message.success({
+    content: h('div', [
+      h('span', showCompletedTasks.value ? '显示已完成任务 ' : '隐藏已完成任务 '),
+      h('span', emoji)
+    ]),
+    duration: 2
+  })
+}
+
+// 获取行的类名
+const getRowClassName = (record) => {
+  return {
+    'completed-row': record.completed,
+    'completed-row-hidden': record.completed && !showCompletedTasks.value
+  }
 }
 
 // 初始化
@@ -1675,5 +1697,103 @@ loadTodosFromStorage()
 
 .dialog-footer .el-button {
   min-width: 100px;
+}
+
+/* 已完成任务控制按钮样式 */
+.completed-tasks-control {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.completed-tasks-control:hover {
+  transform: translateY(-1px);
+}
+
+.completed-count {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.completed-count .number {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-color-success);
+}
+
+.completed-count .label {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+}
+
+.toggle-icon.rotated {
+  transform: rotate(-180deg);
+}
+
+/* 已完成任务行的动画效果 */
+.completed-row {
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.completed-row-hidden {
+  opacity: 0;
+  transform: translateX(100%);
+  height: 0;
+  padding: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* 添加任务完成时的动画效果 */
+@keyframes taskComplete {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(50px);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.task-completing {
+  animation: taskComplete 0.5s ease-in-out;
+}
+
+/* 优化表格样式 */
+:deep(.ant-table-tbody > tr.completed-row > td) {
+  transition: all 0.3s ease;
+  color: var(--el-text-color-secondary);
+}
+
+:deep(.ant-table-tbody > tr.completed-row:hover > td) {
+  background: #f0f2f5;
+}
+
+/* 添加完成任务数量的动画效果 */
+.completed-count .number {
+  display: inline-block;
+  animation: countChange 0.3s ease-out;
+}
+
+@keyframes countChange {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>
