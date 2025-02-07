@@ -220,6 +220,9 @@ const searchText = ref('');
 const showConfirmationModal = ref(false);
 const showContinueModal = ref(false);
 const router = useRouter();
+const startTime = ref(null); // 添加开始时间引用
+const lastTickTime = ref(null); // 添加上次计时引用
+const animationFrameId = ref(null); // 添加动画帧ID引用
 
 const emojis = ['🍅', '📚', '☕', '🧘', '💻'];
 
@@ -265,7 +268,7 @@ const filteredCompletedTodos = computed(() => {
 const selectTask = (task) => {
   // 先停止当前计时器
   if (timer.value) {
-    clearInterval(timer.value);
+    cancelAnimationFrame(timer.value);
     timer.value = null;
   }
   
@@ -287,7 +290,8 @@ const toggleTimer = () => {
 
   if (timerRunning.value) {
     // 暂停计时器
-    clearInterval(timer.value);
+    cancelAnimationFrame(timer.value);
+    timer.value = null;
     timerRunning.value = false;
     currentEmoji.value = '⏸️';
   } else {
@@ -298,7 +302,7 @@ const toggleTimer = () => {
 
 const startTimer = () => {
   if (timer.value) {
-    clearInterval(timer.value);
+    cancelAnimationFrame(timer.value);
     timer.value = null;
   }
   
@@ -306,18 +310,33 @@ const startTimer = () => {
   currentEmoji.value = '🍅';
   const pomodoroTimeInSeconds = pomodoroDuration.value * 60;
   
-  timer.value = setInterval(() => {
-    time.value++;
-    percentage.value = (time.value / pomodoroTimeInSeconds) * 100;
+  // 记录开始时间
+  startTime.value = performance.now();
+  lastTickTime.value = startTime.value;
+  
+  const tick = (currentTime) => {
+    if (!timerRunning.value) return;
     
-    if (time.value % 300 === 0) {
+    // 计算实际经过的时间
+    const elapsedSeconds = Math.floor((currentTime - startTime.value) / 1000);
+    time.value = elapsedSeconds;
+    percentage.value = (elapsedSeconds / pomodoroTimeInSeconds) * 100;
+    
+    // 每5分钟更换一次表情
+    if (Math.floor(elapsedSeconds / 300) > Math.floor((elapsedSeconds - 1) / 300)) {
       currentEmoji.value = emojis[Math.floor(Math.random() * emojis.length)];
     }
     
-    if (time.value >= pomodoroTimeInSeconds) {
+    if (elapsedSeconds >= pomodoroTimeInSeconds) {
       onPomodoroComplete();
+      return;
     }
-  }, 1000);
+    
+    lastTickTime.value = currentTime;
+    timer.value = requestAnimationFrame(tick);
+  };
+  
+  timer.value = requestAnimationFrame(tick);
 };
 
 const resetTimer = () => {
@@ -326,11 +345,14 @@ const resetTimer = () => {
     if (!shouldReset) return;
   }
   
-  clearInterval(timer.value);
+  cancelAnimationFrame(timer.value);
+  timer.value = null;
   timerRunning.value = false;
   time.value = 0;
   percentage.value = 0;
   currentEmoji.value = '🍅';
+  startTime.value = null;
+  lastTickTime.value = null;
 };
 
 const handleTaskComplete = () => {
@@ -536,25 +558,72 @@ const isOverdue = (date) => {
 
 // 修改番茄钟结束时的处理
 const onPomodoroComplete = () => {
-  clearInterval(timer.value);
+  cancelAnimationFrame(timer.value);
   timer.value = null;
   timerRunning.value = false;
   currentEmoji.value = '🎉';
   showConfirmationModal.value = true;
 };
 
+// 修改页面可见性变化处理函数
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    // 页面隐藏时记录当前时间
+    if (timerRunning.value) {
+      cancelAnimationFrame(timer.value);
+      lastTickTime.value = performance.now();
+    }
+  } else {
+    // 页面可见时，如果计时器在运行，则从上次时间继续计时
+    if (timerRunning.value) {
+      const currentTime = performance.now();
+      const elapsedTime = Math.floor((currentTime - lastTickTime.value) / 1000);
+      
+      // 更新开始时间，保持原有进度
+      startTime.value = startTime.value + (elapsedTime * 1000);
+      
+      // 继续计时
+      const tick = (currentTime) => {
+        if (!timerRunning.value) return;
+        
+        const elapsedSeconds = Math.floor((currentTime - startTime.value) / 1000);
+        const pomodoroTimeInSeconds = pomodoroDuration.value * 60;
+        
+        time.value = elapsedSeconds;
+        percentage.value = (elapsedSeconds / pomodoroTimeInSeconds) * 100;
+        
+        if (Math.floor(elapsedSeconds / 300) > Math.floor((elapsedSeconds - 1) / 300)) {
+          currentEmoji.value = emojis[Math.floor(Math.random() * emojis.length)];
+        }
+        
+        if (elapsedSeconds >= pomodoroTimeInSeconds) {
+          onPomodoroComplete();
+          return;
+        }
+        
+        lastTickTime.value = currentTime;
+        timer.value = requestAnimationFrame(tick);
+      };
+      
+      timer.value = requestAnimationFrame(tick);
+    }
+  }
+};
+
 onMounted(() => {
   loadTodosFromStorage();
   selectTaskFromRoute();
-  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onUnmounted(() => {
   if (timer.value) {
-    clearInterval(timer.value);
+    cancelAnimationFrame(timer.value);
     timer.value = null;
   }
-  window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
 
@@ -562,10 +631,12 @@ onUnmounted(() => {
 .pomodoro-container {
   height: 100vh;
   display: grid;
-  grid-template-columns: 400px 1fr 1fr;
-  gap: 24px;
-  padding: 24px;
+  grid-template-columns: 320px 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
   overflow: hidden;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 /* 左侧番茄钟区域 */
@@ -574,18 +645,18 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 32px;
+  gap: 16px;
+  padding: 20px;
   background: white;
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .clock-display {
-  font-size: 4rem;
+  font-size: 3rem;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .time {
@@ -593,17 +664,17 @@ onUnmounted(() => {
 }
 
 .emoji {
-  font-size: 3rem;
+  font-size: 2.5rem;
 }
 
 .controls {
   display: flex;
-  gap: 1rem;
+  gap: 0.8rem;
 }
 
 .start-btn,
 .reset-btn {
-  font-size: 2rem;
+  font-size: 1.8rem;
   background: none;
   border: none;
   cursor: pointer;
@@ -623,7 +694,7 @@ onUnmounted(() => {
 
 .progress-bar {
   width: 100%;
-  height: 10px;
+  height: 8px;
   background-color: #f0f0f0;
   border-radius: 5px;
   overflow: hidden;
@@ -639,16 +710,16 @@ onUnmounted(() => {
 .settings {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .settings label {
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .settings input {
-  width: 50px;
-  padding: 0.25rem;
+  width: 45px;
+  padding: 0.2rem;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -661,7 +732,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background: white;
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   overflow: visible !important;
 }
@@ -680,12 +751,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .section-header h2 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
   margin: 0;
 }
@@ -704,7 +775,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  padding: 8px 16px;
   margin: 0;
   background: white;
   text-align: left;
@@ -715,12 +786,13 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 14px;
 }
 
 .pomodoro-count {
   margin-left: 12px;
   color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -745,17 +817,17 @@ onUnmounted(() => {
 
 /* 搜索框样式 */
 .search-box {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .search-input {
   width: 100%;
-  height: 36px;
+  height: 32px;
   padding: 8px 12px;
   border: 1px solid #d9d9d9;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   transition: all 0.3s;
 }
 
@@ -772,7 +844,7 @@ onUnmounted(() => {
 /* 滚动条样式 */
 .task-list-container::-webkit-scrollbar,
 .completed-list-container::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .task-list-container::-webkit-scrollbar-thumb,
@@ -787,9 +859,10 @@ onUnmounted(() => {
 }
 
 .no-tasks-prompt {
-  padding: 20px;
+  padding: 16px;
   text-align: center;
   color: #999;
+  font-size: 13px;
 }
 
 .add-task-link {
@@ -828,11 +901,11 @@ onUnmounted(() => {
 .task-hover-card {
   position: fixed;
   z-index: 9999;
-  width: 280px;
+  width: 250px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  padding: 16px;
+  padding: 12px;
   pointer-events: none;
   animation: fadeIn 0.2s ease;
 }
@@ -864,9 +937,9 @@ onUnmounted(() => {
 
 /* 确保卡片内容样式正确 */
 .task-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
-  margin: 0 0 12px 0;
+  margin: 0 0 8px 0;
   color: var(--el-text-color-primary);
   line-height: 1.4;
   word-break: break-all;
@@ -875,14 +948,14 @@ onUnmounted(() => {
 .task-info {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -921,19 +994,19 @@ onUnmounted(() => {
 
 .completion-emoji,
 .continue-emoji {
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: 36px;
+  margin-bottom: 12px;
 }
 
 .completion-message,
 .continue-message {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--el-text-color-primary);
   line-height: 1.6;
 }
 
 .task-name {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--el-color-primary);
   margin-top: 8px;
@@ -955,6 +1028,10 @@ onUnmounted(() => {
 .task-name.completed {
   color: var(--el-text-color-secondary);
   text-decoration: line-through;
+}
+
+.pomodoro-dialog :deep(.el-dialog) {
+  width: 320px !important;
 }
 </style>
   
