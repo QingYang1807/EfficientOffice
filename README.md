@@ -1,6 +1,19 @@
 # EfficientOffice
 Efficient Office 是一款专为打工人打造的高效办公平台。结合STAR法则与四象限法，帮助您更有效地管理待办事项和优化任务安排。平台提供时间提醒、任务耗时记录、日/周总结等功能，让您全面掌握工作进度。Efficient Office 还支持数据可视化和智能建议，助您深入分析工作状态，持续提升办公效率。立即加入Efficient Office，开启高效办公新篇章！
 
+## v10 2025年2月6日
+![image](https://github.com/user-attachments/assets/d670238b-a97c-49e4-8ec7-dd42e34827a7)
+![image](https://github.com/user-attachments/assets/336e91b9-69eb-4f8d-98da-afcb2802081d)
+![image](https://github.com/user-attachments/assets/eefed75a-a4b4-4cbf-8e61-db848391335a)
+![image](https://github.com/user-attachments/assets/47d24a1c-4557-4c0a-863e-2a754185e6e5)
+![image](https://github.com/user-attachments/assets/5f7ac7ef-c426-485a-8bd8-39955d4a9413)
+![image](https://github.com/user-attachments/assets/134459e4-b603-415c-a908-027e2789719e)
+![image](https://github.com/user-attachments/assets/328308b4-5441-4a33-892b-a2930c6787f0)
+![image](https://github.com/user-attachments/assets/f1c6bb48-c7e3-4c98-a348-a8fad7270dba)
+![image](https://github.com/user-attachments/assets/2b2cd67d-6f0e-4bf9-bd00-6f9303ae99e8)
+![image](https://github.com/user-attachments/assets/bbef0d5f-1098-46bd-afe3-71ff5485e1bd)
+![image](https://github.com/user-attachments/assets/9e6c9676-380d-477f-9e59-3fb15e2a7aa1)
+
 
 ## v9
 ![image](https://github.com/user-attachments/assets/c802e2e0-a257-4ea4-bb2c-28f39464f637)
