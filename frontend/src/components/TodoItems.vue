@@ -206,8 +206,13 @@
                     <p class="font-medium mb-2">{{ record.text }}</p>
                     <p class="text-sm text-gray-500">优先级：{{ record.priority }}</p>
                     <p class="text-sm text-gray-500">分类：{{ record.category }}</p>
-                    <p class="text-sm text-gray-500">创建时间：{{ new Date(record.createdAt).toLocaleString() }}</p>
-                    <p class="text-sm text-gray-500" v-if="record.dueDate">截止时间：{{ new Date(record.dueDate).toLocaleString() }}</p>
+                    <p class="text-sm text-gray-500">创建时间：{{ formatDate(record.createdAt) }}</p>
+                    <p class="text-sm text-gray-500" v-if="record.dueDate">
+                      {{ record.completed ? '完成时间' : '截止时间' }}：
+                      <span :class="{ 'text-red-500': !record.completed && isOverdue(record.dueDate) }">
+                        {{ formatDate(record.dueDate) }}
+                      </span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -218,11 +223,14 @@
           <template v-else-if="column.key === 'dueDate'">
             <div class="flex items-center gap-2">
               <span 
-                :class="{ 'text-red-500': isOverdue(record.dueDate) }"
+                :class="{ 
+                  'text-red-500': !record.completed && isOverdue(record.dueDate),
+                  'text-gray-400': record.completed
+                }"
                 class="cursor-pointer hover:text-blue-500"
                 @click="openDatePicker(record)"
               >
-                {{ formatDate(record.dueDate) || '设置截止日期' }}
+                {{ record.completed ? '完成于：' + formatDate(record.dueDate) : formatDate(record.dueDate) || '设置截止日期' }}
               </span>
               <a-button
                 v-if="record.dueDate"
@@ -409,11 +417,42 @@
         @change="handleDateChange"
       />
     </a-modal>
+
+    <!-- 添加撒花容器 -->
+    <div v-if="showConfetti" class="confetti-container">
+      <canvas ref="confettiCanvas" class="confetti-canvas"></canvas>
+    </div>
+    
+    <!-- 添加完成确认对话框 -->
+    <el-dialog
+      v-model="showConfirmationModal"
+      title="任务完成！"
+      width="360px"
+      :show-close="false"
+      :close-on-click-modal="false"
+      class="completion-dialog"
+    >
+      <div class="completion-content">
+        <div class="completion-emoji">🎉</div>
+        <div class="completion-message">
+          恭喜完成任务
+          <div class="task-name">{{ completedTask?.text }}</div>
+          <div class="completion-time">
+            用时：{{ formatDuration(Date.now() - completedTask?.createdAt) }}
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="handleTaskComplete">确定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { 
@@ -426,6 +465,7 @@ import {
   CloseOutlined  // 添加关闭图标
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+import confetti from 'canvas-confetti'
 
 // 初始化 router
 const router = useRouter()
@@ -456,6 +496,12 @@ const sortState = ref({
   columnKey: 'createdAt',  // 默认按创建时间排序
   order: 'descend'         // 默认降序
 })
+
+// 添加新的响应式状态
+const showConfetti = ref(false)
+const confettiCanvas = ref(null)
+const showConfirmationModal = ref(false)
+const completedTask = ref(null)
 
 // 表格列定义
 const columns = [
@@ -730,9 +776,89 @@ const getPriorityDot = (priority) => {
   }
 }
 
-const toggleTodo = (todo, checked) => {
-  todo.completed = checked
-  saveTodosToStorage()
+const toggleTodo = async (todo, checked) => {
+  if (checked) {
+    // 显示完成对话框
+    completedTask.value = todo
+    showConfirmationModal.value = true
+    // 显示撒花效果
+    showFullScreenConfetti()
+  } else {
+    // 直接更新状态
+    todo.completed = checked
+    saveTodosToStorage()
+  }
+}
+
+// 处理任务完成确认
+const handleTaskComplete = () => {
+  if (completedTask.value) {
+    completedTask.value.completed = true
+    completedTask.value.dueDate = Date.now()
+    saveTodosToStorage()
+    
+    // 关闭对话框
+    showConfirmationModal.value = false
+    completedTask.value = null
+  }
+}
+
+// 添加全屏撒花效果
+const showFullScreenConfetti = async () => {
+  showConfetti.value = true
+  await nextTick()
+  
+  const duration = 3000
+  const animationEnd = Date.now() + duration
+  const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }
+
+  function randomInRange(min, max) {
+    return Math.random() * (max - min) + min
+  }
+
+  const interval = setInterval(function() {
+    const timeLeft = animationEnd - Date.now()
+
+    if (timeLeft <= 0) {
+      clearInterval(interval)
+      showConfetti.value = false
+      return
+    }
+
+    const particleCount = 50 * (timeLeft / duration)
+    
+    // 从随机位置发射
+    confetti({
+      ...defaults,
+      particleCount,
+      origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+      colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff']
+    })
+    confetti({
+      ...defaults,
+      particleCount,
+      origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+      colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff']
+    })
+  }, 250)
+}
+
+// 添加时间格式化函数
+const formatDuration = (ms) => {
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) {
+    return `${days}天${hours % 24}小时`
+  } else if (hours > 0) {
+    return `${hours}小时${minutes % 60}分钟`
+  } else if (minutes > 0) {
+    return `${minutes}分钟`
+  } else {
+    return `${seconds}秒`
+  }
 }
 
 // 开始任务函数
@@ -1470,5 +1596,84 @@ loadTodosFromStorage()
 .tooltip-content {
   position: relative;
   z-index: 1;
+}
+
+/* 优化完成时间显示样式 */
+.completed-time {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 添加完成状态的文字样式 */
+.text-gray-400 {
+  transition: color 0.3s ease;
+}
+
+/* 撒花容器样式 */
+.confetti-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.confetti-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 完成对话框样式 */
+.completion-dialog :deep(.el-dialog__header) {
+  text-align: center;
+  margin-right: 0;
+  padding: 20px 20px 0;
+}
+
+.completion-dialog :deep(.el-dialog__body) {
+  padding: 30px 20px;
+}
+
+.completion-content {
+  text-align: center;
+}
+
+.completion-emoji {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.completion-message {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  line-height: 1.6;
+}
+
+.task-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-color-primary);
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+.completion-time {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.dialog-footer {
+  text-align: center;
+  padding-top: 20px;
+}
+
+.dialog-footer .el-button {
+  min-width: 100px;
 }
 </style>
