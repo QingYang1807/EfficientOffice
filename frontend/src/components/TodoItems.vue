@@ -519,7 +519,7 @@ const showConfetti = ref(false)
 const confettiCanvas = ref(null)
 const showConfirmationModal = ref(false)
 const completedTask = ref(null)
-const showCompletedTasks = ref(true)
+const showCompletedTasks = ref(false)
 
 // 表格列定义
 const columns = [
