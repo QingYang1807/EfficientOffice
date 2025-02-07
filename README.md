@@ -3,7 +3,9 @@ Efficient Office 是一款专为打工人打造的高效办公平台。结合STA
 
 ## v11 2025年2月7日
 - 完善番茄钟
-  
+![image](https://github.com/user-attachments/assets/2622e1b8-c14f-4f88-805b-d906967d8e4c)
+![image](https://github.com/user-attachments/assets/6d01f40a-a252-421f-824e-eeafc8716e8f)
+
 - 增加感恩日记
 ![image](https://github.com/user-attachments/assets/a3826beb-c96b-40d8-91e2-bbddb8a5ced3)
 
