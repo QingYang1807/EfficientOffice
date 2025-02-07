@@ -87,18 +87,43 @@
 
     <!-- 右侧已完成任务列表 -->
     <div class="completed-section">
-      <div class="section-header">
+      <div class="section-header" @click="toggleCompletedTasks">
         <div class="w-1 h-6 bg-green-500 rounded-full"></div>
         <h2>已完成任务</h2>
+        <div class="flex items-center gap-2 ml-auto">
+          <span class="completed-count">{{ filteredCompletedTodos.length }}个</span>
+          <el-icon class="transform transition-transform" :class="{ 'rotate-180': !showCompletedTasks }">
+            <ArrowDown />
+          </el-icon>
+        </div>
       </div>
-      <div class="search-box">
-        <input 
-          v-model="completedSearchText" 
-          placeholder="搜索已完成任务..." 
-          class="search-input"
-        />
+
+      <!-- 添加工具栏 -->
+      <div v-show="showCompletedTasks" class="task-toolbar">
+        <div class="search-box">
+          <el-input
+            v-model="completedSearchText"
+            placeholder="搜索已完成任务..."
+            prefix-icon="Search"
+            clearable
+          />
+        </div>
+        <div class="filter-sort-controls">
+          <el-select v-model="sortBy" placeholder="排序方式" size="small">
+            <el-option label="完成时间 ↑" value="completedTime-asc" />
+            <el-option label="完成时间 ↓" value="completedTime-desc" />
+            <el-option label="番茄数量 ↑" value="pomodoros-asc" />
+            <el-option label="番茄数量 ↓" value="pomodoros-desc" />
+          </el-select>
+          <el-select v-model="filterPriority" placeholder="优先级" size="small" clearable>
+            <el-option label="高优先级" value="高" />
+            <el-option label="中优先级" value="中" />
+            <el-option label="低优先级" value="低" />
+          </el-select>
+        </div>
       </div>
-      <div class="completed-list-container">
+
+      <div v-show="showCompletedTasks" class="completed-list-container">
         <div v-if="filteredCompletedTodos.length === 0" class="no-tasks-prompt">
           暂无完成的任务
         </div>
@@ -204,6 +229,7 @@
 import { ref, computed, onUnmounted, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
+import { ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute();
 const todos = ref([]);
@@ -223,6 +249,9 @@ const router = useRouter();
 const startTime = ref(null); // 添加开始时间引用
 const lastTickTime = ref(null); // 添加上次计时引用
 const animationFrameId = ref(null); // 添加动画帧ID引用
+const showCompletedTasks = ref(false)
+const sortBy = ref('completedTime-desc')
+const filterPriority = ref('')
 
 const emojis = ['🍅', '📚', '☕', '🧘', '💻'];
 
@@ -260,9 +289,37 @@ const filteredIncompleteTodos = computed(() => {
 const completedSearchText = ref('')
 
 const filteredCompletedTodos = computed(() => {
-  return completedTodos.value.filter(task =>
-    task.text.toLowerCase().includes(completedSearchText.value.toLowerCase())
-  );
+  let result = completedTodos.value
+
+  // 搜索过滤
+  if (completedSearchText.value) {
+    result = result.filter(task =>
+      task.text.toLowerCase().includes(completedSearchText.value.toLowerCase())
+    )
+  }
+
+  // 优先级过滤
+  if (filterPriority.value) {
+    result = result.filter(task => task.priority === filterPriority.value)
+  }
+
+  // 排序
+  result = [...result].sort((a, b) => {
+    switch (sortBy.value) {
+      case 'completedTime-asc':
+        return new Date(a.completedAt) - new Date(b.completedAt)
+      case 'completedTime-desc':
+        return new Date(b.completedAt) - new Date(a.completedAt)
+      case 'pomodoros-asc':
+        return (a.pomodoros || 0) - (b.pomodoros || 0)
+      case 'pomodoros-desc':
+        return (b.pomodoros || 0) - (a.pomodoros || 0)
+      default:
+        return 0
+    }
+  })
+
+  return result
 });
 
 const selectTask = (task) => {
@@ -610,6 +667,11 @@ const handleVisibilityChange = () => {
   }
 };
 
+// 切换已完成任务显示状态
+const toggleCompletedTasks = () => {
+  showCompletedTasks.value = !showCompletedTasks.value
+}
+
 onMounted(() => {
   loadTodosFromStorage();
   selectTaskFromRoute();
@@ -630,13 +692,14 @@ onUnmounted(() => {
 <style scoped>
 .pomodoro-container {
   height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 320px 1fr 1fr;
   gap: 16px;
   padding: 16px;
-  overflow: hidden;
-  max-width: 100vw;
   box-sizing: border-box;
+  background: #f5f7fa;
 }
 
 /* 左侧番茄钟区域 */
@@ -657,6 +720,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  animation: clockPulse 1s ease-in-out infinite;
 }
 
 .time {
@@ -702,9 +766,11 @@ onUnmounted(() => {
 
 .progress {
   height: 100%;
-  background-color: #4caf50;
+  background: linear-gradient(90deg, #4caf50, #81c784);
+  background-size: 200% 100%;
+  animation: progressGradient 2s linear infinite;
   border-radius: 5px;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease-in-out;
 }
 
 .settings {
@@ -727,32 +793,36 @@ onUnmounted(() => {
 /* 中间任务列表区域 */
 .task-section,
 .completed-section {
-  position: relative;
-  z-index: auto;
   display: flex;
   flex-direction: column;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  overflow: visible !important;
+  overflow: hidden;
 }
 
 .task-list-container,
 .completed-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
-  position: relative;
-  z-index: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d9d9d9 #f5f5f5;
 }
 
 /* 列表头部样式 */
 .section-header {
   display: flex;
   align-items: center;
-  gap: 12px;
   padding: 12px 16px;
+  background: white;
   border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.section-header:hover {
+  background: #f5f7fa;
 }
 
 .section-header h2 {
@@ -768,7 +838,7 @@ onUnmounted(() => {
   padding: 0;
   border-bottom: 1px solid #f0f0f0;
   cursor: default;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .task-content {
@@ -800,6 +870,7 @@ onUnmounted(() => {
 .selected-task {
   background: #e6f4ff;
   border-left: 3px solid #1890ff;
+  animation: taskSelected 0.3s ease;
 }
 
 .selected-task .task-content {
@@ -808,11 +879,8 @@ onUnmounted(() => {
 
 /* 悬浮效果 */
 .task-item:hover {
-  z-index: 1;
-}
-
-.task-item:hover .task-content {
-  background: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 /* 搜索框样式 */
@@ -1032,6 +1100,60 @@ onUnmounted(() => {
 
 .pomodoro-dialog :deep(.el-dialog) {
   width: 320px !important;
+}
+
+/* 添加工具栏样式 */
+.task-toolbar {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.filter-sort-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 添加列表动画效果 */
+.completed-list-container {
+  transition: max-height 0.3s ease;
+}
+
+/* 添加选中任务的动画效果 */
+@keyframes taskSelected {
+  0% {
+    background: white;
+  }
+  50% {
+    background: #e6f4ff;
+  }
+  100% {
+    background: #f0f7ff;
+  }
+}
+
+/* 添加番茄钟动画效果 */
+@keyframes clockPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 优化进度条动画 */
+@keyframes progressGradient {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 200% 0%;
+  }
 }
 </style>
   
