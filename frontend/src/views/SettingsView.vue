@@ -32,6 +32,10 @@
               <el-icon><document /></el-icon>
               <span>数据管理</span>
             </el-menu-item>
+            <el-menu-item index="menu-management">
+              <el-icon><grid /></el-icon>
+              <span>菜单管理</span>
+            </el-menu-item>
           </el-menu>
         </el-card>
       </el-col>
@@ -304,6 +308,10 @@
           </div>
         </div>
 
+        <el-card v-if="activeMenu === 'menu-management'" class="settings-card">
+          <MenuManager />
+        </el-card>
+
         <div class="settings-actions">
           <el-button type="primary" @click="handleSave">保存设置</el-button>
           <el-button @click="handleReset">恢复默认</el-button>
@@ -324,10 +332,12 @@ import {
   Sunny,
   Moon,
   Monitor,
-  Document
+  Document,
+  Grid
 } from '@element-plus/icons-vue'
 import { message } from 'ant-design-vue'
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import MenuManager from '@/components/MenuManager.vue'
 
 const activeMenu = ref('appearance')
 

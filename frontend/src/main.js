@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
 import { createPinia } from 'pinia'
+import { initMenuConfig } from './utils/initMenuConfig'
 
 // 引入 Ant Design Vue
 import Antd from 'ant-design-vue'
@@ -39,5 +40,8 @@ app.use(ElementPlus)
 app.use(pinia)
 app.component('MdEditor', MdEditor)
 app.use(router)
+
+// 初始化菜单配置
+initMenuConfig()
 
 app.mount('#app')

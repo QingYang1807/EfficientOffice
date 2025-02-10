@@ -5,77 +5,17 @@
         <img v-if="isCollapse" src="@/assets/logo.svg" alt="Logo" />
         <img v-else src="@/assets/logo-full.svg" alt="Logo" />
       </div>
-      <el-menu
-        :default-active="activeMenu"
-        class="el-menu-vertical"
-        :collapse="isCollapse"
-        @select="handleSelect"
-      >
-        <el-menu-item index="/">
-          <el-icon><home-filled /></el-icon>
-          <span>仪表盘</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/todos">
-          <el-icon><list /></el-icon>
-          <span>待办事项</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/pomodoro-timer">
-          <el-icon><timer /></el-icon>
-          <span>番茄钟</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/goals">
-          <el-icon><aim /></el-icon>
-          <span>目标管理</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/reviews">
-          <el-icon><document-checked /></el-icon>
-          <span>复盘记录</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/mindmap">
-          <el-icon><share /></el-icon>
-          <span>思维导图</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/notes">
-          <el-icon><memo /></el-icon>
-          <span>便签记录</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/knowledge">
-          <el-icon><collection /></el-icon>
-          <span>知识库</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/calendar">
-          <el-icon><calendar /></el-icon>
-          <span>日历</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/ai-chat">
-          <el-icon><chat-dot-round /></el-icon>
-          <span>AI问答</span>
-        </el-menu-item>
-        
-        <el-menu-item index="/gratitude-diary">
-          <el-icon><edit-pen /></el-icon>
-          <span>感恩日记</span>
-        </el-menu-item>
-      </el-menu>
+      <AppMenu @collapse-change="handleCollapseChange" />
     </el-aside>
     
     <el-container class="main-container">
       <el-header>
         <div class="header-left">
-          <el-button @click="toggleCollapse">
+          <!-- <el-button @click="toggleCollapse">
             <el-icon>
               <component :is="isCollapse ? 'Expand' : 'Fold'" />
             </el-icon>
-          </el-button>
+          </el-button> -->
         </div>
         <div class="header-right">
           <el-dropdown @command="handleCommand">
@@ -133,6 +73,7 @@ import {
   EditPen,
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
+import AppMenu from '@/components/AppMenu.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -154,6 +95,10 @@ const handleSelect = (key) => {
 
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
+}
+
+const handleCollapseChange = (collapsed) => {
+  isCollapse.value = collapsed
 }
 
 // 处理下拉菜单命令

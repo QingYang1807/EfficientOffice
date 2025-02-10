@@ -9,50 +9,19 @@
         <component :is="isCollapse ? 'Expand' : 'Fold'" />
       </el-icon>
     </div>
-    <template v-for="route in menuRoutes" :key="route.path">
-      <el-menu-item
-        :index="route.path"
-        @click="navigateTo(route)"
-      >
-        <el-icon>
-          <component :is="route.meta?.icon || getDefaultIcon(route)" />
-        </el-icon>
-        <span>{{ route.meta?.title || route.name }}</span>
-      </el-menu-item>
-    </template>
+    
+    <RenderMenuNodes :menu-nodes="menuNodes" />
   </el-menu>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  HomeFilled,
-  List,
-  Timer,
-  CalendarOutlined,
-  KeyOutlined,
-  Expand,
-  Fold,
-  Share,
-  Memo,
-  Collection
-} from '@element-plus/icons-vue'
+import RenderMenuNodes from './RenderMenuNodes.vue'
+import { Expand, Fold } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
-
-// 获取路由配置
-const menuRoutes = computed(() => {
-  // 获取主布局下的子路由
-  const mainRoute = router.options.routes.find(r => r.path === '/')
-  return mainRoute?.children?.filter(route => 
-    // 过滤掉重定向路由和不需要显示的路由
-    route.path !== '' && 
-    route.name && 
-    route.path !== 'login'
-  ) || []
-})
 
 // 当前激活的菜单项
 const activeMenu = computed(() => route.path)
@@ -60,41 +29,27 @@ const activeMenu = computed(() => route.path)
 // 菜单折叠状态
 const isCollapse = ref(false)
 
+// 获取菜单数据
+const menuNodes = computed(() => {
+  const menuConfig = localStorage.getItem('menu-config')
+  if (menuConfig) {
+    return JSON.parse(menuConfig)
+  }
+  return []
+})
+
 // 切换折叠状态
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
 
-// 监听折叠状态变化，触发自定义事件
-watch(isCollapse, (newValue) => {
-  emit('collapse-change', newValue)
-})
-
 // 定义事件
 const emit = defineEmits(['collapse-change'])
 
-// 导航方法
-const navigateTo = (route) => {
-  router.push(route.path)
-}
-
-// 获取默认图标
-const getDefaultIcon = (route) => {
-  const iconMap = {
-    Dashboard: 'HomeFilled',
-    TodoList: 'List',
-    PomodoroTimer: 'Timer',
-    GoalManager: 'Aim',
-    MindMap: 'Share',
-    Notes: 'Memo',
-    KnowledgeBase: 'Collection',
-    Home: 'HomeFilled',
-    Timer: 'Timer',
-    Calendar: 'CalendarOutlined',
-    Password: 'KeyOutlined'
-  }
-  return iconMap[route.name] || 'AppstoreOutlined'
-}
+// 监听折叠状态变化
+watch(isCollapse, (newValue) => {
+  emit('collapse-change', newValue)
+})
 </script>
 
 <style scoped>
@@ -102,11 +57,11 @@ const getDefaultIcon = (route) => {
   height: 100%;
   border-right: none;
   transition: width 0.3s;
-  width: 200px;  /* 修改为固定宽度 */
+  width: 200px;
 }
 
 .app-menu.el-menu--collapse {
-  width: 64px;  /* 折叠时的固定宽度 */
+  width: 64px;
 }
 
 .collapse-btn {
@@ -120,15 +75,5 @@ const getDefaultIcon = (route) => {
 
 .collapse-btn:hover {
   background-color: var(--el-menu-hover-bg-color);
-}
-
-.el-menu-item {
-  display: flex;
-  align-items: center;
-}
-
-.el-icon {
-  font-size: 1.2em;
-  margin-right: 8px;
 }
 </style> 
