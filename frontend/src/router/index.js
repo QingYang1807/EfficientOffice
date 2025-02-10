@@ -18,6 +18,8 @@ import ReviewsView from '../views/ReviewsView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import AIChatView from '../views/AIChatView.vue'
 import GratitudeDiaryView from '../views/GratitudeDiaryView.vue'
+import IframeView from '../views/IframeView.vue'
+import WebView from '../views/WebView.vue'
 
 // 路由配置
 export const routes = [
@@ -128,6 +130,24 @@ export const routes = [
           title: '感恩日记',
           icon: 'EditPen',
           requiresAuth: true
+        }
+      },
+      {
+        path: 'iframe-view',
+        name: 'IframeView',
+        component: IframeView,
+        meta: { 
+          title: '外部页面',
+          requiresAuth: true 
+        }
+      },
+      {
+        path: 'web-view',
+        name: 'WebView',
+        component: WebView,
+        meta: { 
+          title: '网页浏览',
+          requiresAuth: true 
         }
       }
     ]

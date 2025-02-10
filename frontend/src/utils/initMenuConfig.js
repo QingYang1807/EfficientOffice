@@ -8,6 +8,15 @@ const defaultMenus = [
     children: []
   },
   {
+    "id": 1739182210844,
+    "title": "浏览器",
+    "path": "/web-view?url=http://linqingyang.com/",
+    "icon": "Menu",
+    "visible": true,
+    "children": [],
+    "editing": false
+  },
+  {
     id: 2,
     title: '任务管理',
     path: '/tasks',
@@ -126,10 +135,43 @@ const defaultMenus = [
   {
     id: 6,
     title: 'AI助手',
-    path: '/ai-chat',
+    path: '/ai-tools',
     icon: 'ChatDotRound',
     visible: true,
-    children: []
+    "children": [
+      {
+        "id": 61,
+        "title": "系统AI助手",
+        "path": "/ai-chat",
+        "icon": "ChatDotRound",
+        "visible": true,
+        "children": []
+      },
+      {
+        "id": 62,
+        "title": "DeepSeek",
+        "path": "@https://chat.deepseek.com",
+        "icon": "Link",
+        "visible": true,
+        "children": []
+      },
+      {
+        "id": 63,
+        "title": "Claude",
+        "path": "@https://claude.ai/",
+        "icon": "Link",
+        "visible": true,
+        "children": []
+      },
+      {
+        id: 64,
+        title: 'Gemini',
+        path: '@https://gemini.google.com',
+        icon: 'Link',
+        visible: true,
+        children: []
+      }
+    ]
   },
   {
     id: 7,
