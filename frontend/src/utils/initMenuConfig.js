@@ -17,6 +17,15 @@ const defaultMenus = [
     "editing": false
   },
   {
+    "id": 1739182210845,
+    "title": "WebView",
+    "path": "/web-nav",
+    "icon": "Menu",
+    "visible": true,
+    "children": [],
+    "editing": false
+  },
+  {
     id: 2,
     title: '任务管理',
     path: '/tasks',

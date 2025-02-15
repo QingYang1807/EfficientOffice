@@ -36,6 +36,7 @@
     "stream-http": "^3.2.0",
     "vue": "^3.2.13",
     "vue-echarts": "^7.0.3",
+    "vue-grid-layout": "^2.4.0",
     "vue-router": "^4.2.5",
     "vuedraggable": "^4.1.0"
   },

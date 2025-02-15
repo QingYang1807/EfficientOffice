@@ -508,10 +508,10 @@ const hoveredTodo = ref(null)
 // 添加删除历史记录
 const deleteHistory = ref([])
 
-// 添加排序状态
+// 修改默认排序状态：默认按优先级降序排序
 const sortState = ref({
-  columnKey: 'createdAt',  // 默认按创建时间排序
-  order: 'descend'         // 默认降序
+  columnKey: 'priority',  // 默认按优先级排序
+  order: 'descend'         // 默认降序排序
 })
 
 // 添加新的响应式状态
@@ -585,13 +585,71 @@ const today = computed(() => {
   })
 })
 
+// 修改过滤和排序的计算属性，先过滤再排序（默认先按优先级降序，再按创建时间降序）
 const filteredTodos = computed(() => {
-  return todos.value.filter(todo => {
+  const list = todos.value.filter(todo => {
     if (!showCompletedTasks.value && todo.completed) {
       return false // 隐藏已完成任务
     }
     return true // 显示其他任务
   })
+  const priorityWeight = { '高': 3, '中': 2, '低': 1 }
+  const localSortState = sortState.value
+  if (localSortState && localSortState.order && localSortState.columnKey) {
+    if (localSortState.columnKey === 'priority') {
+      // 主要按照优先级降序排序，优先级相同则按创建时间降序
+      list.sort((a, b) => {
+        const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
+        if (diff !== 0) return diff
+        return b.createdAt - a.createdAt
+      })
+    } else if (localSortState.columnKey === 'createdAt') {
+      list.sort((a, b) =>
+        localSortState.order === 'descend'
+          ? b.createdAt - a.createdAt
+          : a.createdAt - b.createdAt
+      )
+    } else if (localSortState.columnKey === 'text') {
+      list.sort((a, b) =>
+        localSortState.order === 'descend'
+          ? b.text.localeCompare(a.text)
+          : a.text.localeCompare(b.text)
+      )
+    } else if (localSortState.columnKey === 'dueDate') {
+      list.sort((a, b) =>
+        localSortState.order === 'descend'
+          ? (b.dueDate || 0) - (a.dueDate || 0)
+          : (a.dueDate || 0) - (b.dueDate || 0)
+      )
+    } else if (localSortState.columnKey === 'completed') {
+      list.sort((a, b) =>
+        localSortState.order === 'descend'
+          ? Number(b.completed) - Number(a.completed)
+          : Number(a.completed) - Number(b.completed)
+      )
+    } else if (localSortState.columnKey === 'pomodoros') {
+      list.sort((a, b) =>
+        localSortState.order === 'descend'
+          ? (b.pomodoros || 0) - (a.pomodoros || 0)
+          : (a.pomodoros || 0) - (b.pomodoros || 0)
+      )
+    } else {
+      // 如果未识别，则使用默认排序：优先级降序，再按创建时间降序
+      list.sort((a, b) => {
+        const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
+        if (diff !== 0) return diff
+        return b.createdAt - a.createdAt
+      })
+    }
+  } else {
+    // 默认排序：优先级降序，再按创建时间降序
+    list.sort((a, b) => {
+      const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
+      if (diff !== 0) return diff
+      return b.createdAt - a.createdAt
+    })
+  }
+  return list
 })
 
 const statusCount = computed(() => ({

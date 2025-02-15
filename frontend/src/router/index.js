@@ -20,6 +20,8 @@ import AIChatView from '../views/AIChatView.vue'
 import GratitudeDiaryView from '../views/GratitudeDiaryView.vue'
 import IframeView from '../views/IframeView.vue'
 import WebView from '../views/WebView.vue'
+import WebNavigationView from '../views/WebNavigationView.vue'
+import WebNav from '../views/WebNav.vue'
 
 // 路由配置
 export const routes = [
@@ -149,6 +151,11 @@ export const routes = [
           title: '网页浏览',
           requiresAuth: true 
         }
+      },
+      {
+        path: 'web-nav',
+        name: 'WebNav',
+        component: WebNav
       }
     ]
   },
