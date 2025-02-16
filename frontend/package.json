@@ -38,7 +38,8 @@
     "vue-echarts": "^7.0.3",
     "vue-grid-layout": "^2.4.0",
     "vue-router": "^4.2.5",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "vuex": "^4.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.26.7",
