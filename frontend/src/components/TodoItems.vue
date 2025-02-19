@@ -177,8 +177,7 @@
                     'in-progress-text': record.pomodoros > 0 && !record.completed 
                   }"
                   class="flex-1 truncate cursor-pointer"
-                  @mouseenter="showDetails(record, $event)"
-                  @mouseleave="hideDetails"
+                  @click="openDrawer(record)"
                 >
                   {{ record.text }}
                 </span>
@@ -465,6 +464,185 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 在 template 最后添加抽屉组件 -->
+    <a-drawer
+      :visible="drawerVisible"
+      :width="380"
+      placement="right"
+      @close="closeDrawer"
+      class="todo-detail-drawer"
+    >
+      <template #title>
+        <div class="flex items-center gap-2">
+          <span class="text-lg">✨ 任务详情</span>
+          <a-tag :color="getPriorityColor(selectedTodo?.priority)" v-if="selectedTodo">
+            {{ selectedTodo.priority }}优先级
+          </a-tag>
+        </div>
+      </template>
+      
+      <template #extra>
+        <a-space>
+          <a-button 
+            type="text" 
+            @click="toggleEditMode"
+            v-if="selectedTodo"
+          >
+            <template #icon>
+              <edit-outlined v-if="!isEditing" />
+              <check-outlined v-else />
+            </template>
+            {{ isEditing ? '保存' : '编辑' }}
+          </a-button>
+        </a-space>
+      </template>
+
+      <div v-if="selectedTodo" class="todo-detail-content">
+        <!-- 任务状态区 -->
+        <div class="status-section">
+          <div class="status-badge" :class="{ 'completed': selectedTodo.completed }">
+            {{ selectedTodo.completed ? '已完成 ✅' : '进行中 ⏳' }}
+          </div>
+          <div class="completion-rate">
+            完成率: {{ calculateCompletionRate() }}%
+          </div>
+        </div>
+
+        <!-- 任务内容区 -->
+        <div class="content-section">
+          <h3 class="section-title">📝 任务内容</h3>
+          <template v-if="isEditing">
+            <a-textarea
+              v-model:value="editingData.text"
+              :auto-size="{ minRows: 2, maxRows: 6 }"
+              class="edit-textarea"
+              placeholder="请输入任务内容"
+            />
+          </template>
+          <template v-else>
+            <p class="task-text" :class="{ 'completed': selectedTodo.completed }">
+              {{ selectedTodo.text }}
+            </p>
+          </template>
+        </div>
+
+        <!-- 任务信息区 -->
+        <div class="info-section">
+          <!-- 优先级选择 -->
+          <div class="info-item">
+            <fire-outlined />
+            <span class="label">优先级:</span>
+            <template v-if="isEditing">
+              <a-select
+                v-model:value="editingData.priority"
+                class="edit-select"
+                :options="[
+                  { value: '高', label: '高优先级' },
+                  { value: '中', label: '中优先级' },
+                  { value: '低', label: '低优先级' }
+                ]"
+              />
+            </template>
+            <template v-else>
+              <a-tag :color="getPriorityColor(selectedTodo.priority)">
+                {{ selectedTodo.priority }}
+              </a-tag>
+            </template>
+          </div>
+
+          <!-- 分类选择 -->
+          <div class="info-item">
+            <folder-outlined />
+            <span class="label">分类:</span>
+            <template v-if="isEditing">
+              <a-select
+                v-model:value="editingData.category"
+                class="edit-select"
+                :options="[
+                  { value: '工作目标', label: '工作目标' },
+                  { value: '学习目标', label: '学习目标' },
+                  { value: '生活目标', label: '生活目标' },
+                  { value: '其他目标', label: '其他目标' }
+                ]"
+              />
+            </template>
+            <template v-else>
+              <a-tag :color="getCategoryColor(selectedTodo.category)">
+                {{ selectedTodo.category || '其他目标' }}
+              </a-tag>
+            </template>
+          </div>
+
+          <!-- 截止日期选择 -->
+          <div class="info-item">
+            <clock-circle-outlined />
+            <span class="label">截止于:</span>
+            <template v-if="isEditing">
+              <a-date-picker
+                v-model:value="editingData.dueDate"
+                show-time
+                format="YYYY-MM-DD HH:mm"
+                class="edit-date-picker"
+              />
+            </template>
+            <template v-else>
+              <span class="value" :class="{ 'overdue': !selectedTodo.completed && isOverdue(selectedTodo.dueDate) }">
+                {{ formatDate(selectedTodo.dueDate) || '未设置' }}
+              </span>
+            </template>
+          </div>
+
+          <div class="info-item">
+            <coffee-outlined />
+            <span class="label">番茄数:</span>
+            <span class="value">🍅 x {{ selectedTodo.pomodoros || 0 }}</span>
+          </div>
+        </div>
+
+        <!-- 任务进度区 -->
+        <div class="progress-section" v-if="!selectedTodo.completed">
+          <h3 class="section-title">📊 任务进度</h3>
+          <div class="progress-bar">
+            <div 
+              class="progress-fill"
+              :style="{ width: `${calculateProgress()}%` }"
+            ></div>
+          </div>
+          <p class="progress-text">已完成 {{ calculateProgress() }}%</p>
+        </div>
+
+        <!-- 操作按钮区 -->
+        <div class="action-section">
+          <a-button-group>
+            <a-button 
+              type="primary"
+              @click="startTask(selectedTodo)"
+              v-if="!selectedTodo.completed"
+            >
+              <template #icon><play-circle-outlined /></template>
+              开始任务
+            </a-button>
+            <a-button 
+              @click="toggleTodo(selectedTodo, !selectedTodo.completed)"
+            >
+              <template #icon>
+                <check-circle-outlined v-if="!selectedTodo.completed" />
+                <undo-outlined v-else />
+              </template>
+              {{ selectedTodo.completed ? '取消完成' : '标记完成' }}
+            </a-button>
+            <a-button 
+              danger
+              @click="deleteTodo(selectedTodo)"
+            >
+              <template #icon><delete-outlined /></template>
+              删除任务
+            </a-button>
+          </a-button-group>
+        </div>
+      </div>
+    </a-drawer>
   </div>
 </template>
 
@@ -479,7 +657,14 @@ import {
   SearchOutlined,
   EnterOutlined,  // 添加回车图标
   ClockCircleOutlined,
-  CloseOutlined  // 添加关闭图标
+  CloseOutlined,  // 添加关闭图标
+  CoffeeOutlined,
+  CalendarOutlined,
+  FolderOutlined,
+  PlayCircleOutlined,
+  CheckCircleOutlined,
+  UndoOutlined,
+  FireOutlined
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import confetti from 'canvas-confetti'
@@ -520,6 +705,10 @@ const confettiCanvas = ref(null)
 const showConfirmationModal = ref(false)
 const completedTask = ref(null)
 const showCompletedTasks = ref(false)
+const drawerVisible = ref(false)
+const selectedTodo = ref(null)
+const isEditing = ref(false)
+const editingData = ref({})
 
 // 表格列定义
 const columns = [
@@ -1101,6 +1290,69 @@ const getRowClassName = (record) => {
 
 // 初始化
 loadTodosFromStorage()
+
+// 添加打开抽屉函数
+const openDrawer = (todo) => {
+  selectedTodo.value = todo
+  drawerVisible.value = true
+}
+
+// 添加关闭抽屉函数
+const closeDrawer = () => {
+  drawerVisible.value = false
+  selectedTodo.value = null
+  isEditing.value = false
+  editingData.value = {}
+}
+
+// 添加计算完成率的函数
+const calculateCompletionRate = () => {
+  const total = todos.value.length
+  const completed = todos.value.filter(t => t.completed).length
+  return total > 0 ? Math.round((completed / total) * 100) : 0
+}
+
+// 添加计算进度函数
+const calculateProgress = () => {
+  // 这里可以根据实际需求计算进度
+  // 例如：基于番茄钟数量或时间等
+  return selectedTodo.value?.pomodoros ? 
+    Math.min(Math.round((selectedTodo.value.pomodoros / 8) * 100), 100) : 0
+}
+
+// 添加编辑模式切换函数
+const toggleEditMode = () => {
+  if (isEditing.value) {
+    // 保存编辑
+    if (selectedTodo.value) {
+      const updatedTodo = {
+        ...selectedTodo.value,
+        text: editingData.value.text,
+        priority: editingData.value.priority,
+        category: editingData.value.category,
+        dueDate: editingData.value.dueDate?.valueOf()
+      }
+      
+      // 更新 todos 数组中的对应项
+      const index = todos.value.findIndex(t => t.id === selectedTodo.value.id)
+      if (index !== -1) {
+        todos.value[index] = updatedTodo
+        selectedTodo.value = updatedTodo
+        saveTodosToStorage()
+        message.success('保存成功')
+      }
+    }
+  } else {
+    // 进入编辑模式
+    editingData.value = {
+      text: selectedTodo.value.text,
+      priority: selectedTodo.value.priority,
+      category: selectedTodo.value.category,
+      dueDate: selectedTodo.value.dueDate ? dayjs(selectedTodo.value.dueDate) : null
+    }
+  }
+  isEditing.value = !isEditing.value
+}
 </script>
 
 <style scoped>
@@ -1853,5 +2105,211 @@ loadTodosFromStorage()
   100% {
     transform: scale(1);
   }
+}
+
+/* 抽屉样式 */
+.todo-detail-drawer {
+  :deep(.ant-drawer-header) {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  :deep(.ant-drawer-body) {
+    padding: 24px;
+  }
+}
+
+.todo-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.status-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 16px;
+  background-color: #e6f7ff;
+  color: #1890ff;
+  font-weight: 500;
+  
+  &.completed {
+    background-color: #f6ffed;
+    color: #52c41a;
+  }
+}
+
+.completion-rate {
+  font-size: 14px;
+  color: #666;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.task-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #333;
+  
+  &.completed {
+    color: #999;
+    text-decoration: line-through;
+  }
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: #fafafa;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  
+  .label {
+    color: #999;
+    width: 60px;
+  }
+  
+  .value {
+    color: #333;
+    
+    &.overdue {
+      color: #ff4d4f;
+    }
+  }
+}
+
+.progress-section {
+  .progress-bar {
+    height: 8px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1890ff, #52c41a);
+    transition: width 0.3s ease;
+  }
+
+  .progress-text {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+  }
+}
+
+.action-section {
+  margin-top: auto;
+  padding-top: 24px;
+  
+  :deep(.ant-btn-group) {
+    display: flex;
+    gap: 8px;
+    
+    .ant-btn {
+      flex: 1;
+    }
+  }
+}
+
+/* 添加一些动画效果 */
+.todo-detail-content {
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 添加悬浮效果 */
+.info-item:hover {
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.status-badge {
+  transition: transform 0.3s ease;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* 编辑模式样式 */
+.edit-textarea {
+  @apply rounded-lg border-gray-200 hover:border-blue-400 focus:border-blue-500;
+  transition: all 0.3s ease;
+}
+
+.edit-select {
+  @apply min-w-[120px];
+}
+
+.edit-date-picker {
+  @apply w-full;
+}
+
+/* 编辑字段的动画效果 */
+.edit-textarea,
+.edit-select,
+.edit-date-picker {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 优化编辑模式下的表单控件样式 */
+:deep(.ant-input),
+:deep(.ant-select-selector),
+:deep(.ant-picker) {
+  @apply rounded-lg !important;
+  @apply border-gray-200 hover:border-blue-400 focus:border-blue-500 !important;
+  transition: all 0.3s ease;
+}
+
+:deep(.ant-select-selector) {
+  @apply h-8 !important;
+}
+
+:deep(.ant-select-selection-item) {
+  @apply leading-8 !important;
 }
 </style>
