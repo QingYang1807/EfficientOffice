@@ -30,12 +30,12 @@ export const routes = [
     component: MainLayout,
     children: [
       { path: '', redirect: '/dashboard' },
-      { path: 'dashboard', name: 'Dashboard', component: Dashboard, description: '首页概览' },
-      { path: 'todos', name: 'TodoList', component: TodoList, description: '待办事项管理' },
-      { path: 'password-generator', name: 'PasswordGenerator', component: PasswordGenerator, description: '安全的密码生成器' },
-      { path: 'report-summary', name: 'ReportSummary', component: ReportSummary, description: '日报/周报总结' },
-      { path: 'pomodoro-timer', name: 'PomodoroTimer', component: PomodoroTimer, description: '一个番茄钟' },
-      { path: 'goals', name: 'GoalManager', component: GoalManager, description: '目标管理' },
+      { path: 'dashboard', name: 'Dashboard', component: Dashboard, description: '首页概览', meta: { title: '首页 - 高效办公' } },
+      { path: 'todos', name: 'TodoList', component: TodoList, description: '待办事项管理', meta: { title: '待办事项管理 - 高效办公' } },
+      { path: 'password-generator', name: 'PasswordGenerator', component: PasswordGenerator, description: '安全的密码生成器', meta: { title: '安全的密码生成器 - 高效办公' } },
+      { path: 'report-summary', name: 'ReportSummary', component: ReportSummary, description: '日报/周报总结', meta: { title: '日报/周报总结 - 高效办公' } },
+      { path: 'pomodoro-timer', name: 'PomodoroTimer', component: PomodoroTimer, description: '一个番茄钟', meta: { title: '一个番茄钟 - 高效办公' } },
+      { path: 'goals', name: 'GoalManager', component: GoalManager, description: '目标管理', meta: { title: '目标管理 - 高效办公' } },
       { 
         path: 'profile', 
         name: 'Profile', 
@@ -160,8 +160,8 @@ export const routes = [
     ]
   },
   // 保留原来的欢迎和开始页面作为独立路由
-  { path: '/welcome', name: 'WelcomePage', component: HelloWorld, description: '欢迎来到高效办公' },
-  { path: '/get-start', name: 'GetStart', component: GetStart, description: '开始使用' },
+  { path: '/welcome', name: 'WelcomePage', component: HelloWorld, description: '欢迎来到高效办公', meta: { title: '欢迎来到高效办公 - 高效办公' } },
+  { path: '/get-start', name: 'GetStart', component: GetStart, description: '开始使用', meta: { title: '开始使用 - 高效办公' } },
   {
     path: '/login',
     name: 'Login',
@@ -177,5 +177,10 @@ const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
   routes
 });
+
+router.beforeEach((to, from, next) => {
+  document.title = to.meta.title || '高效办公'
+  next()
+})
 
 export default router;
