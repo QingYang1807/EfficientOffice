@@ -30,6 +30,7 @@
     "md-editor-v3": "^5.2.1",
     "os-browserify": "^0.3.0",
     "pinia": "^2.3.1",
+    "pinia-plugin-persistedstate": "^4.2.0",
     "prismjs": "^1.29.0",
     "simple-mind-map": "^0.13.0",
     "solarlunar": "^2.0.7",

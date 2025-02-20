@@ -35,7 +35,15 @@ export const routes = [
       { path: 'password-generator', name: 'PasswordGenerator', component: PasswordGenerator, description: '安全的密码生成器', meta: { title: '安全的密码生成器 - 高效办公' } },
       { path: 'report-summary', name: 'ReportSummary', component: ReportSummary, description: '日报/周报总结', meta: { title: '日报/周报总结 - 高效办公' } },
       { path: 'pomodoro-timer', name: 'PomodoroTimer', component: PomodoroTimer, description: '一个番茄钟', meta: { title: '一个番茄钟 - 高效办公' } },
-      { path: 'goals', name: 'GoalManager', component: GoalManager, description: '目标管理', meta: { title: '目标管理 - 高效办公' } },
+      {
+        path: 'goals',
+        name: 'GoalManagement',
+        component: () => import('@/views/GoalManagement.vue'),
+        meta: {
+          title: '目标管理',
+          icon: 'target'
+        }
+      },
       { 
         path: 'profile', 
         name: 'Profile', 

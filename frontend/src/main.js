@@ -3,6 +3,8 @@ import router from './router'
 import App from './App.vue'
 import { createPinia } from 'pinia'
 import { initMenuConfig } from './utils/initMenuConfig'
+import store from './store'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 
 // 引入 Ant Design Vue
 import Antd from 'ant-design-vue'
@@ -28,6 +30,7 @@ import './styles/index.css'  // 引入全局样式
 
 const app = createApp(App)
 const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
 
 // 注册所有图标
 for (const [key, component] of Object.entries(ElementPlusIcons)) {
@@ -40,6 +43,7 @@ app.use(ElementPlus)
 app.use(pinia)
 app.component('MdEditor', MdEditor)
 app.use(router)
+app.use(store)
 
 // 初始化菜单配置
 initMenuConfig()

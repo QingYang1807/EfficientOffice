@@ -174,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, nextTick, getCurrentInstance } from 'vue'
+import { ref, computed, provide, nextTick, getCurrentInstance, watch, onMounted } from 'vue'
 import { message, ElMessage } from 'ant-design-vue'
 import { ElMessageBox } from 'element-plus'
 
@@ -248,15 +248,29 @@ const handleGoalUpdate = (updatedGoal) => {
 
 // 处理目标创建
 const handleGoalCreate = (newGoal) => {
-  // 确保 goals 是响应式数组
-  goals.value = [...goals.value, newGoal]
+  // 确保新目标有必要的属性
+  const goalToAdd = {
+    id: Date.now(), // 使用时间戳作为临时ID
+    title: newGoal.title || '',
+    description: newGoal.description || '',
+    status: newGoal.status || 'in_progress',
+    progress: newGoal.progress || 0,
+    deadline: newGoal.deadline || null,
+    tasks: newGoal.tasks || [],
+    createdAt: Date.now(),
+    ...newGoal // 保留其他属性
+  }
+
+  // 添加到目标列表
+  goals.value = [...goals.value, goalToAdd]
+  
   showCreateDialog.value = false
   ElMessage.success('目标创建成功')
   
   // 强制更新思维导图
   nextTick(() => {
     if (viewMode.value === 'mind-map') {
-      const mindMapComponent = getCurrentInstance().refs.mindMap
+      const mindMapComponent = getCurrentInstance()?.refs?.mindMap
       if (mindMapComponent) {
         mindMapComponent.initMindMap()
       }
@@ -359,6 +373,39 @@ const handleCreateDialogClose = (done) => {
 const handleStepChange = (step) => {
   createStep.value = step
 }
+
+// 添加初始化数据
+const initGoals = () => {
+  // 从本地存储加载数据
+  const savedGoals = localStorage.getItem('goals')
+  if (savedGoals) {
+    try {
+      goals.value = JSON.parse(savedGoals)
+    } catch (e) {
+      console.error('Failed to parse saved goals:', e)
+      goals.value = []
+    }
+  }
+}
+
+// 添加保存数据方法
+const saveGoals = () => {
+  try {
+    localStorage.setItem('goals', JSON.stringify(goals.value))
+  } catch (e) {
+    console.error('Failed to save goals:', e)
+  }
+}
+
+// 监听goals变化自动保存
+watch(goals, () => {
+  saveGoals()
+}, { deep: true })
+
+// 在组件挂载时初始化数据
+onMounted(() => {
+  initGoals()
+})
 </script>
 
 <style scoped>
