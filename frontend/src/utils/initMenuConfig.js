@@ -10,7 +10,7 @@ const defaultMenus = [
   {
     "id": 1739182210844,
     "title": "浏览器",
-    "path": "/web-view?url=http://linqingyang.com/",
+    "path": "/web-view?url=https://baidu.com",
     "icon": "Menu",
     "visible": true,
     "children": [],

@@ -129,6 +129,12 @@
               </a-tag>
               <template #overlay>
                 <a-menu @click="({ key }) => changeCategory(record, key)">
+                  <a-menu-item key="目标任务">
+                    <div class="flex items-center gap-2">
+                      <a-tag color="purple" size="small">目标</a-tag>
+                      <span>目标任务</span>
+                    </div>
+                  </a-menu-item>
                   <a-menu-item key="工作目标">
                     <div class="flex items-center gap-2">
                       <a-tag color="blue" size="small">工作</a-tag>
@@ -299,6 +305,10 @@
                 </a-tag>
                 <template #overlay>
                   <a-menu @click="({ key }) => setCategory(key)">
+                    <a-menu-item key="目标任务">
+                      <a-tag color="purple" size="small">目标</a-tag>
+                      <span class="ml-2">目标任务</span>
+                    </a-menu-item>
                     <a-menu-item key="工作目标">
                       <a-tag color="blue" size="small">工作</a-tag>
                       <span class="ml-2">工作目标</span>
@@ -1210,10 +1220,11 @@ const setCategory = (category) => {
 // 获取分类对应的 Tag 颜色（用于表格中的标签）
 const getCategoryColor = (category) => {
   const colors = {
+    '目标任务': 'purple',
     '工作目标': 'blue',
     '学习目标': 'success',
     '生活目标': 'warning',
-    '其他目标': 'default'  // 修改为 default 而不是空字符串
+    '其他目标': 'default'
   }
   return colors[category] || 'default'
 }
@@ -1221,6 +1232,7 @@ const getCategoryColor = (category) => {
 // 添加获取分类简短名称的方法
 const getCategoryShortName = (category) => {
   const shortNames = {
+    '目标任务': '目标',
     '工作目标': '工作',
     '学习目标': '学习',
     '生活目标': '生活',

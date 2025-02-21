@@ -22,10 +22,10 @@
 
     <!-- 主界面内容 -->
     <template v-else>
-      <!-- 左侧导航 -->
+      <!-- 左侧导航优化 -->
       <div class="nav-section">
         <div class="nav-header">
-          <h2>目标管理</h2>
+          <h2 class="nav-title">目标管理</h2>
           <el-tooltip content="目标完成概览" placement="right">
             <div class="goal-stats">
               <el-progress
@@ -33,10 +33,17 @@
                 :percentage="completionRate"
                 :status="completionRate >= 80 ? 'success' : 'primary'"
                 :width="60"
+                :stroke-width="8"
               />
               <div class="stats-text">
-                <div>总目标: {{ goals.length }}</div>
-                <div>已完成: {{ completedGoals }}</div>
+                <div class="stats-item">
+                  <span class="stats-label">总目标:</span>
+                  <span class="stats-value">{{ goals.length }}</span>
+                </div>
+                <div class="stats-item">
+                  <span class="stats-label">已完成:</span>
+                  <span class="stats-value">{{ completedGoals }}</span>
+                </div>
               </div>
             </div>
           </el-tooltip>
@@ -47,6 +54,7 @@
           class="create-button" 
           @click="showCreateDialog = true"
         >
+          <el-icon><Plus /></el-icon>
           创建新目标
         </el-button>
 
@@ -92,35 +100,55 @@
         </div>
       </div>
 
-      <!-- 主内容区 -->
+      <!-- 主内容区优化 -->
       <div class="main-content">
-        <!-- 视图切换提示 -->
-        <div class="view-info">
-          <el-alert
-            v-if="viewMode === 'mind-map'"
-            type="info"
-            show-icon
-            :closable="false"
-          >
-            思维导图视图可以帮助你更好地理解目标之间的关系
-          </el-alert>
-          <el-alert
-            v-if="viewMode === 'kanban'"
-            type="info"
-            show-icon
-            :closable="false"
-          >
-            看板视图适合管理目标的执行状态和进度
-          </el-alert>
+        <div class="content-header">
+          <div class="view-switcher">
+            <el-radio-group v-model="viewMode" size="large">
+              <el-radio-button label="mind-map">
+                <el-icon><Connection /></el-icon>
+                思维导图
+              </el-radio-button>
+              <el-radio-button label="list">
+                <el-icon><List /></el-icon>
+                列表视图
+              </el-radio-button>
+              <el-radio-button label="kanban">
+                <el-icon><Grid /></el-icon>
+                看板视图
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+          
+          <div class="view-info">
+            <el-alert
+              v-if="viewMode === 'mind-map'"
+              type="info"
+              show-icon
+              :closable="false"
+              class="view-alert"
+            >
+              思维导图视图可以帮助你更好地理解目标之间的关系
+            </el-alert>
+            <el-alert
+              v-if="viewMode === 'kanban'"
+              type="info"
+              show-icon
+              :closable="false"
+            >
+              看板视图适合管理目标的执行状态和进度
+            </el-alert>
+          </div>
         </div>
 
-        <!-- 各种视图组件 -->
-        <component
-          :is="currentViewComponent"
-          :goals="filteredGoals"
-          @select="handleGoalSelect"
-          @update="handleGoalUpdate"
-        />
+        <div class="content-body">
+          <component
+            :is="currentViewComponent"
+            :goals="filteredGoals"
+            @select="handleGoalSelect"
+            @update="handleGoalUpdate"
+          />
+        </div>
       </div>
     </template>
 
@@ -411,194 +439,123 @@ onMounted(() => {
 <style scoped>
 .goal-manager {
   display: flex;
-  height: 100%;
-  gap: 2rem;
-  padding: 1rem;
-}
-
-.mind-map-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--el-border-color-light);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid var(--el-border-color-light);
-}
-
-.mind-map {
-  flex: 1;
-  min-height: 500px;
-  height: calc(100vh - 200px);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 4px;
-  margin: 1rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.goal-detail-section {
-  flex: 1;
-  padding: 1rem;
-  overflow-y: auto;
-}
-
-.detail-header {
-  margin-bottom: 2rem;
-}
-
-.goal-status {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.detail-section {
-  margin-bottom: 2rem;
-}
-
-.detail-section h4 {
-  margin-bottom: 1rem;
-  color: var(--el-text-color-primary);
-}
-
-.steps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.step-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  border-radius: 4px;
+  height: 100vh;
   background-color: var(--el-bg-color-page);
 }
 
 .nav-section {
-  width: 200px;
-  padding: 1rem;
-  border-right: 1px solid var(--el-border-color-light);
-}
-
-.view-switcher {
-  margin-bottom: 1rem;
-}
-
-.quick-filters {
+  width: 280px;
+  padding: 1.5rem;
+  background-color: var(--el-bg-color);
+  border-right: 1px solid var(--el-border-color-lighter);
   display: flex;
   flex-direction: column;
+  gap: 1.5rem;
+}
+
+.nav-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin: 0;
+}
+
+.goal-stats {
+  background: var(--el-fill-color-lighter);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.stats-text {
+  margin-left: 1rem;
+}
+
+.stats-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.stats-label {
+  color: var(--el-text-color-secondary);
+}
+
+.stats-value {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.create-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  height: 40px;
+  font-size: 1rem;
 }
 
 .main-content {
   flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   overflow: hidden;
 }
 
-.el-tag {
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.el-tag:hover {
-  transform: translateX(5px);
-}
-
-.create-button {
-  width: 100%;
-  margin-bottom: 1rem;
-}
-
-/* 添加新样式 */
-.empty-state {
-  height: 100%;
+.content-header {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-.guide-text {
-  margin-top: 2rem;
-  text-align: left;
-}
-
-.guide-text ul {
-  list-style: none;
-  padding: 0;
-}
-
-.guide-text li {
-  margin: 0.5rem 0;
-}
-
-.nav-header {
-  margin-bottom: 1rem;
-}
-
-.goal-stats {
-  display: flex;
-  align-items: center;
   gap: 1rem;
-  margin: 1rem 0;
-  padding: 1rem;
-  background: var(--el-bg-color-page);
-  border-radius: 8px;
 }
 
-.stats-text {
-  font-size: 0.875rem;
-  color: var(--el-text-color-secondary);
+.view-switcher {
+  display: flex;
+  justify-content: center;
+}
+
+.view-alert {
+  margin: 0;
+}
+
+.content-body {
+  flex: 1;
+  overflow: auto;
+  background: var(--el-bg-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.filter-section {
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 1rem;
 }
 
 .filter-tag {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.filter-tag:hover {
-  transform: translateX(5px);
-}
-
-.count {
-  font-size: 0.75rem;
-  opacity: 0.8;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+  transition: all 0.3s ease;
 }
 
 .help-section {
   margin-top: auto;
-  padding-top: 1rem;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 1rem;
 }
 
-.help-content {
-  font-size: 0.875rem;
-  color: var(--el-text-color-regular);
-}
-
-.view-info {
-  margin-bottom: 1rem;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dialog-header {
-  margin-bottom: 2rem;
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .goal-manager {
+    flex-direction: column;
+  }
+  
+  .nav-section {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+  }
 }
 </style> 
