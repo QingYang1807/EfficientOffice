@@ -19,45 +19,200 @@
 
     <!-- 搜索和筛选区 -->
     <div class="flex-none flex items-center gap-3 px-6 py-2 bg-white border-b border-gray-100">
-      <div class="flex-1 max-w-md">
-        <a-input-search
+      <div class="flex-1 max-w-md relative group">
+        <a-input
           v-model:value="searchText"
-          placeholder="搜索待办事项..."
-          class="!rounded-lg search-input"
+          placeholder="搜索待办事项... (按 '/' 快速搜索)"
+          class="search-input"
           :bordered="false"
-          @search="onSearch"
+          @focus="showSearchTips = true"
+          @blur="handleSearchBlur"
+          @input="handleSearchInput"
+          @pressEnter="onSearch"
         >
           <template #prefix>
-            <search-outlined class="text-gray-400" />
+            <div class="search-prefix">
+              <search-outlined 
+                class="search-icon"
+                :class="{ 'searching': isSearching }"
+              />
+            </div>
           </template>
-        </a-input-search>
-      </div>
-      <a-select
-        v-model:value="filterStatus"
-        class="!rounded-lg min-w-[120px]"
-        :bordered="false"
-        @change="onFilterChange"
-        :options="[
-          { value: 'all', label: '全部任务' },
-          { value: 'active', label: '未完成 ⏳' },
-          { value: 'completed', label: '已完成 ✅' }
-        ]"
-      />
-      <div 
-        class="completed-tasks-control"
-        @click="toggleCompletedTasks"
-      >
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50">
-          <div class="completed-count">
-            <span class="number">{{ completedTodos.length }}</span>
-            <span class="label">已完成</span>
+          <template #suffix>
+            <div class="search-suffix" v-if="searchText">
+              <close-circle-outlined
+                class="clear-icon"
+                @click="clearSearch"
+              />
+            </div>
+          </template>
+        </a-input>
+
+        <!-- 优化搜索提示面板 -->
+        <div 
+          class="search-tooltip"
+          :class="{ 'visible': showSearchTips }"
+        >
+          <div class="tooltip-header">
+            <span class="tooltip-title">搜索技巧</span>
+            <span class="tooltip-subtitle">点击标签快速筛选</span>
           </div>
-          <div class="toggle-icon" :class="{ 'rotated': !showCompletedTasks }">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+          
+          <!-- 分类搜索区域 -->
+          <div class="tooltip-section">
+            <div class="section-header">
+              <tag-outlined class="text-green-500" />
+              <span>按分类筛选</span>
+            </div>
+            <div class="tooltip-tags">
+              <a-tag 
+                v-for="cat in categories" 
+                :key="cat"
+                :color="getCategoryColor(cat)"
+                class="search-tag"
+                @click="handleTagClick('#' + cat)"
+              >
+                {{ getCategoryShortName(cat) }}
+              </a-tag>
+            </div>
+          </div>
+
+          <!-- 优先级搜索区域 -->
+          <div class="tooltip-section">
+            <div class="section-header">
+              <fire-outlined class="text-orange-500" />
+              <span>按优先级筛选</span>
+            </div>
+            <div class="tooltip-tags">
+              <a-tag 
+                v-for="priority in priorities" 
+                :key="priority"
+                :color="getPriorityColor(priority)"
+                class="search-tag"
+                @click="handleTagClick('!' + priority)"
+              >
+                {{ priority }}优先级
+              </a-tag>
+            </div>
+          </div>
+
+          <!-- 快捷搜索提示 -->
+          <div class="tooltip-footer">
+            <keyboard-outlined class="text-gray-400" />
+            <span>按 <kbd>/</kbd> 快速聚焦搜索框</span>
           </div>
         </div>
+      </div>
+
+      <!-- 添加时间筛选区域 -->
+      <div class="flex items-center gap-2">
+        <!-- 日期选择器 -->
+        <a-dropdown :trigger="['hover']" :mouseEnterDelay="0.3">
+          <div class="filter-btn">
+            <calendar-outlined />
+            <span class="ml-1">{{ getDateFilterText }}</span>
+            <down-outlined class="ml-1 text-xs" />
+          </div>
+          <template #overlay>
+            <a-menu @click="handleDateFilterClick">
+              <a-menu-item key="all">
+                <calendar-outlined class="mr-2" />
+                全部时间
+              </a-menu-item>
+              <a-menu-item key="today">
+                <thunderbolt-outlined class="mr-2" />
+                今日完成
+                <a-tag v-if="todayCompletedCount" color="success" class="ml-2">
+                  {{ todayCompletedCount }}
+                </a-tag>
+              </a-menu-item>
+              <a-menu-item key="yesterday">
+                <history-outlined class="mr-2" />
+                昨日完成
+                <a-tag v-if="yesterdayCompletedCount" color="processing" class="ml-2">
+                  {{ yesterdayCompletedCount }}
+                </a-tag>
+              </a-menu-item>
+              <a-menu-item key="thisWeek">
+                <calendar-outlined class="mr-2" />
+                本周完成
+                <a-tag v-if="thisWeekCompletedCount" color="warning" class="ml-2">
+                  {{ thisWeekCompletedCount }}
+                </a-tag>
+              </a-menu-item>
+              <a-menu-item key="lastWeek">
+                <calendar-outlined class="mr-2" />
+                上周完成
+                <a-tag v-if="lastWeekCompletedCount" color="warning" class="ml-2">
+                  {{ lastWeekCompletedCount }}
+                </a-tag>
+              </a-menu-item>
+              <a-menu-item key="lastMonth">
+                <calendar-outlined class="mr-2" />
+                上月完成
+                <a-tag v-if="lastMonthCompletedCount" color="warning" class="ml-2">
+                  {{ lastMonthCompletedCount }}
+                </a-tag>
+              </a-menu-item>
+              <a-menu-divider />
+              <a-menu-item key="custom">
+                <field-time-outlined class="mr-2" />
+                自定义时间
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 任务状态筛选 -->
+        <a-dropdown :trigger="['hover']" :mouseEnterDelay="0.3">
+          <div class="filter-btn">
+            <span class="ml-1">{{ filterStatus === 'all' ? '全部任务' : filterStatus === 'active' ? '未完成' : '已完成' }}</span>
+            <down-outlined class="ml-1 text-xs" />
+          </div>
+          <template #overlay>
+            <a-menu @click="handleStatusFilterClick">
+              <a-menu-item key="all">
+                <span>全部任务</span>
+              </a-menu-item>
+              <a-menu-item key="active">
+                <span>未完成 ⏳</span>
+              </a-menu-item>
+              <a-menu-item key="completed">
+                <span>已完成 ✅</span>
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 已完成任务控制按钮 -->
+        <a-dropdown :trigger="['hover']" :mouseEnterDelay="0.3">
+          <div class="filter-btn completed-count">
+            <div class="flex items-center gap-2">
+              <span class="number">{{ completedTodos.length }}</span>
+              <span class="label">已完成</span>
+              <down-outlined 
+                class="ml-1 text-xs toggle-icon" 
+                :class="{ 'rotated': !showCompletedTasks }" 
+              />
+            </div>
+          </div>
+          <template #overlay>
+            <a-menu @click="handleCompletedMenuClick">
+              <a-menu-item key="expand">
+                <span class="flex items-center gap-2">
+                  <eye-outlined class="text-green-500" />
+                  显示已完成
+                </span>
+              </a-menu-item>
+              <a-menu-item key="collapse">
+                <span class="flex items-center gap-2">
+                  <eye-invisible-outlined class="text-red-500" />
+                  隐藏已完成
+                </span>
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
       </div>
     </div>
 
@@ -176,7 +331,9 @@
               />
             </template>
             <template v-else>
-              <div class="group flex items-center relative">
+              <div 
+                class="group flex items-center relative"
+              >
                 <span 
                   :class="{ 
                     'line-through text-gray-400': record.completed,
@@ -444,6 +601,23 @@
       />
     </a-modal>
 
+    <!-- 添加日期选择弹窗 -->
+    <a-modal
+      v-model:visible="datePickerVisible"
+      title="选择日期范围"
+      @ok="handleDateRangeOk"
+      :maskClosable="false"
+    >
+      <div class="date-picker-container">
+        <a-range-picker
+          v-model:value="dateRange"
+          :show-time="{ format: 'HH:mm' }"
+          format="YYYY-MM-DD HH:mm"
+          :placeholder="['开始时间', '结束时间']"
+        />
+      </div>
+    </a-modal>
+
     <!-- 添加撒花容器 -->
     <div v-if="showConfetti" class="confetti-container">
       <canvas ref="confettiCanvas" class="confetti-canvas"></canvas>
@@ -665,16 +839,27 @@ import {
   EditOutlined, 
   DeleteOutlined,
   SearchOutlined,
-  EnterOutlined,  // 添加回车图标
+  EnterOutlined,
   ClockCircleOutlined,
-  CloseOutlined,  // 添加关闭图标
+  CloseOutlined,
   CoffeeOutlined,
   CalendarOutlined,
   FolderOutlined,
   PlayCircleOutlined,
   CheckCircleOutlined,
   UndoOutlined,
-  FireOutlined
+  FireOutlined,
+  ThunderboltOutlined,
+  HistoryOutlined,
+  FieldTimeOutlined,
+  DownOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
+  KeyboardOutlined,
+  TagOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import confetti from 'canvas-confetti'
@@ -719,6 +904,10 @@ const drawerVisible = ref(false)
 const selectedTodo = ref(null)
 const isEditing = ref(false)
 const editingData = ref({})
+
+// 添加新的状态
+const dateFilterType = ref('all')
+const dateRange = ref(null)
 
 // 表格列定义
 const columns = [
@@ -784,71 +973,46 @@ const today = computed(() => {
   })
 })
 
-// 修改过滤和排序的计算属性，先过滤再排序（默认先按优先级降序，再按创建时间降序）
+// 计算属性：过滤待办事项
 const filteredTodos = computed(() => {
-  const list = todos.value.filter(todo => {
-    if (!showCompletedTasks.value && todo.completed) {
-      return false // 隐藏已完成任务
-    }
-    return true // 显示其他任务
-  })
-  const priorityWeight = { '高': 3, '中': 2, '低': 1 }
-  const localSortState = sortState.value
-  if (localSortState && localSortState.order && localSortState.columnKey) {
-    if (localSortState.columnKey === 'priority') {
-      // 主要按照优先级降序排序，优先级相同则按创建时间降序
-      list.sort((a, b) => {
-        const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
-        if (diff !== 0) return diff
-        return b.createdAt - a.createdAt
-      })
-    } else if (localSortState.columnKey === 'createdAt') {
-      list.sort((a, b) =>
-        localSortState.order === 'descend'
-          ? b.createdAt - a.createdAt
-          : a.createdAt - b.createdAt
+  let filtered = todos.value || []
+
+  // 应用状态筛选
+  if (filterStatus.value !== 'all') {
+    filtered = filtered.filter(todo => 
+      filterStatus.value === 'completed' ? todo.completed : !todo.completed
+    )
+  }
+
+  // 应用搜索筛选
+  if (searchText.value) {
+    const text = searchText.value.trim()
+    if (text.startsWith('#')) {
+      // 搜索分类
+      const category = text.slice(1)
+      filtered = filtered.filter(todo => 
+        todo.category?.toLowerCase().includes(category.toLowerCase())
       )
-    } else if (localSortState.columnKey === 'text') {
-      list.sort((a, b) =>
-        localSortState.order === 'descend'
-          ? b.text.localeCompare(a.text)
-          : a.text.localeCompare(b.text)
-      )
-    } else if (localSortState.columnKey === 'dueDate') {
-      list.sort((a, b) =>
-        localSortState.order === 'descend'
-          ? (b.dueDate || 0) - (a.dueDate || 0)
-          : (a.dueDate || 0) - (b.dueDate || 0)
-      )
-    } else if (localSortState.columnKey === 'completed') {
-      list.sort((a, b) =>
-        localSortState.order === 'descend'
-          ? Number(b.completed) - Number(a.completed)
-          : Number(a.completed) - Number(b.completed)
-      )
-    } else if (localSortState.columnKey === 'pomodoros') {
-      list.sort((a, b) =>
-        localSortState.order === 'descend'
-          ? (b.pomodoros || 0) - (a.pomodoros || 0)
-          : (a.pomodoros || 0) - (b.pomodoros || 0)
+    } else if (text.startsWith('!')) {
+      // 搜索优先级
+      const priority = text.slice(1)
+      filtered = filtered.filter(todo => 
+        todo.priority?.toLowerCase().includes(priority.toLowerCase())
       )
     } else {
-      // 如果未识别，则使用默认排序：优先级降序，再按创建时间降序
-      list.sort((a, b) => {
-        const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
-        if (diff !== 0) return diff
-        return b.createdAt - a.createdAt
-      })
+      // 普通文本搜索
+      filtered = filtered.filter(todo =>
+        todo.text.toLowerCase().includes(text.toLowerCase())
+      )
     }
-  } else {
-    // 默认排序：优先级降序，再按创建时间降序
-    list.sort((a, b) => {
-      const diff = priorityWeight[b.priority] - priorityWeight[a.priority]
-      if (diff !== 0) return diff
-      return b.createdAt - a.createdAt
-    })
   }
-  return list
+
+  // 如果未显示已完成任务，过滤掉已完成的任务
+  if (!showCompletedTasks.value) {
+    filtered = filtered.filter(todo => !todo.completed)
+  }
+
+  return filtered
 })
 
 const statusCount = computed(() => ({
@@ -964,16 +1128,6 @@ const saveTodo = () => {
     editingId.value = null
     editingText.value = ''
   }
-}
-
-const onSearch = () => {
-  // 仅执行搜索逻辑
-  loadTodosFromStorage()
-}
-
-const onFilterChange = () => {
-  // 仅执行过滤逻辑
-  loadTodosFromStorage()
 }
 
 const saveTodosToStorage = () => {
@@ -1294,10 +1448,10 @@ const toggleCompletedTasks = () => {
 
 // 获取行的类名
 const getRowClassName = (record) => {
-  return {
-    'completed-row': record.completed,
-    'completed-row-hidden': record.completed && !showCompletedTasks.value
+  if (record.completed) {
+    return 'completed-row'
   }
+  return ''
 }
 
 // 初始化
@@ -1365,6 +1519,246 @@ const toggleEditMode = () => {
   }
   isEditing.value = !isEditing.value
 }
+
+// 计算属性：获取日期筛选文本
+const getDateFilterText = computed(() => {
+  switch (dateFilterType.value) {
+    case 'today':
+      return '今日完成'
+    case 'yesterday':
+      return '昨日完成'
+    case 'thisWeek':
+      return '本周完成'
+    case 'custom':
+      return dateRange.value ? 
+        `${dayjs(dateRange.value[0]).format('MM-DD')} 至 ${dayjs(dateRange.value[1]).format('MM-DD')}` : 
+        '自定义时间'
+    default:
+      return '全部时间'
+  }
+})
+
+// 计算已完成任务数量
+const todayCompletedCount = computed(() => {
+  const today = dayjs().startOf('day')
+  return todos.value.filter(todo => 
+    todo.completed && 
+    dayjs(todo.dueDate).isSame(today, 'day')
+  ).length
+})
+
+const yesterdayCompletedCount = computed(() => {
+  const yesterday = dayjs().subtract(1, 'day').startOf('day')
+  return todos.value.filter(todo => 
+    todo.completed && 
+    dayjs(todo.dueDate).isSame(yesterday, 'day')
+  ).length
+})
+
+const thisWeekCompletedCount = computed(() => {
+  const startOfWeek = dayjs().startOf('week')
+  return todos.value.filter(todo => 
+    todo.completed && 
+    dayjs(todo.dueDate).isAfter(startOfWeek)
+  ).length
+})
+
+const lastWeekCompletedCount = computed(() => {
+  const startOfLastWeek = dayjs().subtract(1, 'week').startOf('week')
+  const endOfLastWeek = dayjs().subtract(1, 'week').endOf('week')
+  return todos.value.filter(todo => 
+    todo.completed && 
+    dayjs(todo.dueDate).isAfter(startOfLastWeek) && 
+    dayjs(todo.dueDate).isBefore(endOfLastWeek)
+  ).length
+})
+
+const lastMonthCompletedCount = computed(() => {
+  const startOfLastMonth = dayjs().subtract(1, 'month').startOf('month')
+  const endOfLastMonth = dayjs().subtract(1, 'month').endOf('month')
+  return todos.value.filter(todo => 
+    todo.completed && 
+    dayjs(todo.dueDate).isAfter(startOfLastMonth) && 
+    dayjs(todo.dueDate).isBefore(endOfLastMonth)
+  ).length
+})
+
+// 处理日期筛选点击
+const handleDateFilterClick = ({ key }) => {
+  dateFilterType.value = key
+  if (key === 'custom') {
+    datePickerVisible.value = true
+  } else {
+    applyDateFilter(key)
+  }
+}
+
+// 应用日期筛选
+const applyDateFilter = (filterType) => {
+  let filteredTodos = todos.value || [] // 确保是一个数组
+  
+  switch (filterType) {
+    case 'today': {
+      const today = dayjs().startOf('day')
+      filteredTodos = filteredTodos.filter(todo =>
+        todo.completed && dayjs(todo.dueDate).isSame(today, 'day')
+      )
+      break
+    }
+    case 'yesterday': {
+      const yesterday = dayjs().subtract(1, 'day').startOf('day')
+      filteredTodos = filteredTodos.filter(todo =>
+        todo.completed && dayjs(todo.dueDate).isSame(yesterday, 'day')
+      )
+      break
+    }
+    case 'thisWeek': {
+      const startOfWeek = dayjs().startOf('week')
+      filteredTodos = filteredTodos.filter(todo =>
+        todo.completed && dayjs(todo.dueDate).isAfter(startOfWeek)
+      )
+      break
+    }
+    case 'lastWeek': {
+      const startOfLastWeek = dayjs().subtract(1, 'week').startOf('week')
+      const endOfLastWeek = dayjs().subtract(1, 'week').endOf('week')
+      filteredTodos = filteredTodos.filter(todo =>
+        todo.completed && 
+        dayjs(todo.dueDate).isAfter(startOfLastWeek) && 
+        dayjs(todo.dueDate).isBefore(endOfLastWeek)
+      )
+      break
+    }
+    case 'lastMonth': {
+      const startOfLastMonth = dayjs().subtract(1, 'month').startOf('month')
+      const endOfLastMonth = dayjs().subtract(1, 'month').endOf('month')
+      filteredTodos = filteredTodos.filter(todo =>
+        todo.completed && 
+        dayjs(todo.dueDate).isAfter(startOfLastMonth) && 
+        dayjs(todo.dueDate).isBefore(endOfLastMonth)
+      )
+      break
+    }
+    case 'custom': {
+      if (dateRange.value) {
+        filteredTodos = filteredTodos.filter(todo =>
+          todo.completed && 
+          dayjs(todo.dueDate).isAfter(dateRange.value[0]) &&
+          dayjs(todo.dueDate).isBefore(dateRange.value[1])
+        )
+      }
+      break
+    }
+  }
+
+  return filteredTodos // 确保返回数组
+}
+
+// 处理日期范围确认
+const handleDateRangeOk = () => {
+  if (dateRange.value) {
+    applyDateFilter('custom')
+  }
+  datePickerVisible.value = false
+}
+
+// 处理已完成任务菜单点击
+const handleCompletedMenuClick = ({ key }) => {
+  showCompletedTasks.value = key === 'expand'
+  
+  message.success({
+    content: h('div', [
+      h('span', key === 'expand' ? '已显示' : '已隐藏'),
+      h('span', '已完成任务 '),
+      h('span', { style: { marginLeft: '4px' } }, key === 'expand' ? '👀' : '🙈')
+    ]),
+    duration: 1.5
+  })
+}
+
+// 添加新的状态
+const isSearching = ref(false)
+
+// 添加清除搜索方法
+const clearSearch = () => {
+  searchText.value = ''
+  loadTodosFromStorage() // 重置为原始数据
+  message.success('已清除搜索')
+}
+
+// 添加键盘快捷键处理
+onMounted(() => {
+  window.addEventListener('keydown', handleSearchShortcut)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleSearchShortcut)
+})
+
+const handleSearchShortcut = (e) => {
+  // 当按下 '/' 键且不在输入框中时，聚焦搜索框
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault()
+    const searchInput = document.querySelector('.search-input input')
+    if (searchInput) {
+      searchInput.focus()
+    }
+  }
+}
+
+// 添加新的响应式状态
+const showSearchTips = ref(false)
+const categories = ['工作目标', '学习目标', '生活目标', '其他目标']
+const priorities = ['高', '中', '低']
+
+// 修改搜索相关方法
+const handleSearchBlur = () => {
+  setTimeout(() => {
+    showSearchTips.value = false
+  }, 200)
+}
+
+const handleSearchInput = () => {
+  const text = searchText.value
+  if (text) {
+    isSearching.value = true
+  } else {
+    isSearching.value = false
+    loadTodosFromStorage() // 当搜索框清空时重置数据
+  }
+}
+
+// 修改标签点击处理
+const handleTagClick = (searchQuery) => {
+  searchText.value = searchQuery
+  onSearch()
+  // 保持面板可见
+  showSearchTips.value = true
+}
+
+// 修改搜索逻辑
+const onSearch = () => {
+  const text = searchText.value.trim()
+  if (!text) {
+    loadTodosFromStorage()
+    return
+  }
+
+  // 不直接修改 todos.value，而是通过 filteredTodos 计算属性来过滤
+  message.success({
+    content: h('div', [
+      h('span', '搜索完成 '),
+      h('span', { style: { marginLeft: '4px' } }, '🔍')
+    ]),
+    duration: 1
+  })
+}
+
+// 添加状态筛选处理函数
+const handleStatusFilterClick = ({ key }) => {
+  filterStatus.value = key
+  loadTodosFromStorage() // 重新加载数据并应用筛选
+}
 </script>
 
 <style scoped>
@@ -1430,15 +1824,120 @@ const toggleEditMode = () => {
 
 /* 美化搜索框 */
 .search-input {
-  @apply bg-gray-50/80 hover:bg-gray-100/80 transition-colors;
+  @apply bg-white hover:bg-gray-50 transition-all duration-300 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 :deep(.search-input .ant-input) {
-  @apply bg-transparent;
+  @apply bg-transparent text-gray-700 !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
 }
 
-:deep(.search-input .ant-input-group-addon) {
-  @apply bg-transparent border-none;
+.search-prefix {
+  @apply flex items-center mr-2;
+}
+
+.search-icon {
+  @apply text-gray-400 text-lg transition-all duration-300;
+}
+
+.search-icon.searching {
+  @apply text-blue-500;
+  animation: pulse 2s infinite;
+}
+
+.search-suffix {
+  @apply flex items-center gap-2;
+}
+
+.clear-icon {
+  @apply text-gray-400 hover:text-red-500 cursor-pointer transition-colors;
+  font-size: 16px;
+}
+
+.keyboard-icon {
+  @apply text-gray-400 opacity-60;
+  font-size: 14px;
+}
+
+/* 搜索提示框样式 */
+.search-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.search-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tooltip-item {
+  @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50;
+  transition: all 0.2s ease;
+}
+
+.tooltip-item:hover {
+  @apply bg-gray-50;
+}
+
+/* 添加动画效果 */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 添加搜索框聚焦效果 */
+:deep(.search-input:focus-within) {
+  @apply ring-2 ring-blue-100 !important;
+}
+
+/* 优化placeholder样式 */
+:deep(.search-input .ant-input::placeholder) {
+  @apply text-gray-400 !important;
+}
+
+/* 添加图标提示效果 */
+.keyboard-icon::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -30px;
+  right: 0;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.keyboard-icon:hover::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 确保表格底部可见 */
@@ -2032,20 +2531,19 @@ const toggleEditMode = () => {
 }
 
 .completed-count {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
+  @apply flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer;
+}
+
+.completed-count:hover {
+  @apply bg-gray-50;
 }
 
 .completed-count .number {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--el-color-success);
+  @apply text-base font-medium text-green-500;
 }
 
 .completed-count .label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+  @apply text-sm text-gray-500;
 }
 
 .toggle-icon {
@@ -2063,12 +2561,7 @@ const toggleEditMode = () => {
 }
 
 .completed-row-hidden {
-  opacity: 0;
-  transform: translateX(100%);
-  height: 0;
-  padding: 0;
-  margin: 0;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* 添加任务完成时的动画效果 */
@@ -2323,5 +2816,245 @@ const toggleEditMode = () => {
 
 :deep(.ant-select-selection-item) {
   @apply leading-8 !important;
+}
+
+/* 添加新样式 */
+.filter-btn {
+  @apply flex items-center px-3 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors;
+  color: var(--ant-color-text);
+}
+
+.filter-btn:hover {
+  color: var(--ant-color-primary);
+}
+
+.date-picker-container {
+  @apply flex justify-center items-center py-4;
+}
+
+:deep(.ant-picker-range) {
+  @apply w-full;
+}
+
+/* 添加动画效果 */
+.filter-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.filter-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(24, 144, 255, 0.2);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.filter-btn:hover::after {
+  animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(40, 40);
+    opacity: 0;
+  }
+}
+
+/* 优化标签样式 */
+:deep(.ant-tag) {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 优化下拉菜单样式 */
+:deep(.ant-dropdown-menu-item) {
+  @apply py-2 px-4;
+}
+
+:deep(.ant-dropdown-menu-item:hover) {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+/* 添加图标动画 */
+.calendar-icon {
+  transition: transform 0.3s ease;
+}
+
+.filter-btn:hover .calendar-icon {
+  transform: rotate(360deg);
+}
+
+/* 隐藏排序提示 */
+.ant-table-column-sorter:hover .ant-table-column-sorter-inner::after {
+  display: none !important;
+}
+
+/* 隐藏Ant Design的默认tooltip */
+.ant-tooltip {
+  display: none !important;
+}
+
+/* 禁用表头单元格的title属性 */
+:deep(.ant-table-thead th) {
+  pointer-events: none;
+}
+
+/* 保留排序交互功能 */
+:deep(.ant-table-column-sorter) {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 优化搜索框样式 */
+.search-input {
+  @apply bg-white hover:bg-gray-50 transition-all duration-300 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.search-input:hover,
+.search-input:focus-within {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 搜索按钮样式 */
+.search-btn {
+  @apply rounded-lg text-sm font-medium !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+  border: none !important;
+  transition: all 0.3s ease !important;
+}
+
+.search-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
+}
+
+/* 搜索提示框样式优化 */
+.search-tooltip {
+  @apply bg-white rounded-xl shadow-lg;
+  min-width: 300px;
+  border: 1px solid #f0f0f0;
+}
+
+.tooltip-header {
+  @apply text-sm font-medium text-gray-700 px-4 py-2 border-b border-gray-100;
+}
+
+.tooltip-item {
+  @apply px-4 py-3 hover:bg-gray-50 cursor-pointer;
+}
+
+.tooltip-item kbd {
+  @apply bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-sm font-mono;
+}
+
+.tooltip-tags {
+  @apply mt-2 flex flex-wrap gap-2;
+}
+
+.search-tag {
+  @apply cursor-pointer transition-transform hover:scale-105;
+}
+
+/* 搜索图标动画优化 */
+.search-icon.searching {
+  @apply text-blue-500;
+  animation: searching 1.5s ease-in-out infinite;
+}
+
+@keyframes searching {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+/* 清除图标样式优化 */
+.clear-icon {
+  @apply mr-2 text-gray-400 hover:text-red-500 transition-colors;
+}
+
+/* 搜索框内部布局优化 */
+:deep(.ant-input-affix-wrapper) {
+  padding: 4px 8px !important;
+}
+
+:deep(.ant-input) {
+  font-size: 14px !important;
+}
+
+/* 添加键盘快捷键提示样式 */
+:deep(.ant-input::placeholder) {
+  color: #a0aec0 !important;
+}
+
+.tooltip-header {
+  @apply flex items-center justify-between mb-4 pb-3 border-b border-gray-100;
+}
+
+.tooltip-title {
+  @apply text-base font-medium text-gray-700;
+}
+
+.tooltip-subtitle {
+  @apply text-sm text-gray-400;
+}
+
+.tooltip-section {
+  @apply mb-4;
+}
+
+.section-header {
+  @apply flex items-center gap-2 mb-2 text-sm text-gray-600;
+}
+
+.tooltip-tags {
+  @apply flex flex-wrap gap-2;
+}
+
+.search-tag {
+  @apply cursor-pointer transition-all hover:scale-105;
+  padding: 4px 8px;
+}
+
+.tooltip-footer {
+  @apply flex items-center gap-2 mt-4 pt-3 border-t border-gray-100 text-sm text-gray-500;
+}
+
+.tooltip-footer kbd {
+  @apply bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-sm font-mono;
+}
+
+/* 输入框内部布局优化 */
+:deep(.ant-input-affix-wrapper) {
+  padding: 8px 12px !important;
+}
+
+:deep(.ant-input) {
+  font-size: 14px !important;
+}
+
+:deep(.ant-input::placeholder) {
+  color: #a0aec0 !important;
 }
 </style>
