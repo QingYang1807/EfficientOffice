@@ -977,6 +977,11 @@ const today = computed(() => {
 const filteredTodos = computed(() => {
   let filtered = todos.value || []
 
+  // 应用日期筛选
+  if (dateFilterType.value !== 'all') {
+    filtered = applyDateFilter(dateFilterType.value)
+  }
+
   // 应用状态筛选
   if (filterStatus.value !== 'all') {
     filtered = filtered.filter(todo => 
@@ -1588,41 +1593,49 @@ const handleDateFilterClick = ({ key }) => {
   dateFilterType.value = key
   if (key === 'custom') {
     datePickerVisible.value = true
-  } else {
-    applyDateFilter(key)
   }
+  // 不再需要显式调用 applyDateFilter，因为它已经在 computed 中处理了
 }
 
 // 应用日期筛选
 const applyDateFilter = (filterType) => {
-  let filteredTodos = todos.value || [] // 确保是一个数组
+  let filtered = todos.value || []
   
   switch (filterType) {
     case 'today': {
       const today = dayjs().startOf('day')
-      filteredTodos = filteredTodos.filter(todo =>
-        todo.completed && dayjs(todo.dueDate).isSame(today, 'day')
+      const tomorrow = dayjs().endOf('day')
+      filtered = filtered.filter(todo =>
+        todo.completed && 
+        dayjs(todo.dueDate).isAfter(today) &&
+        dayjs(todo.dueDate).isBefore(tomorrow)
       )
       break
     }
     case 'yesterday': {
       const yesterday = dayjs().subtract(1, 'day').startOf('day')
-      filteredTodos = filteredTodos.filter(todo =>
-        todo.completed && dayjs(todo.dueDate).isSame(yesterday, 'day')
+      const today = dayjs().startOf('day')
+      filtered = filtered.filter(todo =>
+        todo.completed && 
+        dayjs(todo.dueDate).isAfter(yesterday) &&
+        dayjs(todo.dueDate).isBefore(today)
       )
       break
     }
     case 'thisWeek': {
       const startOfWeek = dayjs().startOf('week')
-      filteredTodos = filteredTodos.filter(todo =>
-        todo.completed && dayjs(todo.dueDate).isAfter(startOfWeek)
+      const endOfWeek = dayjs().endOf('week')
+      filtered = filtered.filter(todo =>
+        todo.completed && 
+        dayjs(todo.dueDate).isAfter(startOfWeek) &&
+        dayjs(todo.dueDate).isBefore(endOfWeek)
       )
       break
     }
     case 'lastWeek': {
       const startOfLastWeek = dayjs().subtract(1, 'week').startOf('week')
       const endOfLastWeek = dayjs().subtract(1, 'week').endOf('week')
-      filteredTodos = filteredTodos.filter(todo =>
+      filtered = filtered.filter(todo =>
         todo.completed && 
         dayjs(todo.dueDate).isAfter(startOfLastWeek) && 
         dayjs(todo.dueDate).isBefore(endOfLastWeek)
@@ -1632,7 +1645,7 @@ const applyDateFilter = (filterType) => {
     case 'lastMonth': {
       const startOfLastMonth = dayjs().subtract(1, 'month').startOf('month')
       const endOfLastMonth = dayjs().subtract(1, 'month').endOf('month')
-      filteredTodos = filteredTodos.filter(todo =>
+      filtered = filtered.filter(todo =>
         todo.completed && 
         dayjs(todo.dueDate).isAfter(startOfLastMonth) && 
         dayjs(todo.dueDate).isBefore(endOfLastMonth)
@@ -1641,7 +1654,7 @@ const applyDateFilter = (filterType) => {
     }
     case 'custom': {
       if (dateRange.value) {
-        filteredTodos = filteredTodos.filter(todo =>
+        filtered = filtered.filter(todo =>
           todo.completed && 
           dayjs(todo.dueDate).isAfter(dateRange.value[0]) &&
           dayjs(todo.dueDate).isBefore(dateRange.value[1])
@@ -1651,7 +1664,7 @@ const applyDateFilter = (filterType) => {
     }
   }
 
-  return filteredTodos // 确保返回数组
+  return filtered
 }
 
 // 处理日期范围确认
