@@ -142,7 +142,59 @@
                 :class="{ active: currentChatId === chat.id }"
                 @click="loadChat(chat)"
               >
-                <!-- 历史项内容 -->
+                <div class="history-item-content">
+                  <div class="history-title-time">
+                    <template v-if="editingChatId === chat.id">
+                      <el-input
+                        v-model="editingTitle"
+                        size="small"
+                        @click.stop
+                        @keyup.enter="saveTitle(chat)"
+                        @blur="handleBlur(chat)"
+                        ref="titleInputRef"
+                        :autofocus="true"
+                      />
+                    </template>
+                    <div v-else class="history-title-container">
+                      <el-icon><ChatRound /></el-icon>
+                      <span class="history-title">{{ chat.title }}</span>
+                      <span class="history-time">{{ formatTime(chat.time) }}</span>
+                    </div>
+                  </div>
+                  
+                  <!-- 匹配内容预览 -->
+                  <div class="match-preview" v-if="searchQuery && getMatchContent(chat)">
+                    <div class="match-content" v-html="getMatchContent(chat)"></div>
+                  </div>
+                  
+                  <div class="history-actions">
+                    <el-button 
+                      circle
+                      link 
+                      size="small"
+                      @click.stop="togglePin(chat)"
+                    >
+                      <el-icon><Star /></el-icon>
+                    </el-button>
+                    <el-button 
+                      circle
+                      link 
+                      size="small"
+                      @click.stop="startEditTitle(chat)"
+                    >
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                    <el-button 
+                      circle
+                      link 
+                      type="danger" 
+                      size="small"
+                      @click.stop="deleteChat(chat)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
               </div>
             </TransitionGroup>
           </div>
@@ -176,10 +228,10 @@
             </el-button>
             
             <div class="current-chat-info">
-              <div class="app-logo">
-                <img src="/logo.png" alt="Logo" />
+              <!-- <div class="app-logo"> -->
+                <!-- <img src="/logo.png" alt="Logo" /> -->
                 <!-- <span class="app-name">AI 助手</span> -->
-              </div>
+              <!-- </div> -->
               <span class="current-chat-title">{{ currentChat.title }}</span>
               <el-tag size="small" class="model-tag">{{ getModelLabel(currentChat.currentModel || currentModel) }}</el-tag>
             </div>
@@ -193,16 +245,58 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <div class="dropdown-content">
+                  <div class="dropdown-content param-settings-panel">
+                    <h3 class="param-panel-title">模型参数设置</h3>
                     <div class="param-item">
-                      <div class="param-label">温度</div>
-                      <el-slider v-model="modelParams.temperature" :min="0" :max="2" :step="0.1" :format-tooltip="(val) => val.toFixed(1)"></el-slider>
+                      <div class="param-label-row">
+                        <span class="param-label">温度</span>
+                        <el-input-number 
+                          v-model="modelParams.temperature" 
+                          :min="0" 
+                          :max="2" 
+                          :step="0.1" 
+                          size="small"
+                          controls-position="right"
+                        />
+                      </div>
+                      <div class="param-description">
+                        控制输出的随机性。较低的值使输出更确定，较高的值使输出更多样化。
+                      </div>
+                      <el-slider 
+                        v-model="modelParams.temperature" 
+                        :min="0" 
+                        :max="2" 
+                        :step="0.1" 
+                        :format-tooltip="(val) => val.toFixed(1)"
+                      />
                     </div>
                     <div class="param-item">
-                      <div class="param-label">最大输出</div>
-                      <el-slider v-model="modelParams.maxTokens" :min="256" :max="4096" :step="256" :format-tooltip="(val) => val"></el-slider>
+                      <div class="param-label-row">
+                        <span class="param-label">最大输出</span>
+                        <el-input-number 
+                          v-model="modelParams.maxTokens" 
+                          :min="256" 
+                          :max="4096" 
+                          :step="100" 
+                          size="small"
+                          controls-position="right"
+                        />
+                      </div>
+                      <div class="param-description">
+                        控制模型生成的最大标记数量。较高的值允许更长的回复。
+                      </div>
+                      <el-slider 
+                        v-model="modelParams.maxTokens" 
+                        :min="256" 
+                        :max="4096" 
+                        :step="100" 
+                        :format-tooltip="(val) => val"
+                      />
                     </div>
-                    <el-dropdown-item divided command="reset">重置参数</el-dropdown-item>
+                    <div class="param-actions">
+                      <el-button type="primary" size="small" @click="applyModelParams">应用</el-button>
+                      <el-button size="small" @click="resetModelParams">重置</el-button>
+                    </div>
                   </div>
                 </el-dropdown-menu>
               </template>
@@ -215,34 +309,102 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item @click="exportAsMarkdown">导出为 Markdown</el-dropdown-item>
-                  <el-dropdown-item @click="exportAsHTML">导出为 HTML</el-dropdown-item>
+                  <el-dropdown-item @click="exportAsMarkdown">
+                    <el-icon><Document /></el-icon> 导出为 Markdown
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="exportAsHTML">
+                    <el-icon><Document /></el-icon> 导出为 HTML
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="exportAsTXT">
+                    <el-icon><Document /></el-icon> 导出为 TXT
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="exportAsPNG">
+                    <el-icon><Picture /></el-icon> 导出为 PNG
+                  </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
             
-            <el-dropdown trigger="click">
+            <!-- 模型下拉菜单 -->
+            <el-dropdown trigger="click" class="model-dropdown">
               <el-button link>
                 <el-icon><Select /></el-icon>
                 模型
               </el-button>
               <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item 
-                    v-for="model in modelOptions" 
-                    :key="model.value"
-                    @click="switchModel(model.value)"
-                    :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
-                  >
-                    <div class="model-option">
-                      <img :src="model.avatar" class="model-avatar" v-if="model.avatar" />
-                      <div class="model-info">
-                        <div class="model-name">{{ model.label }}</div>
-                        <div class="model-desc">{{ model.description }}</div>
-                      </div>
-                      <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
+                <el-dropdown-menu class="model-dropdown-menu">
+                  <!-- OpenAI 模型 -->
+                  <div class="model-group">
+                    <div class="model-vendor">
+                      <img src="../../src/assets/llm_logo/openai.png" class="vendor-logo" />
+                      <span>OpenAI</span>
                     </div>
-                  </el-dropdown-item>
+                    <el-dropdown-item 
+                      v-for="model in openaiModels" 
+                      :key="model.value"
+                      @click="switchModel(model.value)"
+                      :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
+                    >
+                      <div class="model-option">
+                        <img :src="model.avatar" class="model-avatar" />
+                        <div class="model-info">
+                          <div class="model-name">{{ model.label }}</div>
+                          <div class="model-desc">{{ model.description }}</div>
+                        </div>
+                        <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
+                      </div>
+                    </el-dropdown-item>
+                  </div>
+                  
+                  <el-divider />
+                  
+                  <!-- Anthropic 模型 -->
+                  <div class="model-group">
+                    <div class="model-vendor">
+                      <img src="../../src/assets/llm_logo/anthropic.png" class="vendor-logo" />
+                      <span>Anthropic</span>
+                    </div>
+                    <el-dropdown-item 
+                      v-for="model in anthropicModels" 
+                      :key="model.value"
+                      @click="switchModel(model.value)"
+                      :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
+                    >
+                      <div class="model-option">
+                        <img :src="model.avatar" class="model-avatar" />
+                        <div class="model-info">
+                          <div class="model-name">{{ model.label }}</div>
+                          <div class="model-desc">{{ model.description }}</div>
+                        </div>
+                        <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
+                      </div>
+                    </el-dropdown-item>
+                  </div>
+                  
+                  <el-divider />
+                  
+                  <!-- Google 模型 -->
+                  <div class="model-group">
+                    <div class="model-vendor">
+                      <img src="../../src/assets/llm_logo/google.png" class="vendor-logo" />
+                      <span>Google</span>
+                    </div>
+                    <el-dropdown-item 
+                      v-for="model in googleModels" 
+                      :key="model.value"
+                      @click="switchModel(model.value)"
+                      :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
+                    >
+                      <div class="model-option">
+                        <img :src="model.avatar" class="model-avatar" />
+                        <div class="model-info">
+                          <div class="model-name">{{ model.label }}</div>
+                          <div class="model-desc">{{ model.description }}</div>
+                        </div>
+                        <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
+                      </div>
+                    </el-dropdown-item>
+                  </div>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -346,6 +508,32 @@
               @contextmenu.prevent="openContextMenu($event, message, index)"
             >
               <!-- 消息内容 -->
+              <div class="message-content">
+                <div class="message-header">
+                  <div class="message-avatar">
+                    <el-avatar 
+                      :size="36" 
+                      :src="message.role === 'user' ? userAvatar : getCurrentModelAvatar()"
+                    />
+                  </div>
+                  <div class="message-role">
+                    {{ message.role === 'user' ? '用户' : getModelLabel(currentChat.currentModel || currentModel) }}
+                  </div>
+                  <div class="message-time">{{ formatTime(message.time || currentChat.time) }}</div>
+                </div>
+                <div class="message-body">{{ message.content }}</div>
+                <div class="message-actions">
+                  <el-button link size="small" @click.stop="copyMessage(message)">
+                    <el-icon><Document /></el-icon>复制
+                  </el-button>
+                  <el-button link size="small" @click.stop="editMessage(message, index)" v-if="message.role === 'user'">
+                    <el-icon><Edit /></el-icon>编辑
+                  </el-button>
+                  <el-button link size="small" type="danger" @click.stop="deleteMessage(index)">
+                    <el-icon><Delete /></el-icon>删除
+                  </el-button>
+                </div>
+              </div>
             </div>
           </template>
         </div>
@@ -437,6 +625,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
   ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
   List, SetUp, Position, Picture, Upload, Microphone, Select } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 
 export default {
   name: 'AIChatView',
@@ -451,7 +640,7 @@ export default {
     const sidebarCollapsed = ref(false);
     const sidebarWidth = ref(280);
     const inputFolded = ref(false);
-    const userAvatar = ref('/avatar.png');
+    const userAvatar = ref('https://api.dicebear.com/7.x/avataaars/svg?seed=68');
     const showSettings = ref(false);
     const showKeyboardShortcuts = ref(false);
     
@@ -539,12 +728,74 @@ export default {
       });
     });
     
-    // 模型选项
-    const modelOptions = [
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', avatar: '/models/gpt-3.5.png' },
-      { value: 'gpt-4', label: 'GPT-4', avatar: '/models/gpt-4.png' },
-      { value: 'claude-3', label: 'Claude 3', avatar: '/models/claude.png' }
+    // 模型选项按厂商分组
+    const openaiModels = [
+      { 
+        value: 'gpt-3.5-turbo', 
+        label: 'GPT-3.5 Turbo', 
+        avatar: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=George',
+        description: '快速、经济的通用模型',
+        tag: '推荐'
+      },
+      { 
+        value: 'gpt-4', 
+        label: 'GPT-4', 
+        avatar: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=George',
+        description: '更强大的推理和创意能力',
+      },
+      { 
+        value: 'gpt-4-turbo', 
+        label: 'GPT-4 Turbo', 
+        avatar: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=George',
+        description: '更快速的GPT-4版本',
+        tag: '新'
+      }
     ];
+    
+    const anthropicModels = [
+      { 
+        value: 'claude-3-opus', 
+        label: 'Claude 3 Opus', 
+        avatar: '../../src/assets/llm_logo/claude.png',
+        description: '最强大的Claude模型',
+        tag: '高级'
+      },
+      { 
+        value: 'claude-3-sonnet', 
+        label: 'Claude 3 Sonnet', 
+        avatar: '../../src/assets/llm_logo/claude.png',
+        description: '平衡性能与速度',
+        tag: '推荐'
+      },
+      { 
+        value: 'claude-3-haiku', 
+        label: 'Claude 3 Haiku', 
+        avatar: '/llm_logo/claude.png',
+        description: '快速响应的轻量级模型',
+      }
+    ];
+    
+    const googleModels = [
+      { 
+        value: 'gemini-pro', 
+        label: 'Gemini Pro', 
+        avatar: '../../src/assets/llm_logo/gemini.png',
+        description: '谷歌多模态大语言模型',
+        tag: '推荐'
+      },
+      { 
+        value: 'gemini-ultra', 
+        label: 'Gemini Ultra', 
+        avatar: '../../src/assets/llm_logo/gemini.png',
+        description: '谷歌最强大的AI模型',
+        tag: '高级'
+      }
+    ];
+    
+    // 合并所有模型选项用于其他功能
+    const modelOptions = computed(() => {
+      return [...openaiModels, ...anthropicModels, ...googleModels];
+    });
     
     // 建议提示
     const suggestions = [
@@ -580,6 +831,11 @@ export default {
       
       chatHistory.value.unshift(newChat);
       currentChatId.value = newChat.id;
+      
+      // 清空用户输入
+      userInput.value = '';
+      // 清空选中的消息
+      selectedMessages.value = [];
     };
     
     const loadChat = (chat) => {
@@ -622,7 +878,33 @@ export default {
     
     const formatTime = (timestamp) => {
       const date = new Date(timestamp);
-      return date.toLocaleString();
+      const now = new Date();
+      const diff = now - date;
+      
+      // 如果是今天，只显示时间
+      if (diff < 24 * 60 * 60 * 1000 && 
+          date.getDate() === now.getDate() &&
+          date.getMonth() === now.getMonth() &&
+          date.getFullYear() === now.getFullYear()) {
+        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      }
+      
+      // 如果是昨天，显示"昨天"
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.getDate() === yesterday.getDate() &&
+          date.getMonth() === yesterday.getMonth() &&
+          date.getFullYear() === yesterday.getFullYear()) {
+        return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      }
+      
+      // 如果是今年，显示月日
+      if (date.getFullYear() === now.getFullYear()) {
+        return (date.getMonth() + 1) + '月' + date.getDate() + '日';
+      }
+      
+      // 其他情况显示年月日
+      return date.getFullYear() + '/' + (date.getMonth() + 1) + '/' + date.getDate();
     };
     
     const getMatchContent = (chat) => {
@@ -650,13 +932,13 @@ export default {
     };
     
     const getModelLabel = (modelId) => {
-      const model = modelOptions.find(m => m.value === modelId);
+      const model = modelOptions.value.find(m => m.value === modelId);
       return model ? model.label : modelId;
     };
     
     const getCurrentModelAvatar = () => {
-      const model = modelOptions.find(m => m.value === (currentChat.value.currentModel || currentModel.value));
-      return model ? model.avatar : '/models/default.png';
+      const model = modelOptions.value.find(m => m.value === (currentChat.value.currentModel || currentModel.value));
+      return model ? model.avatar : '../../src/assets/llm_logo/default_model.png';
     };
     
     const switchModel = (modelId) => {
@@ -669,21 +951,142 @@ export default {
     
     const handleModelParamCommand = (command) => {
       if (command === 'reset') {
-        modelParams.value = {
-          temperature: 0.7,
-          maxTokens: 2048
-        };
+        resetModelParams();
+      } else if (command === 'apply') {
+        applyModelParams();
       }
     };
     
+    const applyModelParams = () => {
+      ElMessage({
+        message: '参数设置已应用',
+        type: 'success'
+      });
+    };
+    
+    const resetModelParams = () => {
+      modelParams.value = {
+        temperature: 0.7,
+        maxTokens: 2048
+      };
+      ElMessage({
+        message: '参数已重置为默认值',
+        type: 'info'
+      });
+    };
+    
     const exportAsMarkdown = () => {
-      // 导出为Markdown的实现
-      console.log('导出为Markdown');
+      const content = formatChatAsMarkdown();
+      downloadFile(content, `${currentChat.value.title}.md`, 'text/markdown');
     };
     
     const exportAsHTML = () => {
-      // 导出为HTML的实现
-      console.log('导出为HTML');
+      const content = formatChatAsHTML();
+      downloadFile(content, `${currentChat.value.title}.html`, 'text/html');
+    };
+    
+    const exportAsTXT = () => {
+      const content = formatChatAsText();
+      downloadFile(content, `${currentChat.value.title}.txt`, 'text/plain');
+    };
+    
+    const exportAsPNG = () => {
+      // 使用html2canvas将对话内容转换为图片
+      import('html2canvas').then(html2canvas => {
+        const messagesEl = document.querySelector('.message-container');
+        if (!messagesEl) return;
+        
+        ElMessage({
+          message: '正在生成图片，请稍候...',
+          type: 'info'
+        });
+        
+        html2canvas.default(messagesEl).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `${currentChat.value.title}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        });
+      }).catch(err => {
+        console.error('导出为PNG失败:', err);
+        ElMessage({
+          message: '导出为PNG失败，请重试',
+          type: 'error'
+        });
+      });
+    };
+    
+    const formatChatAsMarkdown = () => {
+      let md = `# ${currentChat.value.title}\n\n`;
+      md += `模型: ${getModelLabel(currentChat.value.currentModel || currentModel.value)}\n\n`;
+      
+      currentChat.value.messages.forEach(msg => {
+        const role = msg.role === 'user' ? '用户' : 'AI';
+        md += `## ${role}\n\n${msg.content}\n\n`;
+      });
+      
+      return md;
+    };
+    
+    const formatChatAsHTML = () => {
+      let html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${currentChat.value.title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .message { margin-bottom: 20px; padding: 15px; border-radius: 10px; }
+    .user { background-color: #f0f9ff; }
+    .assistant { background-color: #f9f9f9; }
+    .role { font-weight: bold; margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h1>${currentChat.value.title}</h1>
+  <p>模型: ${getModelLabel(currentChat.value.currentModel || currentModel.value)}</p>
+`;
+      
+      currentChat.value.messages.forEach(msg => {
+        const role = msg.role === 'user' ? '用户' : 'AI';
+        html += `  <div class="message ${msg.role}">
+    <div class="role">${role}</div>
+    <div class="content">${msg.content.replace(/\n/g, '<br>')}</div>
+  </div>
+`;
+      });
+      
+      html += `</body>
+</html>`;
+      
+      return html;
+    };
+    
+    const formatChatAsText = () => {
+      let txt = `${currentChat.value.title}\n`;
+      txt += `模型: ${getModelLabel(currentChat.value.currentModel || currentModel.value)}\n\n`;
+      
+      currentChat.value.messages.forEach(msg => {
+        const role = msg.role === 'user' ? '用户' : 'AI';
+        txt += `[${role}]\n${msg.content}\n\n`;
+      });
+      
+      return txt;
+    };
+    
+    const downloadFile = (content, filename, contentType) => {
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      ElMessage({
+        message: `已导出为 ${filename}`,
+        type: 'success'
+      });
     };
     
     const sendMessage = () => {
@@ -691,7 +1094,8 @@ export default {
       
       const newMessage = {
         role: 'user',
-        content: userInput.value
+        content: userInput.value,
+        time: new Date().getTime()
       };
       
       currentChat.value.messages.push(newMessage);
@@ -701,7 +1105,8 @@ export default {
       setTimeout(() => {
         currentChat.value.messages.push({
           role: 'assistant',
-          content: '这是一个模拟的AI回复。在实际应用中，这里会调用AI API获取回复。'
+          content: '这是一个模拟的AI回复。在实际应用中，这里会调用AI API获取回复。',
+          time: new Date().getTime()
         });
       }, 1000);
     };
@@ -772,6 +1177,33 @@ export default {
       isRecording.value = true;
     };
     
+    const copyMessage = (message) => {
+      navigator.clipboard.writeText(message.content)
+        .then(() => {
+          ElMessage({
+            message: '消息已复制到剪贴板',
+            type: 'success'
+          });
+        })
+        .catch(() => {
+          ElMessage({
+            message: '复制失败，请手动复制',
+            type: 'error'
+          });
+        });
+    };
+    
+    const editMessage = (message, index) => {
+      userInput.value = message.content;
+      // 可选：删除该消息及其后的所有消息
+      currentChat.value.messages = currentChat.value.messages.slice(0, index);
+    };
+    
+    const deleteMessage = (index) => {
+      // 删除单个消息
+      currentChat.value.messages.splice(index, 1);
+    };
+    
     // 初始化
     onMounted(() => {
       // 加载上次的主题设置
@@ -817,6 +1249,9 @@ export default {
       imageUpload,
       fileUpload,
       titleInputRef,
+      openaiModels,
+      anthropicModels,
+      googleModels,
       
       // 方法
       toggleTheme,
@@ -835,8 +1270,12 @@ export default {
       getCurrentModelAvatar,
       switchModel,
       handleModelParamCommand,
+      applyModelParams,
+      resetModelParams,
       exportAsMarkdown,
       exportAsHTML,
+      exportAsTXT,
+      exportAsPNG,
       sendMessage,
       applySuggestion,
       handleMessageClick,
@@ -848,6 +1287,9 @@ export default {
       handleImageUpload,
       handleFileUpload,
       startRecording,
+      copyMessage,
+      editMessage,
+      deleteMessage,
       
       // 图标
       ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
@@ -1243,6 +1685,56 @@ export default {
   background-color: var(--el-color-primary-light-9);
 }
 
+.message-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.message-role {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.message-time {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-left: auto;
+}
+
+.message-body {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.message-actions {
+  display: flex;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.message-item:hover .message-actions {
+  opacity: 1;
+}
+
+.message-item.assistant {
+  background-color: var(--el-bg-color);
+}
+
+.highlight {
+  background-color: var(--el-color-warning-light-9);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 /* 输入区域 */
 .input-area {
   height: auto;
@@ -1437,5 +1929,134 @@ export default {
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--el-text-color-secondary);
+}
+
+/* 模型下拉菜单样式 */
+.model-dropdown-menu {
+  width: 320px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.model-group {
+  padding: 8px 0;
+}
+
+.model-vendor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.vendor-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.model-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.model-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.model-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-model {
+  background-color: var(--el-color-primary-light-9) !important;
+}
+
+.active-model .model-name {
+  color: var(--el-color-primary);
+}
+
+/* 分割线样式 */
+.el-divider {
+  margin: 4px 0;
+}
+
+/* 悬浮效果 */
+.model-option:hover {
+  transform: translateX(4px);
+  transition: transform 0.3s ease;
+}
+
+/* 参数设置面板 */
+.param-settings-panel {
+  width: 380px;
+  padding: 16px;
+}
+
+.param-panel-title {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  text-align: center;
+}
+
+.param-item {
+  margin-bottom: 20px;
+}
+
+.param-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.param-label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.param-description {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.param-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.dropdown-content {
+  padding: 16px;
 }
 </style>
