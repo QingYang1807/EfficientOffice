@@ -28,8 +28,13 @@ const route = useRoute()
 // 当前激活的菜单项
 const activeMenu = computed(() => route.path)
 
-// 菜单折叠状态
-const isCollapse = ref(false)
+// 接收父组件传入的折叠状态
+const props = defineProps({
+  isCollapse: {
+    type: Boolean,
+    default: false
+  }
+})
 
 // 获取菜单数据
 const menuNodes = computed(() => {
@@ -40,26 +45,13 @@ const menuNodes = computed(() => {
   return []
 })
 
+// 定义事件
+const emit = defineEmits(['update:isCollapse'])
+
 // 切换折叠状态
 const toggleCollapse = () => {
-  isCollapse.value = !isCollapse.value
+  emit('update:isCollapse', !props.isCollapse)
 }
-
-// 定义事件
-const emit = defineEmits(['collapse-change'])
-
-// 监听折叠状态变化
-watch(isCollapse, (newValue) => {
-  emit('collapse-change', newValue)
-})
-
-// 接收父组件传入的折叠状态
-defineProps({
-  isCollapse: {
-    type: Boolean,
-    default: false
-  }
-})
 </script>
 
 <style scoped>
@@ -103,7 +95,7 @@ defineProps({
 }
 
 /* 菜单折叠时按钮宽度同步变化 */
-.app-menu.el-menu--collapse + .collapse-btn-fixed {
+:deep(.el-menu--collapse) ~ .collapse-btn-fixed {
   width: 64px;
 }
 
@@ -111,24 +103,22 @@ defineProps({
   background-color: var(--el-menu-hover-bg-color);
 }
 
-/* 自定义滚动条样式 - 确保滚动条显示 */
+/* 自定义滚动条样式 */
 .app-menu::-webkit-scrollbar {
-  width: 3px; /* 细滚动条 */
-  display: block !important; /* 强制显示 */
+  width: 3px;
+  display: block !important;
 }
 
 .app-menu::-webkit-scrollbar-thumb {
   background-color: rgba(144, 147, 153, 0.3);
-  border-radius: 3px; /* 圆柱形两端 */
-  min-height: 30px; /* 确保滑块有最小高度 */
+  border-radius: 3px;
+  min-height: 30px;
 }
 
-/* 添加悬停效果，使滚动条在悬停时更明显 */
 .app-menu:hover::-webkit-scrollbar-thumb {
   background-color: rgba(144, 147, 153, 0.5);
 }
 
-/* 完全隐藏横向滚动条 */
 .app-menu::-webkit-scrollbar-horizontal {
   display: none;
 }
@@ -140,11 +130,5 @@ defineProps({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 确保内容足够时才显示滚动条 */
-.app-menu {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: rgba(144, 147, 153, 0.3) transparent; /* Firefox */
 }
 </style> 

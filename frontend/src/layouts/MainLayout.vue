@@ -7,13 +7,6 @@
             <img v-if="isCollapse" src="@/assets/logo.svg" alt="Logo" />
             <img v-else src="@/assets/logo-full.svg" alt="Logo" />
           </div>
-          <el-icon 
-            class="collapse-btn"
-            @click="toggleCollapse"
-          >
-            <Expand v-if="isCollapse"/>
-            <Fold v-else/>
-          </el-icon>
         </div>
         <div class="header-right">
           <el-dropdown @command="handleCommand">
@@ -43,12 +36,12 @@
       
       <el-main class="layout-main">
         <div class="layout-content">
-          <div class="menu-container">
+          <div class="menu-container" :style="{ width: isCollapse ? '64px' : '200px' }">
             <el-aside :width="isCollapse ? '64px' : '200px'" class="aside">
-              <AppMenu :is-collapse="isCollapse" />
+              <AppMenu v-model:is-collapse="isCollapse" />
             </el-aside>
           </div>
-          <div class="content-container">
+          <div class="content-container" :style="{ marginLeft: isCollapse ? '64px' : '200px' }">
             <router-view />
           </div>
         </div>
@@ -252,6 +245,7 @@ const handleLogout = async () => {
   position: fixed;
   left: 0;
   z-index: 1000;
+  transition: width 0.3s;
 }
 
 .aside {
@@ -262,25 +256,8 @@ const handleLogout = async () => {
 
 .content-container {
   flex: 1;
-  margin-left: 200px; /* 默认菜单宽度 */
   transition: margin-left 0.3s;
   overflow-y: auto;
   padding: 20px;
-}
-
-/* 菜单收起时调整内容区域边距 */
-:deep(.el-menu--collapse) ~ .content-container {
-  margin-left: 64px;
-}
-
-.collapse-btn {
-  font-size: 20px;
-  cursor: pointer;
-  transition: all 0.3s;
-  color: var(--el-text-color-secondary);
-}
-
-.collapse-btn:hover {
-  color: var(--el-text-color-primary);
 }
 </style> 
