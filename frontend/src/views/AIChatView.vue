@@ -453,7 +453,7 @@
                     <el-icon><Setting /></el-icon>设置
                   </el-dropdown-item>
                   <el-dropdown-item @click="showKeyboardShortcuts = true">
-                    <el-icon><Document /></el-icon>快捷键
+                    <el-icon><Position /></el-icon>快捷键
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -462,7 +462,11 @@
         </div>
 
         <!-- 消息容器 -->
-        <div class="message-container" ref="messagesContainer">
+        <div 
+          class="message-container" 
+          ref="messagesContainer"
+          :class="[chatSettings.layout, chatSettings.direction]"
+        >
           <!-- 选择操作区 -->
           <div class="selected-actions" v-if="selectedMessages.length > 0">
             <div class="selection-info">已选择 {{ selectedMessages.length }} 条消息</div>
@@ -536,7 +540,7 @@
                   <div class="message-role">
                     {{ message.role === 'user' ? '用户' : getModelLabel(currentChat.currentModel || currentModel) }}
                   </div>
-                  <div class="message-time">{{ formatTime(message.time || currentChat.time) }}</div>
+                  <div class="message-time">{{ formatTime(message.time || currentChat.time, true) }}</div>
                 </div>
                 <div class="message-body">{{ message.content }}</div>
                 <div class="message-actions">
@@ -635,6 +639,248 @@
       </div>
     </div>
   </div>
+
+  <!-- 设置对话框 -->
+  <el-dialog
+    v-model="showSettings"
+    title="应用设置"
+    width="500px"
+    destroy-on-close
+  >
+    <el-tabs>
+      <el-tab-pane label="常规设置">
+        <el-form label-position="top">
+          <el-form-item label="界面主题">
+            <el-radio-group v-model="themeSettings.theme">
+              <el-radio label="light">浅色</el-radio>
+              <el-radio label="dark">深色</el-radio>
+              <el-radio label="system">跟随系统</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="字体大小">
+            <el-slider 
+              v-model="themeSettings.fontSize" 
+              :min="12" 
+              :max="20" 
+              :step="1"
+              :format-tooltip="(val) => `${val}px`"
+            />
+          </el-form-item>
+          
+          <el-form-item label="消息显示">
+            <el-switch
+              v-model="chatSettings.showTimestamp"
+              active-text="显示时间戳"
+            />
+          </el-form-item>
+          
+          <el-form-item label="自动保存">
+            <el-switch
+              v-model="chatSettings.autoSave"
+              active-text="自动保存对话"
+            />
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+      
+      <el-tab-pane label="模型设置">
+        <el-form label-position="top">
+          <el-form-item label="默认模型">
+            <el-select v-model="modelSettings.defaultModel" placeholder="选择默认模型">
+              <el-option-group label="OpenAI">
+                <el-option 
+                  v-for="model in openaiModels" 
+                  :key="model.value" 
+                  :label="model.label" 
+                  :value="model.value"
+                />
+              </el-option-group>
+              <el-option-group label="Anthropic">
+                <el-option 
+                  v-for="model in anthropicModels" 
+                  :key="model.value" 
+                  :label="model.label" 
+                  :value="model.value"
+                />
+              </el-option-group>
+              <el-option-group label="Google">
+                <el-option 
+                  v-for="model in googleModels" 
+                  :key="model.value" 
+                  :label="model.label" 
+                  :value="model.value"
+                />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
+          
+          <el-form-item label="默认参数">
+            <div class="default-params">
+              <div class="param-row">
+                <span>温度:</span>
+                <el-input-number 
+                  v-model="modelSettings.defaultTemperature" 
+                  :min="0" 
+                  :max="2" 
+                  :step="0.1" 
+                  size="small"
+                  controls-position="right"
+                />
+              </div>
+              <div class="param-row">
+                <span>最大输出:</span>
+                <el-input-number 
+                  v-model="modelSettings.defaultMaxTokens" 
+                  :min="256" 
+                  :max="4096" 
+                  :step="100" 
+                  size="small"
+                  controls-position="right"
+                />
+              </div>
+            </div>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+      
+      <el-tab-pane label="数据管理">
+        <div class="data-management">
+          <div class="data-action">
+            <div class="data-info">
+              <h4>导出所有对话</h4>
+              <p>将所有对话历史导出为JSON文件</p>
+            </div>
+            <el-button type="primary" @click="exportAllChats">导出</el-button>
+          </div>
+          
+          <div class="data-action">
+            <div class="data-info">
+              <h4>导入对话</h4>
+              <p>从JSON文件导入对话历史</p>
+            </div>
+            <el-button @click="importChats">导入</el-button>
+          </div>
+          
+          <div class="data-action">
+            <div class="data-info">
+              <h4>清除所有对话</h4>
+              <p>删除所有对话历史记录（此操作不可恢复）</p>
+            </div>
+            <el-button type="danger" @click="confirmClearAllChats">清除</el-button>
+          </div>
+        </div>
+      </el-tab-pane>
+      
+      <el-tab-pane label="对话设置">
+        <el-form label-position="top">
+          <el-form-item label="对话布局">
+            <el-radio-group v-model="chatSettings.layout">
+              <el-radio label="super-compact">超级紧凑</el-radio>
+              <el-radio label="compact">紧凑布局</el-radio>
+              <el-radio label="relaxed">宽松布局</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="对话方向">
+            <el-radio-group v-model="chatSettings.direction">
+              <el-radio label="default">用户左侧/AI右侧</el-radio>
+              <el-radio label="reversed">AI左侧/用户右侧</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="时间显示">
+            <div class="time-display-options">
+              <el-checkbox v-model="chatSettings.showDetailedTimeInList">对话列表显示详细时间</el-checkbox>
+              <el-checkbox v-model="chatSettings.showDetailedTimeInChat">对话面板显示详细时间</el-checkbox>
+            </div>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+    </el-tabs>
+    
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="showSettings = false">取消</el-button>
+        <el-button type="primary" @click="saveSettings">保存设置</el-button>
+      </span>
+    </template>
+  </el-dialog>
+
+  <!-- 快捷键对话框 -->
+  <el-dialog
+    v-model="showKeyboardShortcuts"
+    title="键盘快捷键"
+    width="500px"
+  >
+    <div class="shortcuts-container">
+      <div class="shortcut-group">
+        <h3>常用操作</h3>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>Enter</kbd>
+          </div>
+          <div class="shortcut-desc">发送消息</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>N</kbd>
+          </div>
+          <div class="shortcut-desc">新建对话</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>/</kbd>
+          </div>
+          <div class="shortcut-desc">显示快捷键</div>
+        </div>
+      </div>
+      
+      <div class="shortcut-group">
+        <h3>编辑操作</h3>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>Z</kbd>
+          </div>
+          <div class="shortcut-desc">撤销</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>Y</kbd>
+          </div>
+          <div class="shortcut-desc">重做</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>C</kbd>
+          </div>
+          <div class="shortcut-desc">复制选中内容</div>
+        </div>
+      </div>
+      
+      <div class="shortcut-group">
+        <h3>导航操作</h3>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>B</kbd>
+          </div>
+          <div class="shortcut-desc">切换侧边栏</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>F</kbd>
+          </div>
+          <div class="shortcut-desc">搜索对话</div>
+        </div>
+        <div class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd>Esc</kbd>
+          </div>
+          <div class="shortcut-desc">取消选择/关闭弹窗</div>
+        </div>
+      </div>
+    </div>
+  </el-dialog>
 </template>
 
 <script>
@@ -676,7 +922,10 @@ export default {
     // 模型设置
     const modelSettings = ref({
       fontSize: 14,
-      lineHeight: 1.6
+      lineHeight: 1.6,
+      defaultModel: 'gpt-3.5-turbo',
+      defaultTemperature: 0.7,
+      defaultMaxTokens: 2048
     });
     
     // 模型参数
@@ -924,35 +1173,51 @@ export default {
         });
     };
     
-    const formatTime = (timestamp) => {
+    const formatTime = (timestamp, isInChatPanel = false) => {
       const date = new Date(timestamp);
       const now = new Date();
       const diff = now - date;
       
-      // 如果是今天，只显示时间
+      // 格式化时间函数
+      const formatTimeString = (date) => {
+        // 根据上下文选择是否显示详细时间
+        const showDetailed = isInChatPanel 
+          ? chatSettings.value.showDetailedTimeInChat 
+          : chatSettings.value.showDetailedTimeInList;
+          
+        if (showDetailed) {
+          // 显示详细时间格式：时:分:秒
+          return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+        } else {
+          // 简化时间格式
+          return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+      };
+      
+      // 如果是今天，显示时间
       if (diff < 24 * 60 * 60 * 1000 && 
           date.getDate() === now.getDate() &&
           date.getMonth() === now.getMonth() &&
           date.getFullYear() === now.getFullYear()) {
-        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        return formatTimeString(date);
       }
       
-      // 如果是昨天，显示"昨天"
+      // 如果是昨天，显示"昨天"加时间
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       if (date.getDate() === yesterday.getDate() &&
           date.getMonth() === yesterday.getMonth() &&
           date.getFullYear() === yesterday.getFullYear()) {
-        return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        return '昨天 ' + formatTimeString(date);
       }
       
-      // 如果是今年，显示月日
+      // 如果是今年，显示月日时间
       if (date.getFullYear() === now.getFullYear()) {
-        return (date.getMonth() + 1) + '月' + date.getDate() + '日';
+        return `${date.getMonth() + 1}月${date.getDate()}日 ${formatTimeString(date)}`;
       }
       
-      // 其他情况显示年月日
-      return date.getFullYear() + '/' + (date.getMonth() + 1) + '/' + date.getDate();
+      // 其他情况显示年月日时间
+      return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()} ${formatTimeString(date)}`;
     };
     
     const getMatchContent = (chat) => {
@@ -1286,10 +1551,265 @@ export default {
       filteredGoogleModels.value.length > 0
     );
     
+    // 设置相关状态
+    const themeSettings = ref({
+      theme: 'light', // light, dark, system
+      fontSize: 14
+    });
+    
+    const chatSettings = ref({
+      showTimestamp: true,
+      autoSave: true,
+      layout: 'compact', // 布局选项：compact, super-compact, relaxed
+      direction: 'default', // 对话方向
+      showDetailedTimeInList: false, // 对话列表显示详细时间
+      showDetailedTimeInChat: false  // 对话面板显示详细时间
+    });
+    
+    // 加载设置
+    const loadSettings = () => {
+      try {
+        const savedThemeSettings = localStorage.getItem('themeSettings');
+        if (savedThemeSettings) {
+          themeSettings.value = JSON.parse(savedThemeSettings);
+          
+          // 应用主题设置
+          if (themeSettings.value.theme === 'dark') {
+            toggleTheme(true);
+          } else if (themeSettings.value.theme === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            toggleTheme(prefersDark);
+          }
+          
+          // 应用字体大小
+          document.documentElement.style.setProperty('--app-font-size', `${themeSettings.value.fontSize}px`);
+        }
+        
+        const savedChatSettings = localStorage.getItem('chatSettings');
+        if (savedChatSettings) {
+          chatSettings.value = JSON.parse(savedChatSettings);
+        }
+        
+        const savedModelSettings = localStorage.getItem('modelSettings');
+        if (savedModelSettings) {
+          modelSettings.value = JSON.parse(savedModelSettings);
+          currentModel.value = modelSettings.value.defaultModel;
+          modelParams.value.temperature = modelSettings.value.defaultTemperature;
+          modelParams.value.maxTokens = modelSettings.value.defaultMaxTokens;
+        }
+      } catch (error) {
+        console.error('加载设置失败:', error);
+      }
+    };
+    
+    // 保存设置
+    const saveSettings = () => {
+      try {
+        localStorage.setItem('themeSettings', JSON.stringify(themeSettings.value));
+        localStorage.setItem('chatSettings', JSON.stringify(chatSettings.value));
+        localStorage.setItem('modelSettings', JSON.stringify(modelSettings.value));
+        
+        // 应用主题设置
+        if (themeSettings.value.theme === 'dark') {
+          toggleTheme(true);
+        } else if (themeSettings.value.theme === 'light') {
+          toggleTheme(false);
+        } else if (themeSettings.value.theme === 'system') {
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          toggleTheme(prefersDark);
+        }
+        
+        // 应用字体大小
+        document.documentElement.style.setProperty('--app-font-size', `${themeSettings.value.fontSize}px`);
+        
+        // 应用模型设置
+        currentModel.value = modelSettings.value.defaultModel;
+        modelParams.value.temperature = modelSettings.value.defaultTemperature;
+        modelParams.value.maxTokens = modelSettings.value.defaultMaxTokens;
+        
+        showSettings.value = false;
+        
+        ElMessage({
+          message: '设置已保存',
+          type: 'success'
+        });
+      } catch (error) {
+        console.error('保存设置失败:', error);
+        ElMessage({
+          message: '保存设置失败',
+          type: 'error'
+        });
+      }
+    };
+    
+    // 导出所有对话
+    const exportAllChats = () => {
+      try {
+        const data = JSON.stringify(chatHistory.value, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ai-chat-history-${new Date().toISOString().slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        ElMessage({
+          message: '对话历史已导出',
+          type: 'success'
+        });
+      } catch (error) {
+        console.error('导出对话失败:', error);
+        ElMessage({
+          message: '导出对话失败',
+          type: 'error'
+        });
+      }
+    };
+    
+    // 导入对话
+    const importChats = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json';
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const importedChats = JSON.parse(e.target.result);
+              
+              // 验证导入的数据格式
+              if (Array.isArray(importedChats) && importedChats.every(chat => 
+                typeof chat === 'object' && 
+                chat.id && 
+                chat.title && 
+                Array.isArray(chat.messages)
+              )) {
+                // 合并导入的对话和现有对话
+                const existingIds = new Set(chatHistory.value.map(chat => chat.id));
+                const newChats = importedChats.filter(chat => !existingIds.has(chat.id));
+                
+                if (newChats.length > 0) {
+                  chatHistory.value = [...newChats, ...chatHistory.value];
+                  ElMessage({
+                    message: `成功导入 ${newChats.length} 个对话`,
+                    type: 'success'
+                  });
+                } else {
+                  ElMessage({
+                    message: '没有新的对话可导入',
+                    type: 'info'
+                  });
+                }
+              } else {
+                throw new Error('无效的对话数据格式');
+              }
+            } catch (error) {
+              console.error('导入对话失败:', error);
+              ElMessage({
+                message: '导入对话失败: ' + error.message,
+                type: 'error'
+              });
+            }
+          };
+          reader.readAsText(file);
+        }
+      };
+      input.click();
+    };
+    
+    // 确认清除所有对话
+    const confirmClearAllChats = () => {
+      ElMessageBox.confirm(
+        '确定要清除所有对话历史吗？此操作不可恢复。',
+        '清除确认',
+        {
+          confirmButtonText: '确定清除',
+          cancelButtonText: '取消',
+          type: 'warning',
+          confirmButtonClass: 'el-button--danger'
+        }
+      )
+        .then(() => {
+          chatHistory.value = [];
+          localStorage.removeItem('chatHistory');
+          createNewChat();
+          
+          ElMessage({
+            message: '所有对话历史已清除',
+            type: 'success'
+          });
+        })
+        .catch(() => {
+          // 用户取消操作
+        });
+    };
+    
+    // 设置键盘快捷键
+    const setupKeyboardShortcuts = () => {
+      document.addEventListener('keydown', (event) => {
+        // Ctrl + Enter: 发送消息
+        if (event.ctrlKey && event.key === 'Enter') {
+          event.preventDefault();
+          sendMessage();
+        }
+        
+        // Ctrl + N: 新建对话
+        if (event.ctrlKey && event.key === 'n') {
+          event.preventDefault();
+          createNewChat();
+        }
+        
+        // Ctrl + /: 显示快捷键
+        if (event.ctrlKey && event.key === '/') {
+          event.preventDefault();
+          showKeyboardShortcuts.value = true;
+        }
+        
+        // Alt + Left Arrow: 切换侧边栏
+        if (event.ctrlKey && event.key === 'b') {
+          event.preventDefault();
+          toggleSidebar();
+        }
+        
+        // Ctrl + F: 聚焦搜索框
+        if (event.ctrlKey && event.key === 'f') {
+          event.preventDefault();
+          // 找到搜索输入框并聚焦
+          const searchInput = document.querySelector('.search-input input');
+          if (searchInput) {
+            searchInput.focus();
+          }
+        }
+        
+        // Esc: 取消选择/关闭弹窗
+        if (event.key === 'Escape') {
+          if (selectedMessages.value.length > 0) {
+            event.preventDefault();
+            clearSelection();
+          } else if (showSettings.value) {
+            event.preventDefault();
+            showSettings.value = false;
+          } else if (showKeyboardShortcuts.value) {
+            event.preventDefault();
+            showKeyboardShortcuts.value = false;
+          }
+        }
+      });
+    };
+    
     // 初始化
     onMounted(() => {
       // 从localStorage加载聊天历史
       loadChatHistoryFromStorage();
+      
+      // 加载设置
+      loadSettings();
+      
+      // 设置键盘快捷键
+      setupKeyboardShortcuts();
       
       // 如果没有聊天历史，创建一个新的对话
       if (chatHistory.value.length === 0) {
@@ -1371,6 +1891,12 @@ export default {
       filteredGoogleModels,
       hasModelSearchQuery,
       hasFilteredModels,
+      themeSettings,
+      chatSettings,
+      saveSettings,
+      exportAllChats,
+      importChats,
+      confirmClearAllChats,
       
       // 方法
       toggleTheme,
@@ -1409,6 +1935,7 @@ export default {
       copyMessage,
       editMessage,
       deleteMessage,
+      loadSettings,
       
       // 图标
       ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
@@ -1424,12 +1951,12 @@ export default {
 .ai-chat-container {
   display: flex;
   flex-direction: column;
-  height: 100%; /* 改为100%而不是100vh */
+  height: 100%;
   width: 100%;
   overflow: hidden;
   background-color: var(--el-bg-color-page);
   color: var(--el-text-color-primary);
-  position: relative; /* 改为relative */
+  position: relative;
 }
 
 /* 主内容区域 */
@@ -1438,7 +1965,7 @@ export default {
   flex: 1;
   overflow: hidden;
   position: relative;
-  height: 100%; /* 改为100%而不是100vh */
+  height: 100%;
 }
 
 /* 左侧菜单栏 - 移除或隐藏，因为已经有主布局的侧边栏 */
@@ -1612,7 +2139,7 @@ export default {
   overflow: hidden;
   background-color: var(--el-bg-color-page);
   min-width: 0;
-  max-width: 100%; /* 改为100% */
+  max-width: 100%;
 }
 
 /* 当侧边栏折叠时调整内容区宽度 */
@@ -1775,7 +2302,7 @@ export default {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
-/* 消息项 */
+/* 消息项 - 根据布局设置调整样式 */
 .message-item {
   display: flex;
   gap: 16px;
@@ -1788,6 +2315,73 @@ export default {
   max-width: 100%;
   word-break: break-word;
   overflow-wrap: break-word;
+}
+
+/* 紧凑布局 */
+:deep(.compact) .message-item {
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+/* 超级紧凑布局 */
+:deep(.super-compact) .message-item {
+  padding: 8px;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+:deep(.super-compact) .message-content {
+  gap: 6px;
+}
+
+:deep(.super-compact) .message-header {
+  gap: 8px;
+}
+
+:deep(.super-compact) .message-avatar .el-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+:deep(.super-compact) .message-body {
+  line-height: 1.4;
+}
+
+:deep(.super-compact) .message-actions {
+  gap: 8px;
+}
+
+/* 宽松布局 */
+:deep(.relaxed) .message-item {
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* 默认方向：用户在左，AI在右 */
+:deep(.default) .message-item.user {
+  margin-right: auto;
+  margin-left: 0;
+  border-bottom-left-radius: 4px;
+}
+
+:deep(.default) .message-item.assistant {
+  margin-left: auto;
+  margin-right: 0;
+  border-bottom-right-radius: 4px;
+}
+
+/* 反向：AI在左，用户在右 */
+:deep(.reversed) .message-item.assistant {
+  margin-right: auto;
+  margin-left: 0;
+  border-bottom-left-radius: 4px;
+}
+
+:deep(.reversed) .message-item.user {
+  margin-left: auto;
+  margin-right: 0;
+  border-bottom-right-radius: 4px;
 }
 
 .message-item:hover {
@@ -2199,5 +2793,127 @@ export default {
 
 .dropdown-content {
   padding: 16px;
+}
+
+/* 设置对话框样式 */
+.default-params {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.param-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.data-management {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.data-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--el-fill-color-light);
+}
+
+.data-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+}
+
+.data-info p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 快捷键对话框样式 */
+.shortcuts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.shortcut-group h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 16px;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 3px 6px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--el-text-color-primary);
+  background-color: var(--el-fill-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-desc {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+}
+
+/* 添加全局字体大小变量 */
+:root {
+  --app-font-size: 14px;
+}
+
+body {
+  font-size: var(--app-font-size);
+}
+
+.time-display-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.data-management {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+}
+
+/* 设置对话框样式 */
+.el-dialog :deep(.el-form) {
+  text-align: left;
+}
+
+.el-dialog :deep(.el-form-item__label) {
+  text-align: left;
+}
+
+.el-dialog :deep(.el-tabs__content) {
+  text-align: left;
 }
 </style>
