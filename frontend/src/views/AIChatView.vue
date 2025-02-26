@@ -333,14 +333,25 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu class="model-dropdown-menu">
+                  <!-- 搜索框 -->
+                  <div class="model-search-container">
+                    <el-input
+                      v-model="modelSearchQuery"
+                      placeholder="搜索模型..."
+                      prefix-icon="Search"
+                      clearable
+                      size="small"
+                    />
+                  </div>
+                  
                   <!-- OpenAI 模型 -->
-                  <div class="model-group">
+                  <div class="model-group" v-if="filteredOpenAIModels.length > 0">
                     <div class="model-vendor">
                       <img src="../../src/assets/llm_logo/openai.png" class="vendor-logo" />
                       <span>OpenAI</span>
                     </div>
                     <el-dropdown-item 
-                      v-for="model in openaiModels" 
+                      v-for="model in filteredOpenAIModels" 
                       :key="model.value"
                       @click="switchModel(model.value)"
                       :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
@@ -356,16 +367,16 @@
                     </el-dropdown-item>
                   </div>
                   
-                  <el-divider />
+                  <el-divider v-if="filteredOpenAIModels.length > 0 && (filteredAnthropicModels.length > 0 || filteredGoogleModels.length > 0)" />
                   
                   <!-- Anthropic 模型 -->
-                  <div class="model-group">
+                  <div class="model-group" v-if="filteredAnthropicModels.length > 0">
                     <div class="model-vendor">
                       <img src="../../src/assets/llm_logo/anthropic.png" class="vendor-logo" />
                       <span>Anthropic</span>
                     </div>
                     <el-dropdown-item 
-                      v-for="model in anthropicModels" 
+                      v-for="model in filteredAnthropicModels" 
                       :key="model.value"
                       @click="switchModel(model.value)"
                       :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
@@ -381,16 +392,16 @@
                     </el-dropdown-item>
                   </div>
                   
-                  <el-divider />
+                  <el-divider v-if="filteredAnthropicModels.length > 0 && filteredGoogleModels.length > 0" />
                   
                   <!-- Google 模型 -->
-                  <div class="model-group">
+                  <div class="model-group" v-if="filteredGoogleModels.length > 0">
                     <div class="model-vendor">
                       <img src="../../src/assets/llm_logo/google.png" class="vendor-logo" />
                       <span>Google</span>
                     </div>
                     <el-dropdown-item 
-                      v-for="model in googleModels" 
+                      v-for="model in filteredGoogleModels" 
                       :key="model.value"
                       @click="switchModel(model.value)"
                       :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
@@ -404,6 +415,12 @@
                         <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
                       </div>
                     </el-dropdown-item>
+                  </div>
+                  
+                  <!-- 无搜索结果提示 -->
+                  <div class="no-model-results" v-if="hasModelSearchQuery && !hasFilteredModels">
+                    <el-icon><Search /></el-icon>
+                    <span>没有找到匹配的模型</span>
                   </div>
                 </el-dropdown-menu>
               </template>
@@ -624,7 +641,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
   ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
-  List, SetUp, Position, Picture, Upload, Microphone, Select } from '@element-plus/icons-vue';
+  List, SetUp, Position, Picture, Upload, Microphone, Select, Search } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 export default {
@@ -632,7 +649,7 @@ export default {
   components: {
     ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
     ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
-    List, SetUp, Position, Picture, Upload, Microphone, Select
+    List, SetUp, Position, Picture, Upload, Microphone, Select, Search
   },
   setup() {
     // 基础状态
@@ -647,6 +664,7 @@ export default {
     // 聊天相关状态
     const searchQuery = ref('');
     const searchType = ref('标题和内容');
+    const modelSearchQuery = ref('');
     const editingChatId = ref(null);
     const editingTitle = ref('');
     const currentChatId = ref(null);
@@ -1204,6 +1222,39 @@ export default {
       currentChat.value.messages.splice(index, 1);
     };
     
+    // 过滤后的模型列表
+    const filteredOpenAIModels = computed(() => {
+      if (!modelSearchQuery.value) return openaiModels;
+      return openaiModels.filter(model => 
+        model.label.toLowerCase().includes(modelSearchQuery.value.toLowerCase()) ||
+        model.description.toLowerCase().includes(modelSearchQuery.value.toLowerCase())
+      );
+    });
+    
+    const filteredAnthropicModels = computed(() => {
+      if (!modelSearchQuery.value) return anthropicModels;
+      return anthropicModels.filter(model => 
+        model.label.toLowerCase().includes(modelSearchQuery.value.toLowerCase()) ||
+        model.description.toLowerCase().includes(modelSearchQuery.value.toLowerCase())
+      );
+    });
+    
+    const filteredGoogleModels = computed(() => {
+      if (!modelSearchQuery.value) return googleModels;
+      return googleModels.filter(model => 
+        model.label.toLowerCase().includes(modelSearchQuery.value.toLowerCase()) ||
+        model.description.toLowerCase().includes(modelSearchQuery.value.toLowerCase())
+      );
+    });
+    
+    const hasModelSearchQuery = computed(() => modelSearchQuery.value.trim().length > 0);
+    
+    const hasFilteredModels = computed(() => 
+      filteredOpenAIModels.value.length > 0 || 
+      filteredAnthropicModels.value.length > 0 || 
+      filteredGoogleModels.value.length > 0
+    );
+    
     // 初始化
     onMounted(() => {
       // 加载上次的主题设置
@@ -1229,6 +1280,7 @@ export default {
       showKeyboardShortcuts,
       searchQuery,
       searchType,
+      modelSearchQuery,
       editingChatId,
       editingTitle,
       currentChatId,
@@ -1252,6 +1304,11 @@ export default {
       openaiModels,
       anthropicModels,
       googleModels,
+      filteredOpenAIModels,
+      filteredAnthropicModels,
+      filteredGoogleModels,
+      hasModelSearchQuery,
+      hasFilteredModels,
       
       // 方法
       toggleTheme,
@@ -1294,7 +1351,7 @@ export default {
       // 图标
       ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
       ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
-      List, SetUp, Position, Picture, Upload, Microphone, Select
+      List, SetUp, Position, Picture, Upload, Microphone, Select, Search
     };
   }
 };
@@ -1934,27 +1991,37 @@ export default {
 /* 模型下拉菜单样式 */
 .model-dropdown-menu {
   width: 320px;
-  max-height: 500px;
+  max-height: 400px; /* 限制最大高度 */
   overflow-y: auto;
   padding: 0;
 }
 
+.model-search-container {
+  padding: 8px 12px;
+  position: sticky;
+  top: 0;
+  background-color: var(--el-bg-color);
+  z-index: 10;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
 .model-group {
-  padding: 8px 0;
+  padding: 4px 0; /* 减小内边距 */
 }
 
 .model-vendor {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 6px 12px; /* 减小内边距 */
   font-weight: 500;
   color: var(--el-text-color-primary);
+  font-size: 13px; /* 减小字体大小 */
 }
 
 .vendor-logo {
-  width: 24px;
-  height: 24px;
+  width: 20px; /* 减小图标大小 */
+  height: 20px;
   border-radius: 4px;
   object-fit: contain;
 }
@@ -1962,15 +2029,15 @@ export default {
 .model-option {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px; /* 减小间距 */
   width: 100%;
-  padding: 4px 0;
+  padding: 2px 0; /* 减小内边距 */
 }
 
 .model-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 24px; /* 减小头像大小 */
+  height: 24px;
+  border-radius: 4px;
   object-fit: cover;
 }
 
@@ -1981,11 +2048,12 @@ export default {
 
 .model-name {
   font-weight: 500;
-  margin-bottom: 2px;
+  margin-bottom: 0; /* 减小间距 */
+  font-size: 13px; /* 减小字体大小 */
 }
 
 .model-desc {
-  font-size: 12px;
+  font-size: 11px; /* 减小字体大小 */
   color: var(--el-text-color-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -2002,13 +2070,24 @@ export default {
 
 /* 分割线样式 */
 .el-divider {
-  margin: 4px 0;
+  margin: 2px 0; /* 减小间距 */
 }
 
 /* 悬浮效果 */
 .model-option:hover {
   transform: translateX(4px);
   transition: transform 0.3s ease;
+}
+
+/* 无搜索结果提示 */
+.no-model-results {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
 }
 
 /* 参数设置面板 */
