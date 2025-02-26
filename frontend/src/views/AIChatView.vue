@@ -638,11 +638,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
   ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
   List, SetUp, Position, Picture, Upload, Microphone, Select, Search } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
 
 export default {
   name: 'AIChatView',
@@ -867,16 +867,21 @@ export default {
     const startEditTitle = (chat) => {
       editingChatId.value = chat.id;
       editingTitle.value = chat.title;
-      // 在下一个DOM更新周期后聚焦输入框
-      setTimeout(() => {
+      // 下一个tick后聚焦输入框
+      nextTick(() => {
         if (titleInputRef.value) {
           titleInputRef.value.focus();
         }
-      }, 0);
+      });
     };
     
     const saveTitle = (chat) => {
-      chat.title = editingTitle.value || '新对话';
+      if (editingTitle.value.trim()) {
+        const index = chatHistory.value.findIndex(item => item.id === chat.id);
+        if (index !== -1) {
+          chatHistory.value[index].title = editingTitle.value.trim();
+        }
+      }
       editingChatId.value = null;
     };
     
@@ -885,13 +890,38 @@ export default {
     };
     
     const deleteChat = (chat) => {
-      const index = chatHistory.value.findIndex(c => c.id === chat.id);
-      if (index !== -1) {
-        chatHistory.value.splice(index, 1);
-        if (currentChatId.value === chat.id) {
-          currentChatId.value = chatHistory.value.length > 0 ? chatHistory.value[0].id : null;
+      ElMessageBox.confirm(
+        '确定要删除这个对话吗？此操作不可恢复。',
+        '删除确认',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
         }
-      }
+      )
+        .then(() => {
+          const index = chatHistory.value.findIndex(item => item.id === chat.id);
+          if (index !== -1) {
+            chatHistory.value.splice(index, 1);
+            
+            // 如果删除的是当前对话，则加载第一个对话或创建新对话
+            if (chat.id === currentChatId.value) {
+              if (chatHistory.value.length > 0) {
+                currentChatId.value = chatHistory.value[0].id;
+              } else {
+                createNewChat();
+              }
+            }
+            
+            ElMessage({
+              type: 'success',
+              message: '对话已删除'
+            });
+          }
+        })
+        .catch(() => {
+          // 取消删除
+        });
     };
     
     const formatTime = (timestamp) => {
@@ -1113,7 +1143,8 @@ export default {
       const newMessage = {
         role: 'user',
         content: userInput.value,
-        time: new Date().getTime()
+        time: new Date().getTime(),
+        model: currentChat.value.currentModel || currentModel.value
       };
       
       currentChat.value.messages.push(newMessage);
@@ -1257,17 +1288,48 @@ export default {
     
     // 初始化
     onMounted(() => {
-      // 加载上次的主题设置
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark') {
-        toggleTheme(true);
-      }
+      // 从localStorage加载聊天历史
+      loadChatHistoryFromStorage();
       
-      // 如果有历史记录，加载第一个聊天
-      if (chatHistory.value.length > 0) {
+      // 如果没有聊天历史，创建一个新的对话
+      if (chatHistory.value.length === 0) {
+        createNewChat();
+      } else {
+        // 加载最近的对话
         currentChatId.value = chatHistory.value[0].id;
       }
     });
+    
+    // 监听聊天历史变化，保存到localStorage
+    watch(chatHistory, (newChatHistory) => {
+      saveChatHistoryToStorage(newChatHistory);
+    }, { deep: true });
+    
+    // 从localStorage加载聊天历史
+    const loadChatHistoryFromStorage = () => {
+      try {
+        const storedHistory = localStorage.getItem('chatHistory');
+        if (storedHistory) {
+          chatHistory.value = JSON.parse(storedHistory);
+        }
+      } catch (error) {
+        console.error('加载聊天历史失败:', error);
+        chatHistory.value = [];
+      }
+    };
+    
+    // 保存聊天历史到localStorage
+    const saveChatHistoryToStorage = (history) => {
+      try {
+        localStorage.setItem('chatHistory', JSON.stringify(history));
+      } catch (error) {
+        console.error('保存聊天历史失败:', error);
+        ElMessage({
+          message: '保存聊天历史失败，请检查浏览器存储空间',
+          type: 'error'
+        });
+      }
+    };
     
     return {
       // 状态
