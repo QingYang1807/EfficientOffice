@@ -1,17 +1,19 @@
 <template>
-  <el-menu
-    :default-active="activeMenu"
-    class="app-menu"
-    :collapse="isCollapse"
-  >
-    <div class="collapse-btn" @click="toggleCollapse">
+  <div class="app-menu-container">
+    <el-menu
+      :default-active="activeMenu"
+      class="app-menu"
+      :collapse="isCollapse"
+    >
+      <RenderMenuNodes :menu-nodes="menuNodes" />
+    </el-menu>
+    
+    <div class="collapse-btn-fixed" @click="toggleCollapse">
       <el-icon>
         <component :is="isCollapse ? 'Expand' : 'Fold'" />
       </el-icon>
     </div>
-    
-    <RenderMenuNodes :menu-nodes="menuNodes" />
-  </el-menu>
+  </div>
 </template>
 
 <script setup>
@@ -50,30 +52,99 @@ const emit = defineEmits(['collapse-change'])
 watch(isCollapse, (newValue) => {
   emit('collapse-change', newValue)
 })
+
+// 接收父组件传入的折叠状态
+defineProps({
+  isCollapse: {
+    type: Boolean,
+    default: false
+  }
+})
 </script>
 
 <style scoped>
-.app-menu {
+.app-menu-container {
+  position: relative;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 40px; /* 为固定的折叠按钮留出空间 */
+}
+
+.app-menu {
+  flex: 1;
   border-right: none;
   transition: width 0.3s;
   width: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100px; /* 确保有最小高度 */
 }
 
 .app-menu.el-menu--collapse {
   width: 64px;
 }
 
-.collapse-btn {
-  height: 50px;
+/* 固定在屏幕底部的折叠按钮 */
+.collapse-btn-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 200px; /* 与菜单宽度一致 */
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-top: 1px solid var(--el-border-color-light);
+  background-color: var(--el-menu-bg-color);
+  z-index: 10;
+  transition: width 0.3s;
 }
 
-.collapse-btn:hover {
+/* 菜单折叠时按钮宽度同步变化 */
+.app-menu.el-menu--collapse + .collapse-btn-fixed {
+  width: 64px;
+}
+
+.collapse-btn-fixed:hover {
   background-color: var(--el-menu-hover-bg-color);
+}
+
+/* 自定义滚动条样式 - 确保滚动条显示 */
+.app-menu::-webkit-scrollbar {
+  width: 3px; /* 细滚动条 */
+  display: block !important; /* 强制显示 */
+}
+
+.app-menu::-webkit-scrollbar-thumb {
+  background-color: rgba(144, 147, 153, 0.3);
+  border-radius: 3px; /* 圆柱形两端 */
+  min-height: 30px; /* 确保滑块有最小高度 */
+}
+
+/* 添加悬停效果，使滚动条在悬停时更明显 */
+.app-menu:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(144, 147, 153, 0.5);
+}
+
+/* 完全隐藏横向滚动条 */
+.app-menu::-webkit-scrollbar-horizontal {
+  display: none;
+}
+
+/* 添加菜单项文本溢出处理 */
+:deep(.el-menu-item),
+:deep(.el-sub-menu__title) {
+  padding-right: 20px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 确保内容足够时才显示滚动条 */
+.app-menu {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(144, 147, 153, 0.3) transparent; /* Firefox */
 }
 </style> 

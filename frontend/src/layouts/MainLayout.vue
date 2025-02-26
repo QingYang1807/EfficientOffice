@@ -1,21 +1,19 @@
 <template>
   <el-container class="layout-container">
-    <el-aside :width="isCollapse ? '64px' : '200px'" class="aside">
-      <div class="logo" :class="{ 'collapsed': isCollapse }">
-        <img v-if="isCollapse" src="@/assets/logo.svg" alt="Logo" />
-        <img v-else src="@/assets/logo-full.svg" alt="Logo" />
-      </div>
-      <AppMenu @collapse-change="handleCollapseChange" />
-    </el-aside>
-    
     <el-container class="main-container">
       <el-header>
         <div class="header-left">
-          <!-- <el-button @click="toggleCollapse">
-            <el-icon>
-              <component :is="isCollapse ? 'Expand' : 'Fold'" />
-            </el-icon>
-          </el-button> -->
+          <div class="logo" :class="{ 'collapsed': isCollapse }">
+            <img v-if="isCollapse" src="@/assets/logo.svg" alt="Logo" />
+            <img v-else src="@/assets/logo-full.svg" alt="Logo" />
+          </div>
+          <el-icon 
+            class="collapse-btn"
+            @click="toggleCollapse"
+          >
+            <Expand v-if="isCollapse"/>
+            <Fold v-else/>
+          </el-icon>
         </div>
         <div class="header-right">
           <el-dropdown @command="handleCommand">
@@ -43,8 +41,17 @@
         </div>
       </el-header>
       
-      <el-main>
-        <router-view />
+      <el-main class="layout-main">
+        <div class="layout-content">
+          <div class="menu-container">
+            <el-aside :width="isCollapse ? '64px' : '200px'" class="aside">
+              <AppMenu :is-collapse="isCollapse" />
+            </el-aside>
+          </div>
+          <div class="content-container">
+            <router-view />
+          </div>
+        </div>
       </el-main>
     </el-container>
   </el-container>
@@ -97,10 +104,6 @@ const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
 
-const handleCollapseChange = (collapsed) => {
-  isCollapse.value = collapsed
-}
-
 // 处理下拉菜单命令
 const handleCommand = async (command) => {
   switch (command) {
@@ -147,19 +150,15 @@ const handleLogout = async () => {
 }
 
 .logo {
-  height: 60px;
+  height: 40px;
+  margin-right: 20px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 16px;
   transition: all 0.3s;
-  overflow: hidden;
-  background-color: var(--el-menu-bg-color);
 }
 
 .logo img {
-  height: 32px;
-  transition: all 0.3s;
+  height: 30px;
 }
 
 .logo.collapsed {
@@ -219,5 +218,69 @@ const handleLogout = async () => {
 .el-dropdown-menu__item .el-icon {
   margin-right: 8px;
   font-size: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.aside-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.main-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.layout-main {
+  padding: 0;
+  height: calc(100vh - 60px); /* 减去header高度 */
+  overflow: hidden;
+}
+
+.layout-content {
+  display: flex;
+  height: 100%;
+}
+
+.menu-container {
+  height: 100%;
+  position: fixed;
+  left: 0;
+  z-index: 1000;
+}
+
+.aside {
+  height: 100%;
+  transition: width 0.3s;
+  background-color: var(--el-menu-bg-color);
+}
+
+.content-container {
+  flex: 1;
+  margin-left: 200px; /* 默认菜单宽度 */
+  transition: margin-left 0.3s;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 菜单收起时调整内容区域边距 */
+:deep(.el-menu--collapse) ~ .content-container {
+  margin-left: 64px;
+}
+
+.collapse-btn {
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: var(--el-text-color-secondary);
+}
+
+.collapse-btn:hover {
+  color: var(--el-text-color-primary);
 }
 </style> 
