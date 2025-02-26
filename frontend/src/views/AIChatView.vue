@@ -1,1264 +1,1441 @@
 <template>
   <div class="ai-chat-container">
-    <!-- 左侧边栏 -->
-    <div class="sidebar">
-      <!-- 新建对话按钮 -->
-      <el-button 
-        type="primary" 
-        class="new-chat-btn"
-        @click="createNewChat"
-      >
-        <el-icon><Plus /></el-icon>
-        新建对话
-      </el-button>
-
-      <!-- 模型选择 -->
-      <div class="model-selector">
-        <el-select 
-          v-model="currentModel" 
-          class="model-select"
-          popper-class="model-select-dropdown"
-        >
-          <el-option
-            v-for="option in modelOptions"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          >
-            <div class="model-option">
-              <div class="model-info">
-                <div class="model-name">{{ option.label }}</div>
-                <div class="model-desc">{{ option.description }}</div>
-              </div>
-              <el-tag size="small" type="info" v-if="option.tag">
-                {{ option.tag }}
-              </el-tag>
-            </div>
-          </el-option>
-        </el-select>
+    <!-- 主内容区域 -->
+    <div class="chat-main">
+      <!-- 左侧菜单栏 -->
+      <div class="menu-sidebar">
+        <div class="menu-item active">
+          <el-icon><ChatRound /></el-icon>
+          <span class="menu-label">对话</span>
+        </div>
+        <div class="menu-item">
+          <el-icon><Document /></el-icon>
+          <span class="menu-label">文档</span>
+        </div>
+        <div class="menu-item">
+          <el-icon><List /></el-icon>
+          <span class="menu-label">任务</span>
+        </div>
+        <div class="menu-item">
+          <el-icon><Setting /></el-icon>
+          <span class="menu-label">设置</span>
+        </div>
       </div>
+      
+      <!-- 中间对话列表栏 -->
+      <div class="chat-sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <!-- 紧凑型头部设计 -->
+        <div class="sidebar-header">
+          <div class="new-chat-search-row">
+            <el-button 
+              type="primary" 
+              class="new-chat-btn"
+              @click="createNewChat"
+              size="small"
+            >
+              <el-icon><Plus /></el-icon>
+              新对话
+            </el-button>
+            
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索历史..."
+              class="search-input"
+              prefix-icon="Search"
+              clearable
+              size="small"
+            />
+          </div>
+        </div>
 
-      <!-- 历史记录列表 -->
-      <div class="chat-history">
-        <div
-          v-for="(chat, index) in filteredHistory"
-          :key="chat.id"
-          class="history-item"
-          :class="{ active: currentChatId === chat.id }"
-          @click="loadChat(chat)"
-        >
-          <div class="history-content">
-            <el-icon><ChatRound /></el-icon>
-            <div class="chat-title-wrapper">
-              <template v-if="editingChatId === chat.id">
-                <el-input
-                  v-model="editingTitle"
-                  size="small"
-                  @click.stop
-                  @keyup.enter="saveTitle(chat)"
-                  @blur="handleBlur(chat)"
-                  ref="titleInputRef"
-                  :autofocus="true"
-                />
-              </template>
-              <span v-else class="chat-title">{{ chat.title }}</span>
+        <!-- 搜索结果指示器 -->
+        <div class="search-result-indicator" v-if="searchQuery">
+          <span>搜索结果: {{ filteredHistory.length }} 条对话</span>
+          <span class="search-detail">(匹配{{ searchType }})</span>
+          <el-button link size="small" @click="searchQuery = ''">
+            <el-icon><Close /></el-icon>清除
+          </el-button>
+        </div>
+
+        <!-- 历史记录列表 -->
+        <div class="chat-history">
+          <div class="history-category" v-if="pinnedHistory.length > 0">
+            <div class="category-title">
+              <el-icon><Star /></el-icon>
+              <span>已固定对话</span>
             </div>
+            <TransitionGroup name="list" tag="div" class="history-items-container">
+              <div
+                v-for="chat in pinnedHistory"
+                :key="chat.id"
+                class="history-item"
+                :class="{ active: currentChatId === chat.id }"
+                @click="loadChat(chat)"
+              >
+                <div class="history-item-content">
+                  <div class="history-title-time">
+                    <template v-if="editingChatId === chat.id">
+                      <el-input
+                        v-model="editingTitle"
+                        size="small"
+                        @click.stop
+                        @keyup.enter="saveTitle(chat)"
+                        @blur="handleBlur(chat)"
+                        ref="titleInputRef"
+                        :autofocus="true"
+                      />
+                    </template>
+                    <div v-else class="history-title-container">
+                      <el-icon><ChatRound /></el-icon>
+                      <span class="history-title">{{ chat.title }}</span>
+                      <span class="history-time">{{ formatTime(chat.time) }}</span>
+                    </div>
+                  </div>
+                  
+                  <!-- 匹配内容预览 -->
+                  <div class="match-preview" v-if="searchQuery && getMatchContent(chat)">
+                    <div class="match-content" v-html="getMatchContent(chat)"></div>
+                  </div>
+                  
+                  <div class="history-actions">
+                    <el-button 
+                      circle
+                      link 
+                      size="small"
+                      @click.stop="togglePin(chat)"
+                    >
+                      <el-icon><StarFilled /></el-icon>
+                    </el-button>
+                    <el-button 
+                      circle
+                      link 
+                      size="small"
+                      @click.stop="startEditTitle(chat)"
+                    >
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                    <el-button 
+                      circle
+                      link 
+                      type="danger" 
+                      size="small"
+                      @click.stop="deleteChat(chat)"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </TransitionGroup>
           </div>
-          <div class="history-actions">
-            <el-button 
-              link 
-              size="small"
-              @click.stop="startEditTitle(chat)"
-            >
-              <el-icon><Edit /></el-icon>
-            </el-button>
-            <el-button 
-              link 
-              type="danger" 
-              size="small"
-              @click.stop="deleteChat(index)"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
+
+          <div class="history-category">
+            <div class="category-title">
+              <el-icon><Clock /></el-icon>
+              <span>最近对话</span>
+            </div>
+            <TransitionGroup name="list" tag="div" class="history-items-container">
+              <div
+                v-for="chat in unpinnedHistory"
+                :key="chat.id"
+                class="history-item"
+                :class="{ active: currentChatId === chat.id }"
+                @click="loadChat(chat)"
+              >
+                <!-- 历史项内容 -->
+              </div>
+            </TransitionGroup>
           </div>
+        </div>
+
+        <!-- 侧边栏控制区 -->
+        <div class="sidebar-controls">
+          <el-button 
+            link 
+            @click="toggleSidebar"
+            class="sidebar-toggle"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+            收起
+          </el-button>
         </div>
       </div>
 
-      <!-- 底部设置按钮 -->
-      <div class="sidebar-footer">
-        <el-button 
-          link 
-          @click="showSettings = true"
-        >
-          <el-icon><Setting /></el-icon>
-          设置
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 右侧对话区域 -->
-    <div class="chat-area">
-      <!-- 对话内容 -->
-      <div class="messages" ref="messagesContainer">
-        <div class="messages-wrapper" v-if="currentChat.messages.length">
-          <!-- 当前模型标记 -->
-          <div class="model-indicator">
-            <el-tag size="small" effect="plain">
-              {{ getModelLabel(currentChat.currentModel || currentModel.value) }}
-            </el-tag>
-          </div>
-
-          <template v-for="(message, index) in currentChat.messages" :key="index">
-            <!-- 模型切换标记 -->
-            <template v-if="message.modelSwitch">
-              <div class="model-switch-divider">
-                <div class="divider-line"></div>
-                <el-tag size="small" effect="plain">
-                  切换至 {{ getModelLabel(message.modelSwitch) }}
-                </el-tag>
-                <div class="divider-line"></div>
-              </div>
-            </template>
-            <div
-              v-else
-              :class="['message', message.role, { selected: selectedMessages.includes(message) }]"
-              @contextmenu.prevent="showContextMenu($event, message, index)"
+      <!-- 右侧对话内容区 -->
+      <div class="chat-content">
+        <!-- 顶部工具栏 -->
+        <div class="content-toolbar">
+          <div class="toolbar-left">
+            <el-button
+              v-if="sidebarCollapsed"
+              link
+              @click="toggleSidebar"
+              class="expand-sidebar-btn"
             >
-              <div class="message-avatar">
-                <el-avatar 
-                  :size="36"
-                  :src="message.role === 'user' ? userAvatar : aiAvatar"
-                />
+              <el-icon><ArrowRight /></el-icon>
+            </el-button>
+            
+            <div class="current-chat-info">
+              <div class="app-logo">
+                <img src="/logo.png" alt="Logo" />
+                <!-- <span class="app-name">AI 助手</span> -->
               </div>
-              <div class="message-body">
-                <div class="message-header">
-                  <span class="message-role">{{ message.role === 'user' ? '用户' : 'AI' }}</span>
+              <span class="current-chat-title">{{ currentChat.title }}</span>
+              <el-tag size="small" class="model-tag">{{ getModelLabel(currentChat.currentModel || currentModel) }}</el-tag>
+            </div>
+          </div>
+          
+          <div class="toolbar-right">
+            <el-dropdown trigger="click" @command="handleModelParamCommand">
+              <el-button link>
+                <el-icon><SetUp /></el-icon>
+                参数设置
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <div class="dropdown-content">
+                    <div class="param-item">
+                      <div class="param-label">温度</div>
+                      <el-slider v-model="modelParams.temperature" :min="0" :max="2" :step="0.1" :format-tooltip="(val) => val.toFixed(1)"></el-slider>
+                    </div>
+                    <div class="param-item">
+                      <div class="param-label">最大输出</div>
+                      <el-slider v-model="modelParams.maxTokens" :min="256" :max="4096" :step="256" :format-tooltip="(val) => val"></el-slider>
+                    </div>
+                    <el-dropdown-item divided command="reset">重置参数</el-dropdown-item>
+                  </div>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <el-dropdown trigger="click">
+              <el-button link>
+                <el-icon><Document /></el-icon>
+                导出
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="exportAsMarkdown">导出为 Markdown</el-dropdown-item>
+                  <el-dropdown-item @click="exportAsHTML">导出为 HTML</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <el-dropdown trigger="click">
+              <el-button link>
+                <el-icon><Select /></el-icon>
+                模型
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item 
+                    v-for="model in modelOptions" 
+                    :key="model.value"
+                    @click="switchModel(model.value)"
+                    :class="{ 'active-model': model.value === (currentChat.currentModel || currentModel) }"
+                  >
+                    <div class="model-option">
+                      <img :src="model.avatar" class="model-avatar" v-if="model.avatar" />
+                      <div class="model-info">
+                        <div class="model-name">{{ model.label }}</div>
+                        <div class="model-desc">{{ model.description }}</div>
+                      </div>
+                      <el-tag size="small" type="success" v-if="model.tag">{{ model.tag }}</el-tag>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            
+            <!-- 添加明暗切换按钮 -->
+            <el-button-group class="theme-toggle">
+              <el-button 
+                :type="isDarkTheme ? 'default' : 'primary'" 
+                @click="toggleTheme(false)"
+                size="small"
+              >
+                <el-icon><Sunny /></el-icon>
+              </el-button>
+              <el-button 
+                :type="isDarkTheme ? 'primary' : 'default'" 
+                @click="toggleTheme(true)"
+                size="small"
+              >
+                <el-icon><Moon /></el-icon>
+              </el-button>
+            </el-button-group>
+            
+            <!-- 添加设置和快捷键下拉菜单 -->
+            <el-dropdown trigger="click">
+              <el-avatar :src="userAvatar" size="small" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="showSettings = true">
+                    <el-icon><Setting /></el-icon>设置
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="showKeyboardShortcuts = true">
+                    <el-icon><Document /></el-icon>快捷键
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </div>
+
+        <!-- 消息容器 -->
+        <div class="message-container" ref="messagesContainer">
+          <!-- 选择操作区 -->
+          <div class="selected-actions" v-if="selectedMessages.length > 0">
+            <div class="selection-info">已选择 {{ selectedMessages.length }} 条消息</div>
+            <div class="action-buttons">
+              <el-button size="small" @click="copySelectedMessages">
+                <el-icon><Document /></el-icon>
+                复制
+              </el-button>
+              <el-button size="small" @click="exportSelectedAsImage">
+                <el-icon><Picture /></el-icon>
+                导出为图片
+              </el-button>
+              <el-button size="small" type="danger" @click="deleteSelectedMessages">
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+              <el-button size="small" @click="clearSelection">
+                <el-icon><Close /></el-icon>
+                取消选择
+              </el-button>
+            </div>
+          </div>
+        
+          <!-- 消息列表 -->
+          <div v-if="currentChat.messages.length === 0" class="empty-chat">
+            <div class="empty-chat-content">
+              <div class="model-info">
+                <img :src="getCurrentModelAvatar()" class="model-avatar" />
+                <h2>{{ getModelLabel(currentChat.currentModel || currentModel) }}</h2>
+              </div>
+              <p class="model-description">
+                优秀的通用型AI助手，可以回答各种问题、编写文本、分析数据等
+              </p>
+              
+              <!-- 建议提示 -->
+              <div class="suggestion-title">你可以尝试问我：</div>
+              <div class="suggestion-chips">
+                <div 
+                  v-for="(suggestion, index) in suggestions" 
+                  :key="index" 
+                  class="suggestion-chip"
+                  @click="applySuggestion(suggestion)"
+                >
+                  {{ suggestion }}
                 </div>
-                <div class="message-content" v-html="formatMessage(message.content)" />
               </div>
+            </div>
+          </div>
+          
+          <template v-else>
+            <div 
+              v-for="(message, index) in currentChat.messages" 
+              :key="index"
+              :class="[
+                'message-item', 
+                message.role, 
+                { 'selected': selectedMessages.includes(message) }
+              ]"
+              @click="handleMessageClick($event, message)"
+              @contextmenu.prevent="openContextMenu($event, message, index)"
+            >
+              <!-- 消息内容 -->
             </div>
           </template>
         </div>
-        <div v-else class="empty-chat">
-          <div class="empty-icon">
-            <el-icon :size="48"><ChatRound /></el-icon>
+
+        <!-- 输入区域 -->
+        <div class="input-area" :class="{ 'folded': inputFolded }">
+          <!-- 折叠控制按钮 -->
+          <div class="fold-control" @click="toggleInputFold">
+            <el-icon v-if="inputFolded"><ArrowUp /></el-icon>
+            <el-icon v-else><ArrowDown /></el-icon>
+            {{ inputFolded ? '展开' : '收起' }}
           </div>
-          <h2>开始新对话</h2>
-          <p>选择模型并输入问题开始对话</p>
+          
+          <!-- 折叠状态的输入区 -->
+          <div v-if="inputFolded" class="folded-input-area" @click="toggleInputFold">
+            <el-icon><ChatRound /></el-icon>
+            <span>点击展开输入框</span>
+          </div>
+          
+          <!-- 正常状态的输入区 -->
+          <div v-else class="normal-input-area">
+            <!-- 附件预览区 -->
+            <div class="attachments-container" v-if="hasAttachments">
+              <!-- 附件内容 -->
+            </div>
+            
+            <!-- 录音状态 -->
+            <div class="recording-container" v-if="isRecording">
+              <!-- 录音内容 -->
+            </div>
+            
+            <!-- 输入框 -->
+            <div class="message-input" v-else>
+              <el-input
+                v-model="userInput"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 5 }"
+                placeholder="输入消息，Ctrl+Enter 发送..."
+                @keydown.ctrl.enter="sendMessage"
+              />
+              
+              <!-- 附件工具栏 -->
+              <div class="attachment-tools">
+                <div class="attachment-tool" @click="imageUpload.click()">
+                  <el-icon><Picture /></el-icon>
+                </div>
+                <div class="attachment-tool" @click="fileUpload.click()">
+                  <el-icon><Upload /></el-icon>
+                </div>
+                <div class="attachment-tool" @click="startRecording">
+                  <el-icon><Microphone /></el-icon>
+                </div>
+              </div>
+              
+              <!-- 发送按钮 -->
+              <el-button
+                circle
+                class="send-btn"
+                :disabled="!userInput.trim() && !hasAttachments"
+                @click="sendMessage"
+              >
+                <el-icon><Position /></el-icon>
+              </el-button>
+              
+              <!-- 隐藏的文件上传输入 -->
+              <input 
+                type="file"
+                ref="imageUpload"
+                accept="image/*"
+                style="display: none"
+                @change="handleImageUpload"
+              />
+              <input 
+                type="file"
+                ref="fileUpload"
+                style="display: none"
+                @change="handleFileUpload"
+              />
+            </div>
+          </div>
         </div>
       </div>
-
-      <!-- 输入区域 -->
-      <div class="input-area">
-        <div class="input-container">
-          <el-input
-            v-model="userInput"
-            type="textarea"
-            :rows="3"
-            :placeholder="inputPlaceholder"
-            resize="none"
-            @keyup.enter.ctrl="sendMessage"
-          />
-          <el-button 
-            class="send-btn"
-            type="primary" 
-            :loading="loading"
-            @click="sendMessage"
-          >
-            发送
-          </el-button>
-        </div>
-        <div class="input-tip">
-          按 Ctrl + Enter 发送
-        </div>
-      </div>
-    </div>
-
-    <!-- 设置对话框 -->
-    <el-dialog
-      v-model="showSettings"
-      title="模型设置"
-      width="500px"
-    >
-      <el-tabs>
-        <el-tab-pane 
-          v-for="option in modelOptions" 
-          :key="option.value"
-          :label="option.label"
-        >
-          <el-form label-width="100px">
-            <el-form-item label="API地址">
-              <el-input 
-                v-model="modelSettings.apiUrls[option.value]" 
-                placeholder="请输入API地址"
-              />
-            </el-form-item>
-            <el-form-item label="API密钥">
-              <el-input 
-                v-model="modelSettings.apiKeys[option.value]" 
-                type="password" 
-                placeholder="请输入API密钥"
-                show-password
-              />
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-      </el-tabs>
-      <el-divider>通用设置</el-divider>
-      <el-form label-width="200px">
-        <el-form-item label="自动总结对话标题">
-          <el-switch
-            v-model="modelSettings.autoSummarize"
-            active-text="开启"
-            inactive-text="关闭"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showSettings = false">取消</el-button>
-          <el-button type="primary" @click="saveSettings">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- Apple风格右键菜单 -->
-    <div v-if="contextMenu.visible" 
-         class="context-menu" 
-         :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
-    >
-      <ul>
-        <li @click="copyMessage(contextMenu.message?.content)">
-          <el-icon><Document /></el-icon>
-          <span>复制</span>
-        </li>
-        <li @click="toggleMessageSelection(contextMenu.message)">
-          <el-icon><Select /></el-icon>
-          <span>{{ selectedMessages.includes(contextMenu.message) ? '取消选择' : '选择' }}</span>
-        </li>
-        <li v-if="selectedMessages.length > 0" @click="downloadAsImage">
-          <el-icon><Download /></el-icon>
-          <span>下载选中消息</span>
-        </li>
-        <li class="danger" @click="deleteMessage(contextMenu.index)">
-          <el-icon><Delete /></el-icon>
-          <span>删除</span>
-        </li>
-      </ul>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
-import { Setting, Plus, ChatRound, Delete, Document, Select, Download, Edit } from '@element-plus/icons-vue'
-import { marked } from 'marked'
-import { ElMessage } from 'element-plus'
-import html2canvas from 'html2canvas'
+<script>
+import { ref, computed, onMounted, watch } from 'vue';
+import { ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
+  ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
+  List, SetUp, Position, Picture, Upload, Microphone, Select } from '@element-plus/icons-vue';
 
-// 基础变量
-const searchQuery = ref('')
-const userInput = ref('')
-const loading = ref(false)
-const currentChatId = ref(null)
-const messagesContainer = ref(null)
-const showSettings = ref(false)
-
-const userAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
-const aiAvatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
-
-// 聊天历史记录
-const chatHistory = ref([])
-
-// 当前聊天
-const currentChat = ref({
-  id: null,
-  title: '',
-  time: new Date(),
-  messages: [],
-  currentModel: null  // 添加当前模型字段
-})
-
-// 过滤后的历史记录
-const filteredHistory = computed(() => {
-  if (!searchQuery.value) return chatHistory.value
-  return chatHistory.value.filter(chat => 
-    chat.title.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
-})
-
-// 格式化时间
-const formatTime = (time) => {
-  return formatDistanceToNow(new Date(time), { addSuffix: true, locale: zhCN })
-}
-
-// 加载聊天记录
-const loadChat = (chat) => {
-  currentChatId.value = chat.id
-  currentChat.value = JSON.parse(JSON.stringify(chat))
-  // 如果有历史模型记录，设置为当前模型
-  if (currentChat.value.currentModel) {
-    currentModel.value = currentChat.value.currentModel
-  } else {
-    // 如果没有历史模型记录，设置默认模型
-    currentChat.value.currentModel = currentModel.value
-  }
-  // 等待DOM更新后滚动到底部
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
-
-// 模型相关配置
-const modelOptions = ref([
-  { 
-    label: 'kimi', 
-    value: 'kimi',
-    model: 'moonshot-v1-8k',
-    type: 'kimi',
-    description: '适用于大多数问题',
-    tag: '推荐',
-    systemPrompt: '你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。'
+export default {
+  name: 'AIChatView',
+  components: {
+    ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
+    ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
+    List, SetUp, Position, Picture, Upload, Microphone, Select
   },
-  { 
-    label: 'DeepSeek', 
-    value: 'deepseek',
-    model: 'deepseek-r1:latest',
-    type: 'deepseek',
-    description: '快速进行高级推理',
-    systemPrompt: 'You are a helpful assistant.'
-  },
-  {
-    label: '通义千问Plus',
-    value: 'qwen',
-    model: 'qwen-plus',
-    type: 'qwen',
-    description: '擅长编码和逻辑推理',
-    systemPrompt: 'You are a helpful assistant.'
-  }
-])
-
-// 必须在 modelOptions 后声明
-const currentModel = ref(modelOptions.value[0].value)
-
-const modelSettings = ref({
-  apiUrls: {
-    kimi: 'https://api.moonshot.cn/v1/chat/completions',
-    deepseek: 'http://localhost:8888/api/generate',
-    qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-  },
-  apiKeys: {
-    kimi: '',
-    deepseek: '',
-    qwen: ''
-  },
-  autoSummarize: true  // 默认开启自动总结
-})
-
-// 添加保存设置的方法
-const saveSettings = () => {
-  localStorage.setItem('modelSettings', JSON.stringify(modelSettings.value))
-  showSettings.value = false
-}
-
-// 添加自动总结标题的函数
-const generateTitle = async (messages) => {
-  const currentModelConfig = modelOptions.value.find(m => m.value === currentModel.value)
-  try {
-    const response = await fetch('/api/kimi/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${modelSettings.value.apiKeys.kimi}`
-      },
-      body: JSON.stringify({
-        model: 'moonshot-v1-8k',
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个对话标题生成助手。请根据用户的对话内容，生成一个10字以内的简短标题，直接返回标题文本，不要包含任何其他内容。'
-          },
-          {
-            role: 'user',
-            content: `请为以下对话生成一个10字以内的标题：\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`
-          }
-        ],
-        temperature: 0.3,
-        stream: false
-      })
+  setup() {
+    // 基础状态
+    const isDarkTheme = ref(false);
+    const sidebarCollapsed = ref(false);
+    const sidebarWidth = ref(280);
+    const inputFolded = ref(false);
+    const userAvatar = ref('/avatar.png');
+    const showSettings = ref(false);
+    const showKeyboardShortcuts = ref(false);
+    
+    // 聊天相关状态
+    const searchQuery = ref('');
+    const searchType = ref('标题和内容');
+    const editingChatId = ref(null);
+    const editingTitle = ref('');
+    const currentChatId = ref(null);
+    const selectedMessages = ref([]);
+    const userInput = ref('');
+    const currentModel = ref('gpt-3.5-turbo');
+    const titleInputRef = ref(null);
+    
+    // 模型设置
+    const modelSettings = ref({
+      fontSize: 14,
+      lineHeight: 1.6
     });
-
-    const result = await response.json();
-    return result.choices[0].message.content.trim();
-  } catch (error) {
-    console.error('生成标题失败:', error);
-    return null;
-  }
-}
-
-// 修改sendMessage函数
-const sendMessage = async () => {
-  if (!userInput.value.trim() || loading.value) return
-
-  const message = userInput.value
-  userInput.value = ''
-  
-  const isNewChat = !currentChat.value.id
-  if (isNewChat) {
-    currentChat.value = {
-      id: Date.now(),
-      title: message.length <= 10 ? message : '新对话',
-      time: new Date(),
-      messages: [],
-      currentModel: currentModel.value  // 记录初始模型
-    }
-    chatHistory.value.unshift(JSON.parse(JSON.stringify(currentChat.value)))
-    // 保存新建的对话
-    localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value))
-    currentChatId.value = currentChat.value.id
-  }
-
-  // 检查是否切换了模型
-  if (currentChat.value.currentModel !== currentModel.value) {
-    // 添加模型切换标记
-    currentChat.value.messages.push({
-      modelSwitch: currentModel.value,
-      role: 'system'  // 使用role标记系统消息
-    })
-    // 更新当前模型
-    currentChat.value.currentModel = currentModel.value
-    // 保存模型切换
-    saveChat()
-  }
-
-  // 添加用户消息
-  currentChat.value.messages.push({
-    role: 'user',
-    content: message,
-    model: currentModel.value  // 记录消息使用的模型
-  })
-  // 保存用户消息
-  saveChat()
-
-  loading.value = true
-  try {
-    const currentModelConfig = modelOptions.value.find(m => m.value === currentModel.value)
-    const assistantMessage = {
-      role: 'assistant',
-      content: ''
-    }
-    currentChat.value.messages.push(assistantMessage)
-    // 保存空的AI消息
-    saveChat()
-
-    // 定义发送给API的消息数组（不包含空的assistant消息）
-    const apiMessages = [
+    
+    // 模型参数
+    const modelParams = ref({
+      temperature: 0.7,
+      maxTokens: 2048
+    });
+    
+    // 模拟数据
+    const chatHistory = ref([
       {
-        role: 'system',
-        content: currentModelConfig.systemPrompt
+        id: '1',
+        title: '关于人工智能的讨论',
+        time: new Date().getTime() - 3600000,
+        messages: [
+          { role: 'user', content: '什么是人工智能？' },
+          { role: 'assistant', content: '人工智能是计算机科学的一个分支，致力于创造能够模拟人类智能的系统。' }
+        ],
+        pinned: true,
+        currentModel: 'gpt-3.5-turbo'
       },
-      ...currentChat.value.messages.filter(msg => msg.role !== 'assistant' || msg.content !== '')
-    ];
-
-    let response;
-    if (currentModelConfig.type === 'kimi') {
-      // Moonshot API
-      response = await fetch('/api/kimi/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${modelSettings.value.apiKeys.kimi}`
-        },
-        body: JSON.stringify({
-          model: 'moonshot-v1-8k',
-          messages: apiMessages,
-          temperature: 0.3,
-          stream: true
-        })
-      });
-    } else if (currentModelConfig.type === 'qwen') {
-      // 通义千问 API
-      response = await fetch('/api/qwen/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${modelSettings.value.apiKeys.qwen}`
-        },
-        body: JSON.stringify({
-          model: currentModelConfig.model,
-          messages: apiMessages,
-          stream: true
-        })
-      });
-    } else if (currentModelConfig.type === 'deepseek') {
-      // SiliconFlow API
-      response = await fetch('/api/deepseek/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${modelSettings.value.apiKeys.deepseek}`
-        },
-        body: JSON.stringify({
-          model: currentModelConfig.model,
-          messages: apiMessages,
-          stream: true,
-          max_tokens: 512,
-          temperature: 0.7,
-          top_p: 0.7,
-          top_k: 50,
-          frequency_penalty: 0.5
-        })
-      });
-    }
-
-    // 确保滚动到最新消息
-    await nextTick()
-    if (messagesContainer.value) {
-      const lastMessage = messagesContainer.value.lastElementChild
-      if (lastMessage) {
-        lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      {
+        id: '2',
+        title: '编程问题解答',
+        time: new Date().getTime() - 7200000,
+        messages: [
+          { role: 'user', content: '如何用JavaScript实现深拷贝？' },
+          { role: 'assistant', content: '可以使用JSON.parse(JSON.stringify(obj))或者使用递归函数实现深拷贝。' }
+        ],
+        pinned: false,
+        currentModel: 'gpt-4'
       }
-    }
-
-    // 处理流式响应
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    let isDone = false;
-    while (!isDone) {
-      const { done, value } = await reader.read();
-      isDone = done;
-      
-      if (!value) continue;
-      
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const jsonData = JSON.parse(line.slice(6));
-            if (jsonData.choices?.[0]?.delta?.content) {
-              assistantMessage.content += jsonData.choices[0].delta.content;
-              // 每收到一块内容就保存一次
-              saveChat()
-            }
-          } catch (e) {
-            console.warn('Failed to parse streaming data:', e);
-          }
-        }
-      }
-    }
-
-    // 如果是新对话且开启了自动总结，且初始消息超过10个字才需要生成标题
-    if (isNewChat && modelSettings.value.autoSummarize && message.length > 10) {
-      const title = await generateTitle(currentChat.value.messages)
-      if (title) {
-        currentChat.value.title = title
-        const chatIndex = chatHistory.value.findIndex(chat => chat.id === currentChat.value.id)
-        if (chatIndex !== -1) {
-          chatHistory.value[chatIndex].title = title
-          // 保存更新后的标题
-          saveChat()
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    currentChat.value.messages = currentChat.value.messages.filter(msg => msg.content !== '');
-    currentChat.value.messages.push({
-      role: 'assistant',
-      content: '抱歉，发生了错误，请稍后重试。'
+    ]);
+    
+    // 当前聊天
+    const currentChat = computed(() => {
+      return chatHistory.value.find(chat => chat.id === currentChatId.value) || {
+        id: 'new',
+        title: '新对话',
+        time: new Date().getTime(),
+        messages: [],
+        pinned: false,
+        currentModel: currentModel.value
+      };
     });
-    // 保存错误消息
-    saveChat()
-  } finally {
-    loading.value = false;
+    
+    // 固定和未固定的历史记录
+    const pinnedHistory = computed(() => {
+      return chatHistory.value.filter(chat => chat.pinned);
+    });
+    
+    const unpinnedHistory = computed(() => {
+      return chatHistory.value.filter(chat => !chat.pinned);
+    });
+    
+    // 过滤后的历史记录
+    const filteredHistory = computed(() => {
+      if (!searchQuery.value) return chatHistory.value;
+      
+      return chatHistory.value.filter(chat => {
+        const titleMatch = chat.title.toLowerCase().includes(searchQuery.value.toLowerCase());
+        const contentMatch = chat.messages.some(msg => 
+          msg.content.toLowerCase().includes(searchQuery.value.toLowerCase())
+        );
+        
+        return searchType.value === '仅标题' ? titleMatch : (titleMatch || contentMatch);
+      });
+    });
+    
+    // 模型选项
+    const modelOptions = [
+      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', avatar: '/models/gpt-3.5.png' },
+      { value: 'gpt-4', label: 'GPT-4', avatar: '/models/gpt-4.png' },
+      { value: 'claude-3', label: 'Claude 3', avatar: '/models/claude.png' }
+    ];
+    
+    // 建议提示
+    const suggestions = [
+      '解释量子计算的基本原理',
+      '帮我写一个简单的React组件',
+      '如何提高英语口语水平？',
+      '分析当前全球经济形势'
+    ];
+    
+    // 方法
+    const toggleTheme = (isDark) => {
+      isDarkTheme.value = isDark;
+      document.documentElement.classList.toggle('dark', isDark);
+    };
+    
+    const toggleSidebar = () => {
+      sidebarCollapsed.value = !sidebarCollapsed.value;
+    };
+    
+    const toggleInputFold = () => {
+      inputFolded.value = !inputFolded.value;
+    };
+    
+    const createNewChat = () => {
+      const newChat = {
+        id: Date.now().toString(),
+        title: '新对话',
+        time: new Date().getTime(),
+        messages: [],
+        pinned: false,
+        currentModel: currentModel.value
+      };
+      
+      chatHistory.value.unshift(newChat);
+      currentChatId.value = newChat.id;
+    };
+    
+    const loadChat = (chat) => {
+      currentChatId.value = chat.id;
+    };
+    
+    const togglePin = (chat) => {
+      chat.pinned = !chat.pinned;
+    };
+    
+    const startEditTitle = (chat) => {
+      editingChatId.value = chat.id;
+      editingTitle.value = chat.title;
+      // 在下一个DOM更新周期后聚焦输入框
+      setTimeout(() => {
+        if (titleInputRef.value) {
+          titleInputRef.value.focus();
+        }
+      }, 0);
+    };
+    
+    const saveTitle = (chat) => {
+      chat.title = editingTitle.value || '新对话';
+      editingChatId.value = null;
+    };
+    
+    const handleBlur = (chat) => {
+      saveTitle(chat);
+    };
+    
+    const deleteChat = (chat) => {
+      const index = chatHistory.value.findIndex(c => c.id === chat.id);
+      if (index !== -1) {
+        chatHistory.value.splice(index, 1);
+        if (currentChatId.value === chat.id) {
+          currentChatId.value = chatHistory.value.length > 0 ? chatHistory.value[0].id : null;
+        }
+      }
+    };
+    
+    const formatTime = (timestamp) => {
+      const date = new Date(timestamp);
+      return date.toLocaleString();
+    };
+    
+    const getMatchContent = (chat) => {
+      if (!searchQuery.value) return '';
+      
+      const matchedMessage = chat.messages.find(msg => 
+        msg.content.toLowerCase().includes(searchQuery.value.toLowerCase())
+      );
+      
+      if (!matchedMessage) return '';
+      
+      const content = matchedMessage.content;
+      const index = content.toLowerCase().indexOf(searchQuery.value.toLowerCase());
+      const start = Math.max(0, index - 20);
+      const end = Math.min(content.length, index + searchQuery.value.length + 20);
+      let snippet = content.substring(start, end);
+      
+      if (start > 0) snippet = '...' + snippet;
+      if (end < content.length) snippet += '...';
+      
+      return snippet.replace(
+        new RegExp(searchQuery.value, 'gi'),
+        match => `<span class="highlight">${match}</span>`
+      );
+    };
+    
+    const getModelLabel = (modelId) => {
+      const model = modelOptions.find(m => m.value === modelId);
+      return model ? model.label : modelId;
+    };
+    
+    const getCurrentModelAvatar = () => {
+      const model = modelOptions.find(m => m.value === (currentChat.value.currentModel || currentModel.value));
+      return model ? model.avatar : '/models/default.png';
+    };
+    
+    const switchModel = (modelId) => {
+      if (currentChat.value.id !== 'new') {
+        currentChat.value.currentModel = modelId;
+      } else {
+        currentModel.value = modelId;
+      }
+    };
+    
+    const handleModelParamCommand = (command) => {
+      if (command === 'reset') {
+        modelParams.value = {
+          temperature: 0.7,
+          maxTokens: 2048
+        };
+      }
+    };
+    
+    const exportAsMarkdown = () => {
+      // 导出为Markdown的实现
+      console.log('导出为Markdown');
+    };
+    
+    const exportAsHTML = () => {
+      // 导出为HTML的实现
+      console.log('导出为HTML');
+    };
+    
+    const sendMessage = () => {
+      if (!userInput.value.trim() && !hasAttachments.value) return;
+      
+      const newMessage = {
+        role: 'user',
+        content: userInput.value
+      };
+      
+      currentChat.value.messages.push(newMessage);
+      userInput.value = '';
+      
+      // 模拟AI回复
+      setTimeout(() => {
+        currentChat.value.messages.push({
+          role: 'assistant',
+          content: '这是一个模拟的AI回复。在实际应用中，这里会调用AI API获取回复。'
+        });
+      }, 1000);
+    };
+    
+    const applySuggestion = (suggestion) => {
+      userInput.value = suggestion;
+    };
+    
+    const handleMessageClick = (event, message) => {
+      if (event.ctrlKey || event.metaKey) {
+        if (selectedMessages.value.includes(message)) {
+          selectedMessages.value = selectedMessages.value.filter(m => m !== message);
+        } else {
+          selectedMessages.value.push(message);
+        }
+      }
+    };
+    
+    const clearSelection = () => {
+      selectedMessages.value = [];
+    };
+    
+    const copySelectedMessages = () => {
+      // 复制选中消息的实现
+      console.log('复制选中消息');
+      clearSelection();
+    };
+    
+    const exportSelectedAsImage = () => {
+      // 导出选中消息为图片的实现
+      console.log('导出选中消息为图片');
+      clearSelection();
+    };
+    
+    const deleteSelectedMessages = () => {
+      // 删除选中消息的实现
+      console.log('删除选中消息');
+      clearSelection();
+    };
+    
+    const openContextMenu = (event, message, index) => {
+      // 打开上下文菜单的实现
+      console.log('打开上下文菜单', message, index);
+    };
+    
+    // 附件相关
+    const hasAttachments = ref(false);
+    const isRecording = ref(false);
+    
+    const imageUpload = ref(null);
+    const fileUpload = ref(null);
+    
+    const handleImageUpload = () => {
+      // 处理图片上传
+      console.log('处理图片上传');
+      hasAttachments.value = true;
+    };
+    
+    const handleFileUpload = () => {
+      // 处理文件上传
+      console.log('处理文件上传');
+      hasAttachments.value = true;
+    };
+    
+    const startRecording = () => {
+      // 开始录音
+      console.log('开始录音');
+      isRecording.value = true;
+    };
+    
+    // 初始化
+    onMounted(() => {
+      // 加载上次的主题设置
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        toggleTheme(true);
+      }
+      
+      // 如果有历史记录，加载第一个聊天
+      if (chatHistory.value.length > 0) {
+        currentChatId.value = chatHistory.value[0].id;
+      }
+    });
+    
+    return {
+      // 状态
+      isDarkTheme,
+      sidebarCollapsed,
+      sidebarWidth,
+      inputFolded,
+      userAvatar,
+      showSettings,
+      showKeyboardShortcuts,
+      searchQuery,
+      searchType,
+      editingChatId,
+      editingTitle,
+      currentChatId,
+      selectedMessages,
+      userInput,
+      currentModel,
+      modelParams,
+      modelSettings,
+      chatHistory,
+      currentChat,
+      pinnedHistory,
+      unpinnedHistory,
+      filteredHistory,
+      modelOptions,
+      suggestions,
+      hasAttachments,
+      isRecording,
+      imageUpload,
+      fileUpload,
+      titleInputRef,
+      
+      // 方法
+      toggleTheme,
+      toggleSidebar,
+      toggleInputFold,
+      createNewChat,
+      loadChat,
+      togglePin,
+      startEditTitle,
+      saveTitle,
+      handleBlur,
+      deleteChat,
+      formatTime,
+      getMatchContent,
+      getModelLabel,
+      getCurrentModelAvatar,
+      switchModel,
+      handleModelParamCommand,
+      exportAsMarkdown,
+      exportAsHTML,
+      sendMessage,
+      applySuggestion,
+      handleMessageClick,
+      clearSelection,
+      copySelectedMessages,
+      exportSelectedAsImage,
+      deleteSelectedMessages,
+      openContextMenu,
+      handleImageUpload,
+      handleFileUpload,
+      startRecording,
+      
+      // 图标
+      ChatRound, Star, Clock, Plus, Edit, Delete, StarFilled, 
+      ArrowLeft, ArrowRight, Document, Setting, Sunny, Moon, Close, 
+      List, SetUp, Position, Picture, Upload, Microphone, Select
+    };
   }
 };
-
-// 添加保存聊天记录的辅助函数
-const saveChat = () => {
-  // 更新历史记录中的当前聊天
-  const index = chatHistory.value.findIndex(chat => chat.id === currentChat.value.id)
-  if (index !== -1) {
-    chatHistory.value[index] = JSON.parse(JSON.stringify(currentChat.value))
-    // 保存到本地存储
-    localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value))
-  }
-}
-
-// 删除聊天记录
-const deleteChat = (index) => {
-  const chatId = chatHistory.value[index].id
-  chatHistory.value.splice(index, 1)
-  // 保存更改
-  localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value))
-  if (currentChatId.value === chatId) {
-    currentChat.value = { id: null, title: '', time: new Date(), messages: [], currentModel: null }
-    currentChatId.value = null
-  }
-}
-
-// 组件挂载时从本地存储加载历史记录和设置
-onMounted(() => {
-  const savedHistory = localStorage.getItem('chatHistory')
-  if (savedHistory) {
-    chatHistory.value = JSON.parse(savedHistory)
-    // 如果有当前聊天ID，加载对应的聊天记录
-    if (currentChatId.value) {
-      const chat = chatHistory.value.find(c => c.id === currentChatId.value)
-      if (chat) {
-        currentChat.value = JSON.parse(JSON.stringify(chat))
-      }
-    }
-  }
-  
-  // 加载已保存的设置或使用环境变量
-  const savedSettings = localStorage.getItem('modelSettings')
-  if (savedSettings) {
-    modelSettings.value = JSON.parse(savedSettings)
-  } else {
-    // 如果没有保存的设置，使用环境变量
-    if (process.env.VUE_APP_KIMI_API_KEY) {
-      modelSettings.value.apiKeys.kimi = process.env.VUE_APP_KIMI_API_KEY
-    }
-  }
-
-  // 监听点击事件关闭菜单
-  document.addEventListener('click', () => {
-    contextMenu.value.visible = false
-  })
-})
-
-// 创建新对话
-const createNewChat = () => {
-  const now = new Date();
-  const formattedDate = `${now.getMonth() + 1}月${now.getDate()}日 ${now.getHours()}:${now.getMinutes()}`;
-  currentChat.value = {
-    id: Date.now(),
-    title: `新对话 - ${formattedDate}`,
-    time: new Date(),
-    messages: [],
-    currentModel: currentModel.value  // 记录初始模型
-  }
-  chatHistory.value.unshift(JSON.parse(JSON.stringify(currentChat.value)))
-  currentChatId.value = currentChat.value.id
-}
-
-// 使用 marked 格式化消息
-const formatMessage = (content) => {
-  if (!content) return ''
-  
-  // 预处理原始内容，处理连续的换行
-  content = content
-    // 移除开头的空行
-    .replace(/^\s+/, '')
-    // 移除结尾的空行
-    .replace(/\s+$/, '')
-    // 将连续3个以上换行替换为2个换行
-    .replace(/\n{3,}/g, '\n\n')
-    // 移除每行开头和结尾的空白字符
-    .replace(/^[ \t]+|[ \t]+$/gm, '')
-
-  // 使用marked处理markdown
-  let formattedContent = marked(content)
-  
-  // 处理多余的空行和格式
-  formattedContent = formattedContent
-    // 替换连续的多个空行为单个空行
-    .replace(/\n\s*\n\s*\n/g, '\n\n')
-    // 移除段落标签之间的多余空行
-    .replace(/<\/p>\s*\n+\s*<p>/g, '</p><p>')
-    // 移除代码块前后的多余空行
-    .replace(/\n+<pre>/g, '\n<pre>')
-    .replace(/<\/pre>\n+/g, '</pre>\n')
-    // 移除列表项之间的多余空行
-    .replace(/<\/li>\s*\n+\s*<li>/g, '</li><li>')
-    // 移除段落内部的多余空格
-    .replace(/>(\s|&nbsp;)+</g, '><')
-    // 处理代码块内的格式
-    .replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (match, p1) => {
-      // 移除代码块中多余的空行，但保留缩进
-      const code = p1
-        .replace(/\n{3,}/g, '\n\n')
-        .replace(/^\s+|\s+$/g, '')
-      return `<pre><code>${code}</code></pre>`
-    })
-  
-  return formattedContent
-}
-
-// 输入框提示
-const inputPlaceholder = computed(() => {
-  const model = modelOptions.value.find(m => m.value === currentModel.value)
-  return model ? `使用 ${model.label} 提问...` : '请选择模型并输入问题...'
-})
-
-// 添加复制功能
-const copyMessage = (content) => {
-  navigator.clipboard.writeText(content).then(() => {
-    ElMessage({
-      message: '复制成功',
-      type: 'success',
-      duration: 2000
-    })
-  }).catch(() => {
-    ElMessage({
-      message: '复制失败，请手动复制',
-      type: 'error',
-      duration: 2000
-    })
-  })
-}
-
-// 多选相关状态
-const isSelectMode = ref(false)
-const selectedMessages = ref([])
-
-// 切换选择模式
-const toggleSelectMode = () => {
-  isSelectMode.value = !isSelectMode.value
-  if (!isSelectMode.value) {
-    selectedMessages.value = []
-  }
-}
-
-// 切换消息选择状态
-const toggleMessageSelection = (message) => {
-  const index = selectedMessages.value.indexOf(message)
-  if (index === -1) {
-    selectedMessages.value.push(message)
-  } else {
-    selectedMessages.value.splice(index, 1)
-  }
-}
-
-// 删除单条消息
-const deleteMessage = (index) => {
-  currentChat.value.messages.splice(index, 1)
-  saveChat()  // 保存更改
-}
-
-// 下载选中消息为图片
-const downloadAsImage = async () => {
-  if (!selectedMessages.value.length) return
-  
-  // 创建临时容器
-  const container = document.createElement('div')
-  container.className = 'messages-container'
-  
-  // 添加选中的消息
-  selectedMessages.value.forEach(message => {
-    const messageDiv = document.createElement('div')
-    messageDiv.className = `message ${message.role}`
-    messageDiv.innerHTML = `
-      <div class="message-header">
-        <span class="message-role">${message.role === 'user' ? '用户' : 'AI'}</span>
-      </div>
-      <div class="message-content">${formatMessage(message.content)}</div>
-    `
-    container.appendChild(messageDiv)
-  })
-  
-  // 添加到文档中
-  document.body.appendChild(container)
-  
-  try {
-    const canvas = await html2canvas(container, {
-      backgroundColor: '#ffffff'
-    })
-    
-    const link = document.createElement('a')
-    link.download = `chat-${Date.now()}.png`
-    link.href = canvas.toDataURL()
-    link.click()
-  } catch (error) {
-    console.error('Failed to generate image:', error)
-    ElMessage.error('生成图片失败')
-  } finally {
-    document.body.removeChild(container)
-  }
-}
-
-// 右键菜单相关
-const contextMenu = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-  message: null,
-  index: -1
-})
-
-const contextMenuStyle = computed(() => ({
-  position: 'fixed',
-  left: contextMenu.value.x + 'px',
-  top: contextMenu.value.y + 'px',
-  display: contextMenu.value.visible ? 'block' : 'none'
-}))
-
-const showContextMenu = (event, message, index) => {
-  contextMenu.value = {
-    visible: true,
-    x: event.clientX,
-    y: event.clientY,
-    message,
-    index
-  }
-}
-
-// 获取模型显示名称
-const getModelLabel = (modelValue) => {
-  const model = modelOptions.value.find(m => m.value === modelValue) || modelOptions.value[0]
-  return model ? model.label : modelValue
-}
-
-// 修改编辑标题相关的状态
-const editingChatId = ref(null)
-const editingTitle = ref('')
-
-// 修改开始编辑标题的函数
-const startEditTitle = (chat) => {
-  editingChatId.value = chat.id
-  editingTitle.value = chat.title
-}
-
-// 添加处理失焦事件的函数
-const handleBlur = (chat) => {
-  // 给一个小延时，确保点击事件能够正确处理
-  setTimeout(() => {
-    saveTitle(chat)
-  }, 100)
-}
-
-// 保存编辑后的标题
-const saveTitle = (chat) => {
-  if (editingTitle.value.trim()) {
-    // 更新历史记录中的标题
-    const chatToUpdate = chatHistory.value.find(c => c.id === chat.id)
-    if (chatToUpdate) {
-      chatToUpdate.title = editingTitle.value.trim()
-      // 如果是当前聊天，也更新当前聊天的标题
-      if (currentChat.value.id === chat.id) {
-        currentChat.value.title = editingTitle.value.trim()
-      }
-      // 保存更改
-      saveChat()
-    }
-  }
-  // 退出编辑模式
-  editingChatId.value = null
-  editingTitle.value = ''
-}
 </script>
 
 <style scoped>
+/* 主容器 */
 .ai-chat-container {
   display: flex;
-  height: 100vh; /* 确保容器高度为视口高度 */
-  background-color: var(--el-bg-color);
-  overflow: hidden; /* 防止溢出 */
+  flex-direction: column;
+  height: 100%; /* 改为100%而不是100vh */
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  position: relative; /* 改为relative */
 }
 
-.sidebar {
-  width: 260px;
+/* 主内容区域 */
+.chat-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  height: 100%; /* 改为100%而不是100vh */
+}
+
+/* 左侧菜单栏 - 移除或隐藏，因为已经有主布局的侧边栏 */
+.menu-sidebar {
+  display: none; /* 隐藏左侧菜单栏 */
+}
+
+/* 中间对话列表栏 */
+.chat-sidebar {
+  width: 280px;
+  height: 100%;
   border-right: 1px solid var(--el-border-color-lighter);
   display: flex;
   flex-direction: column;
-  background-color: var(--el-bg-color-page);
+  background-color: var(--el-bg-color);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chat-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+}
+
+/* 侧边栏头部 */
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.new-chat-search-row {
+  display: flex;
+  gap: 8px;
 }
 
 .new-chat-btn {
-  margin: 16px;
+  flex-shrink: 0;
 }
 
-.model-selector {
-  padding: 0 16px 16px;
-}
-
-.model-select {
-  width: 100%;
-}
-
-.model-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-}
-
-.model-info {
+.search-input {
   flex: 1;
 }
 
-.model-name {
-  font-weight: 500;
-  margin-bottom: 4px;
+/* 搜索结果指示器 */
+.search-result-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background-color: var(--el-color-primary-light-9);
+  font-size: 12px;
 }
 
-.model-desc {
-  font-size: 12px;
+.search-detail {
+  color: var(--el-text-color-secondary);
+  margin-left: 4px;
+}
+
+/* 历史记录列表 */
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+}
+
+.category-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
   color: var(--el-text-color-secondary);
 }
 
-.chat-history {
-  flex: 1;
-  overflow-y: auto; /* 允许历史记录区域滚动 */
-  padding: 0 8px;
+.history-items-container {
+  margin-bottom: 20px;
 }
 
 .history-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-radius: 6px;
+  padding: 12px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-bottom: 8px;
+  background-color: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .history-item:hover {
   background-color: var(--el-fill-color-light);
+  transform: translateX(4px);
+  border-color: var(--el-border-color);
 }
 
 .history-item.active {
   background-color: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
 }
 
-.history-content {
+.history-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-title-container {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
 }
 
-.chat-title-wrapper {
+.history-title {
   flex: 1;
-  min-width: 0;
-  padding: 2px 0;
-}
-
-.chat-title {
-  display: block;
+  font-weight: 500;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.history-time {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .history-actions {
-  opacity: 0;
-  transition: opacity 0.3s;
   display: flex;
+  justify-content: flex-end;
   gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .history-item:hover .history-actions {
   opacity: 1;
 }
 
-.sidebar-footer {
-  padding: 16px;
+.match-preview {
+  background-color: var(--el-fill-color-lighter);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.match-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 侧边栏控制区 */
+.sidebar-controls {
+  padding: 12px;
   border-top: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  justify-content: center;
 }
 
-.chat-area {
+/* 右侧对话内容区 */
+.chat-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: var(--el-bg-color);
-  overflow: hidden; /* 防止溢出 */
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--el-bg-color-page);
+  min-width: 0;
+  max-width: 100%; /* 改为100% */
 }
 
-.messages {
-  flex: 1;
-  overflow-y: auto; /* 允许消息区域滚动 */
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  height: 0; /* 确保不影响父容器的高度 */
-  align-items: flex-start;
-  scroll-behavior: smooth;
+/* 当侧边栏折叠时调整内容区宽度 */
+.chat-sidebar.collapsed + .chat-content {
+  max-width: calc(100vw - 80px);
 }
 
-.messages-wrapper {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.message {
-  display: flex;
-  gap: 16px;
-  padding: 12px 20px;
-  transition: background-color 0.3s;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  cursor: default;
-}
-
-.message:hover {
-  background-color: var(--el-fill-color-light);
-}
-
-.message.assistant {
-  background-color: var(--el-fill-color);
-}
-
-.message.selected {
-  background-color: var(--el-color-primary-light-9);
-}
-
-.message-body {
-  flex: 1;
-  width: 100%;
-  position: relative;
-}
-
-.message-header {
+/* 顶部工具栏 */
+.content-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  padding: 12px 20px;
+  background-color: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-shrink: 0;
+  height: 60px; /* 固定高度 */
 }
 
-.message-role {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.message-content {
-  line-height: 1.5;
-  white-space: pre-wrap;
-  text-align: left;
-  font-size: 14px;
-  overflow-wrap: break-word;
-  word-break: break-all;
-}
-
-.message-content :deep(p) {
-  margin: 2px 0;  /* 进一步减小段落间距 */
-  min-height: 1.5em;  /* 确保空段落有最小高度 */
-}
-
-.message-content :deep(pre) {
-  background-color: var(--el-fill-color-darker);
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 4px 0;
-}
-
-.message-content :deep(code) {
-  font-family: monospace;
-  background-color: var(--el-fill-color-darker);
-  padding: 2px 4px;
-  border-radius: 4px;
-  line-height: 1.4;  /* 调整代码行高 */
-}
-
-.message-content :deep(ul), 
-.message-content :deep(ol) {
-  margin: 4px 0;
-  padding-left: 20px;
-}
-
-.message-content :deep(li) {
-  margin: 2px 0;
-}
-
-.message-content :deep(br) {
-  display: block;
-  content: '';
-  margin: 1px 0;  /* 进一步减小换行间距 */
-}
-
-/* 处理表格样式 */
-.message-content :deep(table) {
-  margin: 4px 0;
-  border-collapse: collapse;
-}
-
-.message-content :deep(th),
-.message-content :deep(td) {
-  padding: 6px 10px;
-  border: 1px solid var(--el-border-color);
-}
-
-.empty-chat {
+.toolbar-left, .toolbar-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  width: 100%;
-  margin: auto;
-  justify-content: center;
-  color: var(--el-text-color-secondary);
+  gap: 16px;
 }
 
-.empty-icon {
-  margin-bottom: 16px;
-}
-
-.empty-chat h2 {
-  margin: 16px 0 8px;
-  font-size: 24px;
-  font-weight: 500;
-}
-
-.empty-chat p {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-}
-
-.input-area {
-  padding: 20px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.input-container {
+.current-chat-info {
   display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.input-container .el-input {
-  flex: 1;
-}
-
-.input-tip {
-  text-align: right;
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-:deep(.el-dialog__body) {
-  padding-top: 16px;
-}
-
-.messages-container {
-  position: fixed;
-  left: -9999px;
-  background: white;
-  padding: 20px;
-  max-width: 800px;
-}
-
-/* Apple风格右键菜单样式 */
-.context-menu {
-  position: fixed;
-  background-color: #f9f9f9;
-  border-radius: 6px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  width: 140px;
-  min-width: 140px;
-  border: 1px solid #d1d1d6;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 13px;
-  backdrop-filter: blur(10px);
-  background-color: rgba(249, 249, 249, 0.95);
-}
-
-.context-menu ul {
-  margin: 0;
-  padding: 4px 0;
-  list-style: none;
-}
-
-.context-menu li {
-  padding: 8px 16px;
-  cursor: pointer;
-  color: #333;
-  transition: background-color 0.2s ease, color 0.2s ease;
+.app-logo {
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin-right: 16px;
+}
+
+.app-logo img {
+  width: 28px;
+  height: 28px;
+}
+
+.app-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.current-chat-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.model-tag {
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border: none;
+}
+
+/* 消息容器 */
+.message-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  background-color: var(--el-bg-color-page);
+  scroll-behavior: smooth;
+  width: 100%;
+  max-height: calc(100% - 60px - 120px); /* 使用百分比 */
+  height: auto;
+}
+
+/* 选择操作区 */
+.selected-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--el-color-primary-light-9);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.selection-info {
+  font-weight: 500;
+  color: var(--el-color-primary);
+}
+
+.action-buttons {
+  display: flex;
   gap: 8px;
 }
 
-.context-menu li:hover {
-  background-color: #f0f0f5;
-  color: #007aff;
-}
-
-.context-menu li.danger {
-  color: #ff3b30;
-}
-
-.context-menu li.danger:hover {
-  background-color: #fff1f0;
-  color: #ff3b30;
-}
-
-.context-menu .el-icon {
-  font-size: 14px;
-}
-
-.el-divider {
-  margin: 16px 0;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: normal;
-}
-
-/* 模型标记样式 */
-.model-indicator {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+/* 空白对话提示 */
+.empty-chat {
   display: flex;
   justify-content: center;
-  padding: 8px 0;
-  background-color: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  align-items: center;
+  height: 100%;
+  padding: 20px;
 }
 
-/* 模型切换分隔线样式 */
-.model-switch-divider {
+.empty-chat-content {
+  max-width: 600px;
+  padding: 40px;
+  border-radius: 16px;
+  background-color: var(--el-bg-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.model-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.model-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.model-description {
+  color: var(--el-text-color-secondary);
+  margin-bottom: 30px;
+  line-height: 1.6;
+}
+
+.suggestion-title {
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.suggestion-chip {
+  padding: 12px 20px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-chip:hover {
+  transform: translateY(-4px) scale(1.05);
+  background-color: var(--el-color-primary-light-9);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* 消息项 */
+.message-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background-color: var(--el-bg-color);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.message-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.message-item.selected {
+  background-color: var(--el-color-primary-light-9);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.message-item.user {
+  background-color: var(--el-color-primary-light-9);
+}
+
+/* 输入区域 */
+.input-area {
+  height: auto;
+  max-height: 120px;
+  min-height: 120px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background-color: var(--el-bg-color);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.input-area.folded {
+  min-height: 60px;
+  max-height: 60px;
+  padding: 10px 20px;
+  overflow: hidden;
+}
+
+/* 折叠控制按钮 */
+.fold-control {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 16px 0;
-  width: 100%;
-  padding: 0 20px;  /* 添加左右内边距 */
+  gap: 4px;
+  z-index: 2;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
-.divider-line {
-  flex: 1;
-  height: 1px;
-  background-color: var(--el-border-color-lighter);
+.fold-control:hover {
+  background-color: var(--el-fill-color-light);
 }
 
-/* 系统消息样式 */
-.message.system {
+/* 折叠状态的输入区 */
+.folded-input-area {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  background-color: transparent;
-  border-bottom: none;
-  padding: 8px 0;
+  padding: 8px;
+  border-radius: 8px;
+  background-color: var(--el-fill-color-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 100%;
 }
 
-/* 编辑输入框样式 */
-.chat-title-wrapper :deep(.el-input__wrapper) {
-  padding: 0 8px;
-  background-color: var(--el-bg-color-overlay);
-  box-shadow: none;
-  transition: box-shadow 0.2s;
+.folded-input-area:hover {
+  background-color: var(--el-fill-color);
+  transform: translateY(-2px);
 }
 
-.chat-title-wrapper :deep(.el-input__inner) {
-  height: 24px;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
+/* 消息输入框 */
+.message-input {
+  position: relative;
+  border-radius: 12px;
+  background-color: var(--el-fill-color-light);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  padding: 8px 60px 8px 16px; /* 右侧留出发送按钮的空间 */
+  height: calc(100% - 16px); /* 减去上下padding */
+  display: flex;
+  flex-direction: column;
+}
+
+.message-input:focus-within {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  background-color: var(--el-bg-color);
+}
+
+.message-input .el-textarea {
+  border: none;
+  background: transparent;
+  height: 100%;
+}
+
+.message-input .el-textarea__inner {
+  min-height: 60px !important; /* 固定最小高度 */
+  max-height: 80px !important; /* 最大高度 */
+  height: 100%;
   padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  resize: none; /* 禁止手动调整大小 */
 }
 
-.chat-title-wrapper :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+/* 发送按钮 - 放在输入框内 */
+.send-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background-color: var(--el-color-primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-</style> 
+
+.send-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.send-btn .el-icon {
+  font-size: 18px;
+}
+
+/* 附件工具栏 */
+.attachment-tools {
+  display: flex;
+  gap: 8px;
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+}
+
+.attachment-tool {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--el-fill-color);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.attachment-tool:hover {
+  background-color: var(--el-fill-color-darker);
+  transform: translateY(-2px);
+}
+
+/* 响应式布局调整 */
+@media (max-width: 1200px) {
+  .chat-content {
+    max-width: calc(100% - 280px); /* 使用百分比 */
+  }
+}
+
+@media (max-width: 992px) {
+  .chat-content {
+    max-width: calc(100% - 200px); /* 使用百分比 */
+  }
+  
+  .chat-sidebar {
+    width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-content {
+    max-width: 100%;
+  }
+  
+  .message-container {
+    max-height: calc(100% - 50px - 100px);
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--el-border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--el-text-color-secondary);
+}
+</style>
