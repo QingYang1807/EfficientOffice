@@ -53,7 +53,49 @@
               <span>目标完成进度</span>
             </div>
           </template>
-          <v-chart class="chart" :option="goalProgressOption" autoresize />
+          <div class="goal-progress-container">
+            <!-- 进度条列表 -->
+            <div v-for="goal in goalProgressData" :key="goal.name" class="goal-item">
+              <div class="goal-info">
+                <div class="goal-name">{{ goal.name }}</div>
+                <div class="goal-percentage">{{ goal.value }}%</div>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-bg"></div>
+                <div 
+                  class="progress-bar-fill" 
+                  :style="{ 
+                    width: `${goal.value}%`, 
+                    backgroundColor: goal.color 
+                  }"
+                ></div>
+                <div 
+                  class="target-marker" 
+                  :style="{ 
+                    left: `${goal.target}%`,
+                    borderLeftColor: goal.color
+                  }"
+                  :title="`目标: ${goal.target}%`"
+                ></div>
+              </div>
+              <div class="goal-stats">
+                <span class="completed-count">已完成: {{ goal.completed }}</span>
+                <span class="total-count">总任务: {{ goal.total }}</span>
+              </div>
+            </div>
+            
+            <!-- 图例 -->
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-marker"></div>
+                <span>当前进度</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-target"></div>
+                <span>目标值</span>
+              </div>
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -641,102 +683,68 @@ watch(() => todos.value, () => {
   updateRecentActivities()
 }, { deep: true })
 
-// 添加目标分类统计函数
-const getGoalProgress = () => {
-  const categories = {
-    '工作目标': { total: 0, completed: 0, target: 100 },
-    '学习目标': { total: 0, completed: 0, target: 80 },
-    '生活目标': { total: 0, completed: 0, target: 60 },
-    '其他目标': { total: 0, completed: 0, target: 50 }
-  }
+// 修改目标完成进度图表的配置
+const goalProgressOption = computed(() => ({
+  // 删除原有的图表配置
+}))
+
+// 添加目标进度数据计算属性
+const goalProgressData = computed(() => {
+  // 从本地存储加载待办事项
+  const storedTodos = localStorage.getItem('todos')
+  const todos = storedTodos ? JSON.parse(storedTodos) : []
+  
+  // 定义目标类别及其配置
+  const categories = [
+    { 
+      name: '工作目标', 
+      color: '#409EFF', 
+      target: 80,
+      completed: 0,
+      total: 0
+    },
+    { 
+      name: '学习目标', 
+      color: '#67C23A', 
+      target: 70,
+      completed: 0,
+      total: 0
+    },
+    { 
+      name: '生活目标', 
+      color: '#E6A23C', 
+      target: 60,
+      completed: 0,
+      total: 0
+    },
+    { 
+      name: '其他目标', 
+      color: '#909399', 
+      target: 50,
+      completed: 0,
+      total: 0
+    }
+  ]
   
   // 统计每个分类的任务数量和完成数量
-  todos.value.forEach(todo => {
+  todos.forEach(todo => {
     const category = todo.category || '其他目标'
-    if (categories[category]) {
-      categories[category].total++
+    const categoryData = categories.find(c => c.name === category)
+    
+    if (categoryData) {
+      categoryData.total++
       if (todo.completed) {
-        categories[category].completed++
+        categoryData.completed++
       }
     }
   })
   
-  // 计算完成百分比
-  return Object.entries(categories).map(([name, data]) => ({
-    value: data.total ? Math.round((data.completed / data.total) * 100) : 0,
-    target: data.target,
-    name,
-    itemStyle: {
-      color: getCategoryColor(name)
-    }
+  // 计算完成百分比并返回数据
+  return categories.map(category => ({
+    ...category,
+    value: category.total ? Math.round((category.completed / category.total) * 100) : 0
   }))
-}
-
-// 获取分类对应的颜色
-const getCategoryColor = (category) => {
-  const colors = {
-    '工作目标': '#409EFF',
-    '学习目标': '#67C23A',
-    '生活目标': '#E6A23C',
-    '其他目标': '#909399'
-  }
-  return colors[category]
-}
-
-// 修改目标完成进度图表的配置
-const goalProgressOption = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    formatter: function(params) {
-      const data = params[0]
-      return `${data.name}<br/>完成进度: ${data.value}%<br/>目标: ${data.target}%`
-    }
-  },
-  grid: {
-    top: '10%',
-    left: '3%',
-    right: '15%',
-    bottom: '10%',
-    containLabel: true
-  },
-  xAxis: {
-    type: 'value',
-    max: 100,
-    axisLabel: {
-      formatter: '{value}%'
-    }
-  },
-  yAxis: {
-    type: 'category',
-    data: ['工作目标', '学习目标', '生活目标', '其他目标'],
-    axisLine: { show: false },
-    axisTick: { show: false }
-  },
-  series: [
-    {
-      type: 'bar',
-      name: '完成进度',
-      data: getGoalProgress(),
-      barWidth: '20px',
-      label: {
-        show: true,
-        position: 'right',
-        formatter: function(params) {
-          return `${params.value}%`
-        }
-      },
-      markLine: {
-        symbol: ['none', 'none'],
-        label: { show: false },
-        lineStyle: { type: 'dashed' },
-        data: getGoalProgress().map((item, index) => ([
-          { coord: [item.target, index], lineStyle: { color: item.itemStyle.color } },
-          { coord: [item.target, index + 0.5] }
-        ]))
-      }
-    }
-  ]
-}))
+})
 
 // 活跃度热力图配置
 const heatmapOption = computed(() => {
@@ -1185,5 +1193,141 @@ const getReviewTypeText = (type) => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.goal-progress-container {
+  padding: 10px 0;
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.goal-item {
+  margin-bottom: 16px;
+}
+
+.goal-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.goal-name {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.goal-percentage {
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.progress-bar-container {
+  position: relative;
+  height: 10px;
+  margin-bottom: 6px;
+}
+
+.progress-bar-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #f0f2f5;
+  border-radius: 5px;
+}
+
+.progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.target-marker {
+  position: absolute;
+  top: -5px;
+  height: 20px;
+  width: 0;
+  border-left: 2px dashed;
+  z-index: 1;
+}
+
+.goal-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.legend {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.legend-marker {
+  width: 16px;
+  height: 6px;
+  background: linear-gradient(90deg, #409EFF, #67C23A);
+  border-radius: 3px;
+  margin-right: 6px;
+}
+
+.legend-target {
+  height: 12px;
+  width: 0;
+  border-left: 2px dashed #666;
+  margin-right: 6px;
+}
+
+/* 为每个目标类别添加不同的颜色 */
+.goal-item:nth-child(1) .goal-percentage {
+  color: #409EFF;
+}
+
+.goal-item:nth-child(2) .goal-percentage {
+  color: #67C23A;
+}
+
+.goal-item:nth-child(3) .goal-percentage {
+  color: #E6A23C;
+}
+
+.goal-item:nth-child(4) .goal-percentage {
+  color: #909399;
+}
+
+/* 添加动画效果 */
+.progress-bar-fill {
+  animation: progressAnimation 1s ease-out;
+}
+
+@keyframes progressAnimation {
+  from {
+    width: 0;
+  }
+}
+
+/* 添加悬浮效果 */
+.goal-item:hover .progress-bar-fill {
+  filter: brightness(1.1);
+}
+
+.goal-item:hover .goal-name {
+  color: var(--el-color-primary);
 }
 </style> 
