@@ -294,6 +294,28 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 在仪表盘增加知识库快捷入口 -->
+    <div class="dashboard-card knowledge-base-card">
+      <h3>知识库概览</h3>
+      <div class="quick-stats">
+        <div class="stat-item">
+          <i class="fas fa-file"></i>
+          <span>{{ totalFiles }} 个文件</span>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-book"></i>
+          <span>{{ totalCorpus }} 个语料</span>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-database"></i>
+          <span>{{ totalRag }} 个知识库</span>
+        </div>
+      </div>
+      <router-link to="/knowledge" class="quick-link">
+        进入知识库管理 →
+      </router-link>
+    </div>
   </div>
 </template>
 
@@ -327,6 +349,7 @@ import {
   ArrowRight,
 } from '@element-plus/icons-vue'
 import { useReviewStore } from '@/stores/review'
+import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 
 // 注册 ECharts 组件
 use([
@@ -347,6 +370,7 @@ const todos = ref([])
 const trendTimeRange = ref('week')
 
 const reviewStore = useReviewStore()
+const knowledgeBaseStore = useKnowledgeBaseStore()
 
 // 从 localStorage 加载待办事项
 const loadTodos = () => {
@@ -879,6 +903,12 @@ onMounted(() => {
   loadTodos()
   updateRecentActivities()
   reviewStore.loadReviews()
+  // 加载数据
+  knowledgeBaseStore.updateStats({
+    totalFiles: 0, // 初始值
+    totalCorpus: 0, // 初始值
+    totalRag: 0, // 初始值
+  });
 })
 
 // 复盘相关的状态
@@ -991,6 +1021,11 @@ const getReviewTypeText = (type) => {
   }
   return typeMap[type] || '未知类型'
 }
+
+// 计算属性
+const totalFiles = computed(() => knowledgeBaseStore.state.stats.totalFiles)
+const totalCorpus = computed(() => knowledgeBaseStore.state.stats.totalCorpus)
+const totalRag = computed(() => knowledgeBaseStore.state.stats.totalRag)
 </script>
 
 <style scoped>
@@ -1330,5 +1365,51 @@ const getReviewTypeText = (type) => {
 
 .goal-item:hover .goal-name {
   color: var(--el-color-primary);
+}
+
+/* 在仪表盘增加知识库快捷入口 */
+.dashboard-card.knowledge-base-card {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  transition: transform 0.2s;
+}
+
+.dashboard-card.knowledge-base-card:hover {
+  transform: scale(1.02);
+}
+
+.dashboard-card.knowledge-base-card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.dashboard-card.knowledge-base-card .quick-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.dashboard-card.knowledge-base-card .stat-item {
+  display: flex;
+  align-items: center;
+  color: #555;
+}
+
+.dashboard-card.knowledge-base-card .stat-item i {
+  font-size: 28px;
+  margin-right: 8px;
+  color: #409EFF;
+}
+
+.dashboard-card.knowledge-base-card .quick-link {
+  color: #409EFF;
+  text-decoration: none;
+  font-weight: bold;
 }
 </style> 
