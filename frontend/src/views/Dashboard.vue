@@ -1044,6 +1044,7 @@ const getReviewTypeText = (type) => {
 }
 
 .chart-card {
+  height: 420px;
   margin-bottom: 20px;
 }
 
