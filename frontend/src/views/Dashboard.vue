@@ -216,7 +216,7 @@
     </el-row>
 
     <!-- 最近待办列表 -->
-    <el-card class="recent-todos">
+    <el-card class="recent-todos" style="margin-top: 20px;">
       <template #header>
         <div class="card-header">
           <span>最近待办</span>
@@ -1040,7 +1040,7 @@ const getReviewTypeText = (type) => {
 }
 
 .charts-container {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .chart-card {
