@@ -8,15 +8,31 @@
       </div>
       <!-- 修改搜索框为搜索引擎 -->
       <div class="search-box">
+        <div class="search-engines-dropdown" v-show="showEngineDropdown">
+          <div 
+            v-for="(engine, index) in searchEngines" 
+            :key="index"
+            class="engine-item"
+            @click="selectEngine(index)"
+          >
+            <img :src="engine.icon" class="engine-icon">
+            <span>{{ engine.name }}</span>
+          </div>
+        </div>
         <el-input
           v-model="searchText"
           :placeholder="'使用' + currentEngine.name + '搜索...'"
           @keyup.enter="handleSearch"
+          @focus="handleFocus"
+          @blur="handleBlur"
           clearable
           class="search-input"
         >
           <template #prefix>
-            <img :src="currentEngine.icon" class="engine-icon" @click="toggleSearchEngine">
+            <div class="engine-icon-wrapper" @click.stop="toggleEngineDropdown" title="点击切换搜索引擎">
+              <img :src="currentEngine.icon" class="engine-icon">
+              <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+            </div>
           </template>
           <template #append>
             <el-button @click="handleSearch">
@@ -26,15 +42,20 @@
         </el-input>
         <!-- 添加搜索历史下拉框 -->
         <div v-show="showHistory && searchHistory.length" class="search-history">
+          <div class="history-header">
+            <span>搜索历史</span>
+            <span class="clear-all" @click.stop="clearAllHistory($event)">清除全部</span>
+          </div>
           <div 
             v-for="(item, index) in searchHistory" 
             :key="index"
             class="history-item"
             @click="selectHistory(item)"
+            :class="{ 'hover-effect': true }"
           >
             <el-icon><Clock /></el-icon>
             <span>{{ item }}</span>
-            <el-icon class="delete-icon" @click.stop="removeHistory(index)"><Close /></el-icon>
+            <el-icon class="delete-icon" @click.stop="removeHistory(index, $event)" title="删除此记录"><Delete /></el-icon>
           </div>
         </div>
       </div>
@@ -292,7 +313,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElLoading } from 'element-plus'
 import Draggable from 'vuedraggable'
-import { Plus, Edit, Upload, Refresh, Delete, Search, Aim, FullScreen, Folder, Picture, Clock, Close } from '@element-plus/icons-vue'
+import { Plus, Edit, Upload, Refresh, Delete, Search, Aim, FullScreen, Folder, Picture, Clock, Close, ArrowDown } from '@element-plus/icons-vue'
 import { useFullscreen } from '@vueuse/core'
 
 // 添加 loading 变量
@@ -338,7 +359,7 @@ const searchEngines = [
   },
   {
     name: '谷歌',
-    icon: 'https://www.google.com/favicon.ico',
+    icon: 'https://www.gstatic.com/images/branding/product/2x/hh_google_16dp.png',
     url: 'https://www.google.com/search?q='
   },
   {
@@ -390,6 +411,81 @@ const toggleSearchEngine = () => {
 const searchHistory = ref([])
 const showHistory = ref(false)
 
+// 搜索引擎下拉框相关
+const showEngineDropdown = ref(false)
+
+// 切换搜索引擎下拉框
+const toggleEngineDropdown = (event) => {
+  // 阻止事件冒泡，以防触发其他点击事件
+  if (event) {
+    event.stopPropagation()
+  }
+  
+  // 切换下拉菜单状态
+  showEngineDropdown.value = !showEngineDropdown.value
+  console.log('展开搜索引擎下拉菜单:', showEngineDropdown.value)
+  
+  // 如果显示引擎下拉框，则隐藏搜索历史
+  if (showEngineDropdown.value) {
+    showHistory.value = false
+  }
+}
+
+// 选择搜索引擎
+const selectEngine = (index) => {
+  currentEngineIndex.value = index
+  showEngineDropdown.value = false
+  console.log('选择搜索引擎:', searchEngines[index].name)
+}
+
+// 选择历史记录
+const selectHistory = (item) => {
+  searchText.value = item
+  showHistory.value = false
+  handleSearch()
+}
+
+// 删除历史记录
+const removeHistory = (index, event) => {
+  // 阻止事件冒泡，避免触发选择历史记录
+  if (event) {
+    event.stopPropagation()
+  }
+  
+  // 从数组中删除指定索引的项
+  searchHistory.value.splice(index, 1)
+  // 保存到本地存储
+  localStorage.setItem('search-history', JSON.stringify(searchHistory.value))
+  
+  console.log('删除历史记录:', index, '剩余数量:', searchHistory.value.length)
+  
+  // 如果没有历史记录了，关闭下拉框
+  if (searchHistory.value.length === 0) {
+    showHistory.value = false
+  } else {
+    // 确保历史记录面板继续显示
+    showHistory.value = true
+  }
+}
+
+// 添加清除全部历史记录的方法
+const clearAllHistory = (event) => {
+  // 阻止事件冒泡
+  if (event) {
+    event.stopPropagation()
+  }
+  
+  // 清空数组
+  searchHistory.value = []
+  // 更新本地存储
+  localStorage.setItem('search-history', JSON.stringify([]))
+  
+  console.log('清空全部历史记录')
+  
+  // 关闭历史记录面板
+  showHistory.value = false
+}
+
 // 处理搜索
 const handleSearch = () => {
   if (!searchText.value) return
@@ -397,18 +493,17 @@ const handleSearch = () => {
   // 保存到历史记录
   if (!searchHistory.value.includes(searchText.value)) {
     searchHistory.value.unshift(searchText.value)
-    if (searchHistory.value.length > 10) {
+    if (searchHistory.value.length > 100) {
       searchHistory.value.pop()
     }
     localStorage.setItem('search-history', JSON.stringify(searchHistory.value))
   }
 
-  // 发送到父组件处理搜索
-  emit('search', {
-    engine: currentEngine.value,
-    query: searchText.value
-  })
+  // 组合搜索URL并打开新标签页
+  const searchUrl = currentEngine.value.url + encodeURIComponent(searchText.value)
+  window.open(searchUrl, '_blank')
   
+  // 重置搜索文本
   searchText.value = ''
   showHistory.value = false
 }
@@ -1002,15 +1097,63 @@ const handleDragAdd = (evt) => {
 // 生命周期钩子
 onMounted(() => {
   loadWebsitesFromStorage()
+  loadSearchHistory()
   updateDateTime()
   const timer = setInterval(updateDateTime, 1000)
-  document.addEventListener('click', hideContextMenu)
+  
+  // 添加全局点击事件监听器
+  document.addEventListener('click', (event) => {
+    hideContextMenu()
+    hideEngineDropdown(event)
+  })
   
   onUnmounted(() => {
     clearInterval(timer)
     document.removeEventListener('click', hideContextMenu)
   })
 })
+
+// 加载搜索历史
+const loadSearchHistory = () => {
+  const storedHistory = localStorage.getItem('search-history')
+  if (storedHistory) {
+    searchHistory.value = JSON.parse(storedHistory)
+  }
+}
+
+// 隐藏搜索引擎下拉框
+const hideEngineDropdown = (event) => {
+  // 如果下拉菜单未显示，则无需处理
+  if (!showEngineDropdown.value) return
+  
+  // 检查点击是否在搜索引擎下拉区域外
+  const dropdown = document.querySelector('.search-engines-dropdown')
+  const icon = document.querySelector('.engine-icon')
+  
+  // 如果点击的不是图标也不是下拉菜单内容，则隐藏下拉菜单
+  if (!(icon && icon.contains(event.target)) && 
+      !(dropdown && dropdown.contains(event.target))) {
+    showEngineDropdown.value = false
+    console.log('关闭搜索引擎下拉菜单')
+  }
+}
+
+// 处理搜索框获得焦点
+const handleFocus = () => {
+  showHistory.value = true
+}
+
+// 处理搜索框失去焦点
+const handleBlur = () => {
+  // 使用标记，防止删除操作时历史面板被关闭
+  window.setTimeout(() => {
+    // 只有当鼠标不在历史面板上时才隐藏
+    const historyPanel = document.querySelector('.search-history')
+    if (historyPanel && !historyPanel.matches(':hover')) {
+      showHistory.value = false
+    }
+  }, 300)
+}
 </script>
 
 <style scoped>
@@ -1044,19 +1187,67 @@ onMounted(() => {
 }
 
 .search-box {
-  max-width: 600px;
+  max-width: 500px;
   margin: 0 auto;
+  position: relative;
+}
+
+.search-engines-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  max-height: 300px;
+  overflow-y: auto;
+  width: 90%;
+  margin-left: 5%;
+}
+
+.engine-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  
+  &:hover {
+    background: #f0f7ff;
+  }
+  
+  &:not(:last-child) {
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  img.engine-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+  }
+  
+  span {
+    font-size: 0.9rem;
+    color: #606266;
+  }
 }
 
 .search-input {
   :deep(.el-input__wrapper) {
-    padding: 0.75rem 1rem;
-    border-radius: 1rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 0.5rem 0.75rem;
+    border-radius: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
   }
   
   :deep(.el-input__inner) {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
   }
 }
 
@@ -1095,10 +1286,13 @@ onMounted(() => {
   height: 20px;
   cursor: pointer;
   transition: transform 0.3s ease;
+  padding: 2px;
+  border-radius: 4px;
 }
 
 .engine-icon:hover {
   transform: scale(1.1);
+  background-color: rgba(64, 158, 255, 0.1);
 }
 
 .website-grid {
@@ -1363,35 +1557,96 @@ onMounted(() => {
   left: 0;
   right: 0;
   background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  margin-top: 4px;
+  margin-top: 8px;
+  border: 1px solid #ebeef5;
+  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+  width: 90%;
+  margin-left: 5%;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #ebeef5;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #606266;
+}
+
+.clear-all {
+  color: #409EFF;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: rgba(64, 158, 255, 0.1);
+    text-decoration: underline;
+  }
 }
 
 .history-item {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 8px 12px;
   cursor: pointer;
+  border-bottom: 1px solid #f5f7fa;
+  font-size: 0.85rem;
+  transition: all 0.2s ease-in-out;
   
-  &:hover {
-    background: #f5f7fa;
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover, &.hover-effect:hover {
+    background: #f0f7ff;
   }
   
   .el-icon {
-    margin-right: 8px;
+    margin-right: 6px;
     font-size: 14px;
     color: #909399;
   }
   
+  span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
   .delete-icon {
-    margin-left: auto;
+    margin-left: 8px;
+    font-size: 22px;
+    color: #909399;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
     
     &:hover {
       color: #f56c6c;
+      background-color: rgba(245, 108, 108, 0.1);
+      opacity: 1;
+      transform: scale(1.1);
+      box-shadow: 0 0 4px rgba(245, 108, 108, 0.3);
+      animation: pulse 0.5s;
     }
   }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1.1); }
 }
 
 .website-item.is-folder {
@@ -1468,5 +1723,36 @@ onMounted(() => {
 .ghost-card {
   opacity: 0.3;
   background: #409EFF;
+}
+
+.engine-icon-wrapper {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.engine-icon-wrapper:hover {
+  background-color: rgba(64, 158, 255, 0.1);
+}
+
+.engine-icon {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow {
+  margin-left: 2px;
+  font-size: 12px;
+  color: #909399;
+  transition: transform 0.3s ease;
+}
+
+.engine-icon-wrapper:hover .dropdown-arrow {
+  color: #409EFF;
+  transform: rotate(180deg);
 }
 </style> 
