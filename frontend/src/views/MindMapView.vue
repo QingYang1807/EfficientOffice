@@ -736,6 +736,12 @@ const updateUndoRedoState = () => {
 
 // 创建新导图
 const createNewMap = () => {
+  // 首先显示创建对话框
+  showCreateDialog.value = true
+}
+
+// 修改 handleCreateMap 函数
+const handleCreateMap = () => {
   // 验证输入
   if (!newMapForm.value.title.trim()) {
     ElMessage.warning('请输入导图标题')
@@ -749,8 +755,8 @@ const createNewMap = () => {
     description: newMapForm.value.description,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    layout: currentLayout.value, // 保存当前布局
-    theme: currentTheme.value,   // 保存当前主题
+    layout: currentLayout.value,
+    theme: currentTheme.value,
     content: {
       data: {
         text: newMapForm.value.title,
@@ -769,8 +775,13 @@ const createNewMap = () => {
   // 加载新导图
   loadMap(newMap)
 
-  // 关闭对话框
+  // 关闭对话框并清空表单
   showCreateDialog.value = false
+  newMapForm.value = {
+    title: '',
+    description: ''
+  }
+  
   ElMessage.success('思维导图创建成功')
 }
 
