@@ -145,123 +145,233 @@
     </div>
 
     <!-- 右侧样式面板 -->
-    <div class="style-panel" v-if="currentMap && selectedNode">
-      <div class="panel-header">
-        <h3>节点样式</h3>
-      </div>
-      <div class="panel-content">
-        <div class="style-section">
-          <div class="section-title">文本</div>
-          <el-input v-model="selectedNodeText" @change="updateNodeText" placeholder="节点文本"></el-input>
-          <div class="font-controls">
-            <el-color-picker v-model="nodeTextColor" @change="updateNodeStyle" size="small"></el-color-picker>
-            <el-select v-model="nodeFontSize" @change="updateNodeStyle" size="small" placeholder="字号">
-              <el-option v-for="size in fontSizes" :key="size" :label="size" :value="size" />
-            </el-select>
-            <div class="font-buttons">
-              <el-button size="small" @click="toggleBold" 
-                :class="{active: nodeFontWeight === 'bold'}"
-                >B</el-button>
-              <el-button size="small" @click="toggleItalic" 
-                :class="{active: nodeFontStyle === 'italic'}"
-                ><i>I</i></el-button>
-              <el-button size="small" @click="toggleUnderline" 
-                :class="{active: nodeTextDecoration === 'underline'}"
-                ><u>U</u></el-button>
-            </div>
-          </div>
-          <!-- 字体选择 -->
-          <div class="font-family">
-            <el-select v-model="nodeFontFamily" @change="updateNodeStyle" size="small" placeholder="字体">
-              <el-option label="默认" value="" />
-              <el-option label="宋体" value="SimSun" />
-              <el-option label="黑体" value="SimHei" />
-              <el-option label="微软雅黑" value="Microsoft YaHei" />
-              <el-option label="Arial" value="Arial" />
-              <el-option label="Times New Roman" value="Times New Roman" />
-            </el-select>
-          </div>
+    <div 
+      v-show="showStylePanel" 
+      class="floating-style-panel"
+      :style="{ right: '20px', top: '70px' }"
+    >
+      <div class="style-panel-container">
+        <!-- 面板标题栏 -->
+        <div class="panel-header">
+          <h3>格式</h3>
+          <el-button type="text" @click="showStylePanel = false">
+            <el-icon><Close /></el-icon>
+          </el-button>
         </div>
-        
-        <div class="style-section">
-          <div class="section-title">节点</div>
-          <div class="node-controls">
-            <el-color-picker v-model="nodeColor" @change="updateNodeStyle" size="small" 
-              :predefine="predefineColors"></el-color-picker>
-            <el-select v-model="nodeShape" @change="updateNodeStyle" size="small" placeholder="形状">
-              <el-option label="圆角矩形" value="roundRect" />
-              <el-option label="矩形" value="rectangle" />
-              <el-option label="圆形" value="circle" />
-              <el-option label="椭圆" value="ellipse" />
-              <el-option label="菱形" value="diamond" />
-              <el-option label="平行四边形" value="parallelogram" />
-              <el-option label="六边形" value="hexagon" />
-            </el-select>
-          </div>
-          
-          <!-- 边框样式 -->
-          <div class="border-controls">
-            <div class="border-width">
-              <span>边框宽度</span>
-              <el-slider v-model="nodeBorderWidth" :min="0" :max="5" @change="updateNodeStyle"></el-slider>
+
+        <!-- 手风琴样式的内容区域 -->
+        <el-collapse v-model="activeCollapse" class="style-collapse">
+          <!-- 文本样式部分 -->
+          <el-collapse-item title="文本" name="text">
+            <div class="style-section-content">
+              <el-input
+                v-model="selectedNodeText"
+                @change="updateNodeText"
+                placeholder="节点文本"
+                size="small"
+                class="mb-2"
+              />
+              
+              <div class="style-row">
+                <el-color-picker
+                  v-model="nodeTextColor"
+                  @change="updateNodeStyle"
+                  size="small"
+                  show-alpha
+                  class="flex-none"
+                />
+                <el-select
+                  v-model="nodeFontSize"
+                  @change="updateNodeStyle"
+                  size="small"
+                  placeholder="字号"
+                  class="flex-1 ml-1"
+                >
+                  <el-option
+                    v-for="size in fontSizes"
+                    :key="size"
+                    :label="`${size}px`"
+                    :value="size"
+                  />
+                </el-select>
+              </div>
+
+              <div class="style-row mt-2">
+                <el-button-group class="font-style-group">
+                  <el-button
+                    size="small"
+                    :class="{ active: nodeFontWeight === 'bold' }"
+                    @click="toggleBold"
+                  >
+                    <el-icon><Bold /></el-icon>
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :class="{ active: nodeFontStyle === 'italic' }"
+                    @click="toggleItalic"
+                  >
+                    <el-icon><Italic /></el-icon>
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :class="{ active: nodeTextDecoration === 'underline' }"
+                    @click="toggleUnderline"
+                  >
+                    <el-icon><TextUnderline /></el-icon>
+                  </el-button>
+                </el-button-group>
+
+                <el-select
+                  v-model="nodeFontFamily"
+                  @change="updateNodeStyle"
+                  size="small"
+                  placeholder="字体"
+                  class="flex-1 ml-1"
+                >
+                  <el-option label="默认" value="" />
+                  <el-option label="微软雅黑" value="Microsoft YaHei" />
+                  <el-option label="宋体" value="SimSun" />
+                  <el-option label="黑体" value="SimHei" />
+                  <el-option label="Arial" value="Arial" />
+                </el-select>
+              </div>
             </div>
-            <div class="border-color">
-              <span>边框颜色</span>
-              <el-color-picker v-model="nodeBorderColor" @change="updateNodeStyle" size="small"></el-color-picker>
+          </el-collapse-item>
+
+          <!-- 节点样式部分 -->
+          <el-collapse-item title="节点" name="node">
+            <div class="style-section-content">
+              <div class="style-row">
+                <span class="label">填充颜色</span>
+                <el-color-picker
+                  v-model="nodeColor"
+                  @change="updateNodeStyle"
+                  size="small"
+                  show-alpha
+                  :predefine="predefineColors"
+                />
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">形状</span>
+                <el-select
+                  v-model="nodeShape"
+                  @change="updateNodeStyle"
+                  size="small"
+                  class="flex-1"
+                >
+                  <el-option
+                    v-for="shape in nodeShapes"
+                    :key="shape.value"
+                    :label="shape.label"
+                    :value="shape.value"
+                  >
+                    <div class="shape-option">
+                      <div :class="['shape-preview', shape.value]"></div>
+                      <span>{{ shape.label }}</span>
+                    </div>
+                  </el-option>
+                </el-select>
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">边框</span>
+                <el-color-picker
+                  v-model="nodeBorderColor"
+                  @change="updateNodeStyle"
+                  size="small"
+                  show-alpha
+                  class="flex-none"
+                />
+                <el-input-number
+                  v-model="nodeBorderWidth"
+                  @change="updateNodeStyle"
+                  size="small"
+                  :min="0"
+                  :max="10"
+                  :step="0.5"
+                  class="flex-1 ml-1"
+                />
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">透明度</span>
+                <el-slider
+                  v-model="nodeOpacity"
+                  @change="updateNodeStyle"
+                  :min="0"
+                  :max="100"
+                  size="small"
+                  class="flex-1"
+                />
+              </div>
             </div>
-          </div>
-          
-          <!-- 填充透明度 -->
-          <div class="opacity-control">
-            <span>透明度</span>
-            <el-slider v-model="nodeOpacity" :min="0" :max="100" @change="updateNodeStyle"></el-slider>
-          </div>
-        </div>
-        
-        <div class="style-section">
-          <div class="section-title">连线</div>
-          <div class="line-controls">
-            <el-color-picker v-model="lineColor" @change="updateLineStyle" size="small"></el-color-picker>
-            <el-select v-model="lineStyle" @change="updateLineStyle" size="small" placeholder="样式">
-              <el-option label="直线" value="straight" />
-              <el-option label="曲线" value="curve" />
-              <el-option label="圆角" value="round" />
-            </el-select>
-          </div>
-          
-          <!-- 连线宽度 -->
-          <div class="line-width">
-            <span>线条宽度</span>
-            <el-slider v-model="lineWidth" :min="1" :max="5" @change="updateLineStyle"></el-slider>
-          </div>
-          
-          <!-- 连线风格 - 虚线等 -->
-          <div class="line-dash">
-            <span>线条风格</span>
-            <el-select v-model="lineDash" @change="updateLineStyle" size="small">
-              <el-option label="实线" value="solid" />
-              <el-option label="虚线" value="dashed" />
-              <el-option label="点线" value="dotted" />
-            </el-select>
-          </div>
-        </div>
-        
-        <div class="style-section">
-          <div class="section-title">标记</div>
-          <div class="marker-grid">
-            <div v-for="(marker, index) in markers" :key="index" 
-                 class="marker-item" 
-                 :class="{active: selectedMarker === marker.value}"
-                 @click="setMarker(marker.value)">
-              <i :class="marker.icon"></i>
+          </el-collapse-item>
+
+          <!-- 连线样式部分 -->
+          <el-collapse-item title="连线" name="line">
+            <div class="style-section-content">
+              <div class="style-row">
+                <span class="label">颜色</span>
+                <el-color-picker
+                  v-model="lineColor"
+                  @change="updateLineStyle"
+                  size="small"
+                  show-alpha
+                />
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">样式</span>
+                <el-select
+                  v-model="lineStyle"
+                  @change="updateLineStyle"
+                  size="small"
+                  class="flex-1"
+                >
+                  <el-option label="曲线" value="curve" />
+                  <el-option label="直线" value="straight" />
+                  <el-option label="圆角" value="round" />
+                </el-select>
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">线条</span>
+                <el-select
+                  v-model="lineDash"
+                  @change="updateLineStyle"
+                  size="small"
+                  class="flex-1"
+                >
+                  <el-option label="实线" value="solid" />
+                  <el-option label="虚线" value="dashed" />
+                  <el-option label="点线" value="dotted" />
+                </el-select>
+              </div>
+
+              <div class="style-row mt-2">
+                <span class="label">宽度</span>
+                <el-slider
+                  v-model="lineWidth"
+                  @change="updateLineStyle"
+                  :min="1"
+                  :max="5"
+                  size="small"
+                  class="flex-1"
+                />
+              </div>
             </div>
-          </div>
-        </div>
-        
-        <!-- 应用到全局按钮 -->
-        <div class="style-section">
-          <el-button type="primary" size="small" @click="applyStyleToAll">
-            将此风格应用到所有同级节点
+          </el-collapse-item>
+        </el-collapse>
+
+        <!-- 底部操作按钮 -->
+        <div class="panel-footer">
+          <el-button
+            type="primary"
+            size="small"
+            @click="applyStyleToAll"
+          >
+            应用到同级节点
           </el-button>
         </div>
       </div>
@@ -350,7 +460,7 @@ import MindMap from 'simple-mind-map'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Save, Download, ZoomIn, ZoomOut, FullScreen, Back, Right, 
-  More, Search, Delete, ArrowDown, RightBracket, QuestionFilled, Clock, InfoFilled
+  More, Search, Delete, ArrowDown, RightBracket, QuestionFilled, Clock, InfoFilled, Close, Bold, Italic, TextUnderline
 } from '@element-plus/icons-vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'  // 如果需要PDF导出，也需要安装：npm install jspdf
@@ -1180,29 +1290,37 @@ const updateNodeText = () => {
   }, [selectedNode.value])
 }
 
+// 修改样式更新函数，添加自动更新
 const updateNodeStyle = () => {
   if (!mindMap.value || !selectedNode.value) return
   
-  // 收集所有样式属性
-  const styleData = {
-    textColor: nodeTextColor.value,
-    fontSize: nodeFontSize.value,
-    backgroundColor: nodeColor.value,
-    shape: nodeShape.value,
-    fontWeight: nodeFontWeight.value,
-    fontStyle: nodeFontStyle.value,
-    textDecoration: nodeTextDecoration.value,
-    borderWidth: nodeBorderWidth.value,
-    borderColor: nodeBorderColor.value,
-    opacity: nodeOpacity.value / 100,  // 转为0-1
-    fontFamily: nodeFontFamily.value
-  }
-  
-  // 更新节点
   try {
-    mindMap.value.updateNode(styleData, [selectedNode.value])
+    // 收集所有样式属性
+    const styleData = {
+      text: selectedNodeText.value,
+      color: nodeTextColor.value,
+      fontSize: nodeFontSize.value,
+      backgroundColor: nodeColor.value,
+      shape: nodeShape.value,
+      fontWeight: nodeFontWeight.value,
+      fontStyle: nodeFontStyle.value,
+      textDecoration: nodeTextDecoration.value,
+      borderWidth: nodeBorderWidth.value,
+      borderColor: nodeBorderColor.value,
+      opacity: nodeOpacity.value / 100,
+      fontFamily: nodeFontFamily.value
+    }
     
-    // 尝试触发重新渲染
+    // 更新节点
+    if (typeof mindMap.value.updateNode === 'function') {
+      mindMap.value.updateNode(styleData, [selectedNode.value])
+    } else if (typeof mindMap.value.setNodeStyle === 'function') {
+      mindMap.value.setNodeStyle(selectedNode.value, styleData)
+    } else if (selectedNode.value.data) {
+      Object.assign(selectedNode.value.data, styleData)
+    }
+    
+    // 强制重新渲染
     mindMap.value.render && mindMap.value.render()
   } catch (e) {
     console.error('更新节点样式失败:', e)
@@ -1213,18 +1331,30 @@ const updateNodeStyle = () => {
 const updateLineStyle = () => {
   if (!mindMap.value || !selectedNode.value) return
   
-  const lineData = {
-    lineColor: lineColor.value,
-    lineStyle: lineStyle.value,
-    lineWidth: lineWidth.value,
-    lineDash: lineDash.value
-  }
-  
   try {
-    mindMap.value.updateNode(lineData, [selectedNode.value])
+    const lineData = {
+      lineColor: lineColor.value,
+      lineStyle: lineStyle.value,
+      lineWidth: lineWidth.value,
+      lineDash: lineDash.value === 'solid' ? 'none' : lineDash.value
+    }
     
-    // 尝试触发重新渲染
-    mindMap.value.render && mindMap.value.render()
+    // 尝试不同的更新方法
+    try {
+      if (typeof mindMap.value.updateLine === 'function') {
+        mindMap.value.updateLine(lineData, [selectedNode.value])
+      } else if (typeof mindMap.value.setLineStyle === 'function') {
+        mindMap.value.setLineStyle(selectedNode.value, lineData)
+      } else if (selectedNode.value.data) {
+        Object.assign(selectedNode.value.data, lineData)
+      }
+      
+      // 强制重新渲染
+      mindMap.value.render && mindMap.value.render()
+    } catch (e) {
+      console.error('更新连线样式失败:', e)
+      throw e
+    }
   } catch (e) {
     console.error('更新连线样式失败:', e)
     ElMessage.error('更新连线样式失败')
@@ -2046,7 +2176,7 @@ const applyStyleToAll = () => {
   try {
     // 收集当前样式
     const styleData = {
-      textColor: nodeTextColor.value,
+      color: nodeTextColor.value,
       fontSize: nodeFontSize.value,
       backgroundColor: nodeColor.value,
       shape: nodeShape.value,
@@ -2060,21 +2190,39 @@ const applyStyleToAll = () => {
       lineColor: lineColor.value,
       lineStyle: lineStyle.value,
       lineWidth: lineWidth.value,
-      lineDash: lineDash.value
+      lineDash: lineDash.value === 'solid' ? 'none' : lineDash.value
     }
     
     // 获取同级节点
     let siblings = []
-    if (selectedNode.value.parent) {
-      // 获取父节点的所有子节点作为同级节点
-      siblings = selectedNode.value.parent.children || []
+    const currentNode = selectedNode.value
+    
+    if (currentNode.parent) {
+      // 获取父节点的所有子节点
+      siblings = currentNode.parent.children || []
     } else {
       // 如果是根节点，则应用到所有一级节点
-      siblings = [selectedNode.value, ...(selectedNode.value.children || [])]
+      siblings = currentNode.children || []
+    }
+    
+    // 确保有节点可以更新
+    if (siblings.length === 0) {
+      ElMessage.warning('没有找到同级节点')
+      return
     }
     
     // 应用样式到所有同级节点
-    mindMap.value.updateNode(styleData, siblings)
+    siblings.forEach(node => {
+      if (typeof mindMap.value.updateNode === 'function') {
+        mindMap.value.updateNode(styleData, [node])
+      } else if (typeof mindMap.value.setNodeStyle === 'function') {
+        mindMap.value.setNodeStyle(node, styleData)
+      } else if (node.data) {
+        Object.assign(node.data, styleData)
+      }
+    })
+    
+    // 强制重新渲染
     mindMap.value.render && mindMap.value.render()
     
     ElMessage.success('样式已应用到所有同级节点')
@@ -2083,6 +2231,52 @@ const applyStyleToAll = () => {
     ElMessage.error('应用样式失败')
   }
 }
+
+// 新增的响应式变量
+const showStylePanel = ref(false)
+const activeCollapse = ref(['text', 'node', 'line']) // 默认展开所有面板
+
+// 节点形状选项
+const nodeShapes = [
+  { label: '圆角矩形', value: 'roundRect' },
+  { label: '矩形', value: 'rectangle' },
+  { label: '圆形', value: 'circle' },
+  { label: '菱形', value: 'diamond' },
+  { label: '平行四边形', value: 'parallelogram' },
+  { label: '六边形', value: 'hexagon' }
+]
+
+// 监听节点选择状态
+watch(selectedNode, (newVal) => {
+  if (newVal) {
+    showStylePanel.value = true
+    initNodeStyleInfo(newVal)
+  } else {
+    showStylePanel.value = false
+  }
+})
+
+// 添加属性变化的监听
+watch([
+  nodeTextColor,
+  nodeFontSize,
+  nodeColor,
+  nodeShape,
+  nodeFontWeight,
+  nodeFontStyle,
+  nodeTextDecoration,
+  nodeBorderWidth,
+  nodeBorderColor,
+  nodeOpacity,
+  nodeFontFamily,
+  lineColor,
+  lineStyle,
+  lineWidth,
+  lineDash
+], () => {
+  // 属性变化时自动更新
+  updateNodeStyle()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -2224,15 +2418,15 @@ const applyStyleToAll = () => {
   padding: 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .map-item:hover {
-  background: var(--el-fill-color-light);
+  background: var(--el-fill-color-lighter);  /* 使用更浅的背景色 */
 }
 
 .map-item.active {
-  background: var(--el-color-primary-light-9);
+  background: var(--el-color-primary-light-9);  /* 使用最浅的主题色 */
 }
 
 .map-info h4 {
@@ -2442,5 +2636,270 @@ const applyStyleToAll = () => {
   border-bottom: none;
   margin-bottom: 0;
   padding-bottom: 0;
+}
+
+/* 新增的样式面板相关样式 */
+.style-drawer :deep(.el-drawer__body) {
+  padding: 0;
+}
+
+.style-panel-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--el-bg-color);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.style-collapse {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.style-collapse :deep(.el-collapse-item__header) {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 16px;
+}
+
+.style-section-content {
+  padding: 12px 16px;
+}
+
+.style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  width: 60px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.mt-2 {
+  margin-top: 8px;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.ml-1 {
+  margin-left: 4px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.flex-none {
+  flex: none;
+}
+
+.font-style-group {
+  display: flex;
+  gap: 1px;
+}
+
+.font-style-group .el-button {
+  padding: 6px 8px;
+}
+
+.font-style-group .el-button.active {
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.shape-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shape-preview {
+  width: 24px;
+  height: 16px;
+  border: 1px solid var(--el-border-color);
+}
+
+.panel-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--el-border-color-light);
+  text-align: right;
+}
+
+/* 形状预览样式 */
+.shape-preview.roundRect {
+  border-radius: 4px;
+}
+
+.shape-preview.rectangle {
+  border-radius: 0;
+}
+
+.shape-preview.circle {
+  border-radius: 50%;
+}
+
+.shape-preview.diamond {
+  transform: rotate(45deg);
+}
+
+.shape-preview.parallelogram {
+  transform: skew(-20deg);
+}
+
+.shape-preview.hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+/* 优化鼠标悬浮效果 */
+.map-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.map-item:hover {
+  background: var(--el-fill-color-lighter);  /* 使用更浅的背景色 */
+}
+
+.map-item.active {
+  background: var(--el-color-primary-light-9);  /* 使用最浅的主题色 */
+}
+
+/* 优化抽屉面板中的悬浮效果 */
+.style-collapse :deep(.el-collapse-item__header):hover {
+  background-color: var(--el-fill-color-lighter);
+}
+
+.shape-option:hover {
+  background-color: var(--el-fill-color-lighter);
+}
+
+/* 优化按钮悬浮效果 */
+.font-style-group .el-button:hover {
+  background-color: var(--el-fill-color-lighter);
+}
+
+.font-style-group .el-button.active:hover {
+  background-color: var(--el-color-primary-light-8);
+}
+
+/* 优化面板内容的滚动条样式 */
+.style-collapse {
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-border-color-lighter) transparent;
+}
+
+.style-collapse::-webkit-scrollbar {
+  width: 6px;
+}
+
+.style-collapse::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.style-collapse::-webkit-scrollbar-thumb {
+  background-color: var(--el-border-color-lighter);
+  border-radius: 3px;
+}
+
+.style-collapse::-webkit-scrollbar-thumb:hover {
+  background-color: var(--el-border-color-light);
+}
+
+/* 优化抽屉面板的过渡效果 */
+.style-drawer :deep(.el-drawer) {
+  transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* 优化控件间距和对齐 */
+.style-section-content {
+  padding: 12px 16px;
+}
+
+.style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;  /* 确保每行高度一致 */
+}
+
+/* 优化标签样式 */
+.label {
+  width: 60px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+/* 替换抽屉样式为悬浮面板样式 */
+.floating-style-panel {
+  position: fixed;
+  width: 300px;
+  background: var(--el-bg-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  z-index: 2000;
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s;
+}
+
+.style-panel-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+/* 优化面板样式 */
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-light);
+  border-radius: 8px 8px 0 0;
+  background: var(--el-bg-color);
+}
+
+.style-collapse {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--el-bg-color);
+}
+
+.panel-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--el-border-color-light);
+  border-radius: 0 0 8px 8px;
+  background: var(--el-bg-color);
+}
+
+/* 添加拖动样式 */
+.panel-header {
+  cursor: move;
+  user-select: none;
 }
 </style>
