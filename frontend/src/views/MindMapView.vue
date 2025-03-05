@@ -92,7 +92,7 @@
     <!-- 左侧导图列表 -->
     <div class="sidebar">
       <div class="map-list-header">
-        <h3>我的导图</h3>
+        <!-- <h3>我的导图</h3> -->
         <el-input
           v-model="searchQuery"
           placeholder="搜索导图..."
@@ -159,33 +159,89 @@
               <el-option v-for="size in fontSizes" :key="size" :label="size" :value="size" />
             </el-select>
             <div class="font-buttons">
-              <el-button size="small" @click="toggleBold">B</el-button>
-              <el-button size="small" @click="toggleItalic"><i>I</i></el-button>
+              <el-button size="small" @click="toggleBold" 
+                :class="{active: nodeFontWeight === 'bold'}"
+                >B</el-button>
+              <el-button size="small" @click="toggleItalic" 
+                :class="{active: nodeFontStyle === 'italic'}"
+                ><i>I</i></el-button>
+              <el-button size="small" @click="toggleUnderline" 
+                :class="{active: nodeTextDecoration === 'underline'}"
+                ><u>U</u></el-button>
             </div>
+          </div>
+          <!-- 字体选择 -->
+          <div class="font-family">
+            <el-select v-model="nodeFontFamily" @change="updateNodeStyle" size="small" placeholder="字体">
+              <el-option label="默认" value="" />
+              <el-option label="宋体" value="SimSun" />
+              <el-option label="黑体" value="SimHei" />
+              <el-option label="微软雅黑" value="Microsoft YaHei" />
+              <el-option label="Arial" value="Arial" />
+              <el-option label="Times New Roman" value="Times New Roman" />
+            </el-select>
           </div>
         </div>
         
         <div class="style-section">
           <div class="section-title">节点</div>
           <div class="node-controls">
-            <el-color-picker v-model="nodeColor" @change="updateNodeStyle" size="small"></el-color-picker>
+            <el-color-picker v-model="nodeColor" @change="updateNodeStyle" size="small" 
+              :predefine="predefineColors"></el-color-picker>
             <el-select v-model="nodeShape" @change="updateNodeStyle" size="small" placeholder="形状">
               <el-option label="圆角矩形" value="roundRect" />
               <el-option label="矩形" value="rectangle" />
               <el-option label="圆形" value="circle" />
+              <el-option label="椭圆" value="ellipse" />
               <el-option label="菱形" value="diamond" />
+              <el-option label="平行四边形" value="parallelogram" />
+              <el-option label="六边形" value="hexagon" />
             </el-select>
+          </div>
+          
+          <!-- 边框样式 -->
+          <div class="border-controls">
+            <div class="border-width">
+              <span>边框宽度</span>
+              <el-slider v-model="nodeBorderWidth" :min="0" :max="5" @change="updateNodeStyle"></el-slider>
+            </div>
+            <div class="border-color">
+              <span>边框颜色</span>
+              <el-color-picker v-model="nodeBorderColor" @change="updateNodeStyle" size="small"></el-color-picker>
+            </div>
+          </div>
+          
+          <!-- 填充透明度 -->
+          <div class="opacity-control">
+            <span>透明度</span>
+            <el-slider v-model="nodeOpacity" :min="0" :max="100" @change="updateNodeStyle"></el-slider>
           </div>
         </div>
         
         <div class="style-section">
-          <div class="section-title">线条</div>
+          <div class="section-title">连线</div>
           <div class="line-controls">
             <el-color-picker v-model="lineColor" @change="updateLineStyle" size="small"></el-color-picker>
             <el-select v-model="lineStyle" @change="updateLineStyle" size="small" placeholder="样式">
               <el-option label="直线" value="straight" />
               <el-option label="曲线" value="curve" />
               <el-option label="圆角" value="round" />
+            </el-select>
+          </div>
+          
+          <!-- 连线宽度 -->
+          <div class="line-width">
+            <span>线条宽度</span>
+            <el-slider v-model="lineWidth" :min="1" :max="5" @change="updateLineStyle"></el-slider>
+          </div>
+          
+          <!-- 连线风格 - 虚线等 -->
+          <div class="line-dash">
+            <span>线条风格</span>
+            <el-select v-model="lineDash" @change="updateLineStyle" size="small">
+              <el-option label="实线" value="solid" />
+              <el-option label="虚线" value="dashed" />
+              <el-option label="点线" value="dotted" />
             </el-select>
           </div>
         </div>
@@ -200,6 +256,13 @@
               <i :class="marker.icon"></i>
             </div>
           </div>
+        </div>
+        
+        <!-- 应用到全局按钮 -->
+        <div class="style-section">
+          <el-button type="primary" size="small" @click="applyStyleToAll">
+            将此风格应用到所有同级节点
+          </el-button>
         </div>
       </div>
     </div>
@@ -289,6 +352,8 @@ import {
   Plus, Save, Download, ZoomIn, ZoomOut, FullScreen, Back, Right, 
   More, Search, Delete, ArrowDown, RightBracket, QuestionFilled, Clock, InfoFilled
 } from '@element-plus/icons-vue'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'  // 如果需要PDF导出，也需要安装：npm install jspdf
 
 // 状态
 const mindMapContainer = ref(null)
@@ -311,6 +376,23 @@ const nodeShape = ref('roundRect')
 const lineColor = ref('#666666')
 const lineStyle = ref('curve')
 const selectedMarker = ref('')
+
+// 样式相关数据
+const nodeFontWeight = ref('normal')
+const nodeFontStyle = ref('normal')
+const nodeTextDecoration = ref('none')
+const nodeBorderWidth = ref(0)
+const nodeBorderColor = ref('#cccccc')
+const nodeOpacity = ref(100)
+const lineWidth = ref(2)
+const lineDash = ref('solid')
+const nodeFontFamily = ref('')
+
+// 预定义颜色
+const predefineColors = ref([
+  '#ff4500', '#ff8c00', '#ffd700', '#90ee90', '#00ced1', 
+  '#1e90ff', '#c71585', '#ff69b4', '#8a2be2', '#4169e1'
+])
 
 // 新建导图表单
 const newMapForm = ref({
@@ -337,13 +419,15 @@ const layouts = [
 
 // 主题列表
 const themes = [
-  { label: '默认主题', value: 'default' },
-  { label: '清新主题', value: 'fresh' },
-  { label: '暗色主题', value: 'dark' },
-  { label: '商务主题', value: 'business' },
-  { label: '活力橙', value: 'orange' },
-  { label: '深蓝', value: 'deep-blue' },
-  { label: '典雅绿', value: 'elegant-green' }
+  { value: 'default', label: '默认' },
+  { value: 'classic', label: '经典' },
+  { value: 'dark', label: '暗色' },
+  { value: 'primary', label: '主色调' },
+  { value: 'green', label: '绿色' },
+  { value: 'purple', label: '紫色' },
+  { value: 'gray', label: '灰色' },
+  { value: 'red', label: '红色' },
+  { value: 'blue', label: '蓝色' }
 ]
 
 // 字体大小选项
@@ -377,19 +461,30 @@ const loadMap = (map) => {
   console.log('加载思维导图:', map.title)
   currentMap.value = map
   
+  // 重要：从map中恢复布局和主题设置
+  currentLayout.value = map.layout || 'mindmap' // 默认为mindmap
+  currentTheme.value = map.theme || 'default'   // 默认为default
+  
+  console.log('当前图的布局:', currentLayout.value, '主题:', currentTheme.value)
+  
   if (mindMap.value && map.content) {
     try {
       console.log('设置思维导图数据:', map.content)
       
-      // 确保思维导图实例可用
-      if (!mindMapContainer.value.childNodes.length) {
-        console.log('重新初始化思维导图实例')
-        initMindMapInstance(map.content)
-        setupEventListeners()
-      } else if (mindMap.value.setData) {
-        // 使用现有实例并设置数据
-        mindMap.value.setData(map.content)
-        mindMap.value.render()
+      // 重新初始化思维导图实例，确保使用正确的布局和主题
+      if (mindMapContainer.value) {
+        // 销毁旧实例
+        try {
+          mindMap.value.destroy && mindMap.value.destroy()
+        } catch (e) {
+          console.warn('销毁旧实例失败:', e)
+        }
+        
+        // 创建新实例
+        setTimeout(() => {
+          initMindMapInstance(map.content)
+          setupEventListeners()
+        }, 100)
       }
     } catch (e) {
       console.error('加载思维导图数据失败:', e)
@@ -412,32 +507,69 @@ const initMindMapInstance = (data = null) => {
   }
 
   try {
-    console.log('初始化思维导图实例', initialData, '布局:', currentLayout.value, '主题:', currentTheme.value)
+    console.log('初始化思维导图实例', 
+      '数据:', initialData, 
+      '布局:', currentLayout.value, 
+      '主题:', currentTheme.value
+    )
     
-    // 使用更简单的配置初始化
+    // 清空容器
+    if (mindMapContainer.value) {
+      mindMapContainer.value.innerHTML = ''
+    }
+    
+    // 生成当前主题的配置
+    const themeConfig = GenerateThemeConfig(currentTheme.value)
+    
+    // 使用完整配置
     const options = {
       el: mindMapContainer.value,
       data: initialData,
       width: mindMapContainer.value.clientWidth,
       height: mindMapContainer.value.clientHeight,
       layout: currentLayout.value,
-      theme: currentTheme.value
+      theme: currentTheme.value,
+      customTheme: {
+        // 添加自定义主题配置
+        [currentTheme.value]: themeConfig
+      },
+      themeConfig: themeConfig,  // 直接提供主题配置
+      
+      // 增加基本功能支持
+      contextMenu: true,
+      keyboard: true,
+      mousewheelAction: 'zoom',
+      
+      // 样式相关配置
+      style: {
+        theme: currentTheme.value,
+        // 确保应用主题样式
+        ...themeConfig
+      },
+      
+      // 确保启用命令系统
+      enableCommand: true,
+      
+      // 配置命令快捷键
+      keyCommand: {
+        'undo': 'ctrl+z',
+        'redo': 'ctrl+y'
+      }
     }
     
-    // 只添加基本必要的配置
+    // 创建实例
     mindMap.value = new MindMap(options)
     
-    console.log('创建的思维导图实例:', mindMap.value)
+    // 设置事件监听
+    setupEventListeners()
     
-    // 检查API和方法
-    if (mindMap.value) {
-      console.log('可用方法:',
-        'setLayout:', typeof mindMap.value.setLayout === 'function',
-        'setTheme:', typeof mindMap.value.setTheme === 'function',
-        'addChild:', typeof mindMap.value.addChild === 'function',
-        'insertSibling:', typeof mindMap.value.insertSibling === 'function',
-        'removeNode:', typeof mindMap.value.removeNode === 'function'
-      )
+    // 显示应用状态
+    console.log('创建的思维导图实例:', mindMap.value)
+    console.log('容器尺寸:', mindMapContainer.value.clientWidth, 'x', mindMapContainer.value.clientHeight)
+    
+    // 打印库的版本信息，帮助调试
+    if (mindMap.value.version) {
+      console.log('思维导图库版本:', mindMap.value.version)
     }
   } catch (e) {
     console.error('思维导图实例化失败:', e)
@@ -449,91 +581,66 @@ const initMindMapInstance = (data = null) => {
 const setupEventListeners = () => {
   if (!mindMap.value) return
   
-  console.log('设置思维导图事件监听')
-  
-  // 监听数据变化
   try {
-    if (mindMap.value.on) {
-      // 定义自动保存的防抖函数
-      let autoSaveTimeout = null
-      const autoSave = () => {
-        if (autoSaveTimeout) clearTimeout(autoSaveTimeout)
-        autoSaveTimeout = setTimeout(() => {
-          console.log('数据变化，自动保存')
-          saveCurrentMap()
-        }, 2000) // 延迟2秒保存，避免频繁操作
-      }
-      
-      // 监听各种可能的数据变化事件
-      mindMap.value.on('data_change', autoSave)
-      mindMap.value.on('node_click', () => {
-        // 更新当前选中节点
-        if (mindMap.value.renderer && mindMap.value.renderer.activeNode) {
-          selectedNode.value = mindMap.value.renderer.activeNode
-        }
-      })
-      
-      console.log('成功设置数据变化监听')
-    } else {
-      console.warn('思维导图实例不支持事件监听')
-    }
+    // 监听命令执行，更新撤销/重做状态
+    mindMap.value.on('command_executed', () => {
+      updateUndoRedoState()
+    })
+    
+    // 监听节点变化
+    mindMap.value.on('node_click', (node) => {
+      selectedNode.value = node
+    })
+    
+    // 其他事件监听...
+    
+    // 初始化状态
+    updateUndoRedoState()
   } catch (e) {
     console.error('设置事件监听失败:', e)
   }
-  
-  // 更新撤销/重做状态
-  updateUndoRedoState()
 }
 
 // 更新撤销/重做状态
 const updateUndoRedoState = () => {
   if (!mindMap.value) return
   
-  // 通过命令管理器获取撤销/重做状态
   try {
-    const commandManager = mindMap.value.command || mindMap.value.commandManager
-    if (commandManager) {
-      canUndo.value = commandManager.hasUndoCommands()
-      canRedo.value = commandManager.hasRedoCommands()
+    if (mindMap.value.command) {
+      // 使用命令系统检查状态
+      canUndo.value = mindMap.value.command.hasUndo()
+      canRedo.value = mindMap.value.command.hasRedo()
     } else {
-      // 备选方案：尝试从历史记录长度判断
-      const history = mindMap.value.history || []
-      const currentHistoryIndex = mindMap.value.currentHistoryIndex || -1
-      canUndo.value = currentHistoryIndex > 0
-      canRedo.value = currentHistoryIndex < history.length - 1
+      // 备选方案：检查历史记录
+      const history = mindMap.value.history
+      if (history) {
+        const currentIndex = history.currentIndex || 0
+        canUndo.value = currentIndex > 0
+        canRedo.value = currentIndex < history.list.length - 1
+      }
     }
   } catch (e) {
-    console.error('获取撤销/重做状态失败:', e)
-    // 默认都禁用
-    canUndo.value = false
-    canRedo.value = false
+    console.error('更新撤销/重做状态失败:', e)
   }
 }
 
 // 创建新导图
 const createNewMap = () => {
-  newMapForm.value = {
-    title: '',
-    description: ''
-  }
-  showCreateDialog.value = true
-}
-
-// 处理创建导图
-const handleCreateMap = () => {
   // 验证输入
   if (!newMapForm.value.title.trim()) {
     ElMessage.warning('请输入导图标题')
     return
   }
 
-  // 创建新导图
+  // 创建新导图时添加布局和主题字段
   const newMap = {
     id: Date.now().toString(),
     title: newMapForm.value.title,
     description: newMapForm.value.description,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    layout: currentLayout.value, // 保存当前布局
+    theme: currentTheme.value,   // 保存当前主题
     content: {
       data: {
         text: newMapForm.value.title,
@@ -550,12 +657,7 @@ const handleCreateMap = () => {
   saveMapsToStorage()
   
   // 加载新导图
-  currentMap.value = newMap
-  nextTick(() => {
-    resetMindMap()
-    initMindMapInstance(newMap.content)
-    setupEventListeners()
-  })
+  loadMap(newMap)
 
   // 关闭对话框
   showCreateDialog.value = false
@@ -724,46 +826,275 @@ const handleExport = (type) => {
   showExportDialog.value = true
 }
 
+// 改进导出功能实现
 const confirmExport = () => {
   if (!mindMap.value) return
   
   const filename = exportForm.value.filename || '思维导图'
   
-  switch (exportForm.value.type) {
-    case 'png':
-      mindMap.value.exportPng({
-        fileName: filename,
-        backgroundColor: exportForm.value.backgroundColor,
-        scale: exportForm.value.quality
-      })
-      break
-    case 'svg':
-      mindMap.value.exportSvg({
-        fileName: filename
-      })
-      break
-    case 'json': {
-      const jsonData = JSON.stringify(mindMap.value.getData())
-      const blob = new Blob([jsonData], {type: 'application/json'})
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${filename}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      break
+  try {
+    // 获取导出选项
+    const exportOptions = {
+      fileName: filename,
+      backgroundColor: exportForm.value.backgroundColor,
+      scale: exportForm.value.quality
     }
-    case 'pdf':
-      mindMap.value.exportPdf({
-        fileName: filename,
-        backgroundColor: exportForm.value.backgroundColor,
-        scale: exportForm.value.quality
-      })
-      break
+    
+    // 根据不同类型处理导出
+    switch (exportForm.value.type) {
+      case 'png':
+        exportToPng(exportOptions)
+        break
+      case 'svg':
+        exportToSvg(exportOptions)
+        break
+      case 'json':
+        exportToJson(exportOptions)
+        break
+      case 'pdf':
+        exportToPdf(exportOptions)
+        break
+    }
+    
+    showExportDialog.value = false
+    ElMessage.success('导出成功')
+  } catch (e) {
+    console.error('导出失败:', e)
+    ElMessage.error('导出失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// PNG导出
+const exportToPng = async (options) => {
+  try {
+    // 尝试不同可能的导出方法
+    if (typeof mindMap.value.exportPng === 'function') {
+      await mindMap.value.exportPng(options)
+      return
+    }
+    
+    if (typeof mindMap.value.export?.png === 'function') {
+      await mindMap.value.export.png(options)
+      return
+    }
+    
+    if (typeof mindMap.value.exportImage === 'function') {
+      await mindMap.value.exportImage({...options, type: 'png'})
+      return
+    }
+    
+    // 使用 html2canvas 导出
+    const container = mindMapContainer.value
+    if (!container) {
+      throw new Error("找不到思维导图容器")
+    }
+    
+    // 获取当前容器的实际内容区域
+    const mindMapContent = container.querySelector('.mind-map-container') || container
+    const contentBox = mindMapContent.getBoundingClientRect()
+    
+    // 创建临时容器以确保捕获完整内容
+    const tempContainer = document.createElement('div')
+    tempContainer.style.position = 'absolute'
+    tempContainer.style.left = '-9999px'
+    tempContainer.style.width = `${contentBox.width}px`
+    tempContainer.style.height = `${contentBox.height}px`
+    document.body.appendChild(tempContainer)
+    
+    // 克隆思维导图内容到临时容器
+    tempContainer.appendChild(mindMapContent.cloneNode(true))
+    
+    // 使用 html2canvas 进行导出
+    const canvas = await html2canvas(tempContainer, {
+      backgroundColor: options.backgroundColor || '#ffffff',
+      scale: options.scale || 2,
+      useCORS: true,
+      logging: false,
+      allowTaint: true,
+      foreignObjectRendering: true
+    })
+    
+    // 清理临时容器
+    document.body.removeChild(tempContainer)
+    
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.download = `${options.fileName}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+    
+    ElMessage.success('导出PNG成功')
+  } catch (e) {
+    console.error('导出PNG失败:', e)
+    ElMessage.error('导出PNG失败: ' + e.message)
+  }
+}
+
+// SVG导出辅助函数
+const svgExport = (svgElement, options) => {
+  // 克隆SVG以避免修改原始元素
+  const clonedSvg = svgElement.cloneNode(true)
+  
+  // 设置背景颜色
+  if (options.backgroundColor) {
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
+    rect.setAttribute("width", "100%")
+    rect.setAttribute("height", "100%")
+    rect.setAttribute("fill", options.backgroundColor)
+    clonedSvg.insertBefore(rect, clonedSvg.firstChild)
   }
   
-  showExportDialog.value = false
-  ElMessage.success('导出成功')
+  // 序列化SVG为字符串
+  const serializer = new XMLSerializer()
+  const svgString = serializer.serializeToString(clonedSvg)
+  
+  // 使用Blob创建下载链接
+  const blob = new Blob([svgString], {type: 'image/svg+xml'})
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${options.fileName}.svg`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// SVG导出
+const exportToSvg = async (options) => {
+  try {
+    // 尝试内置的SVG导出方法
+    if (typeof mindMap.value.exportSvg === 'function') {
+      await mindMap.value.exportSvg(options)
+      return
+    }
+    
+    // 查找SVG元素
+    const container = mindMapContainer.value
+    const svgElement = container.querySelector('svg')
+    if (!svgElement) {
+      throw new Error("找不到SVG元素")
+    }
+    
+    // 克隆SVG以避免修改原始元素
+    const clonedSvg = svgElement.cloneNode(true)
+    
+    // 设置背景颜色
+    if (options.backgroundColor) {
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
+      rect.setAttribute("width", "100%")
+      rect.setAttribute("height", "100%")
+      rect.setAttribute("fill", options.backgroundColor)
+      clonedSvg.insertBefore(rect, clonedSvg.firstChild)
+    }
+    
+    // 序列化SVG
+    const serializer = new XMLSerializer()
+    const svgString = serializer.serializeToString(clonedSvg)
+    
+    // 创建下载链接
+    const blob = new Blob([svgString], {type: 'image/svg+xml'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${options.fileName}.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出SVG成功')
+  } catch (e) {
+    console.error('导出SVG失败:', e)
+    ElMessage.error('导出SVG失败: ' + e.message)
+  }
+}
+
+// JSON导出
+const exportToJson = async (options) => {
+  try {
+    let jsonData
+    
+    // 尝试获取思维导图数据
+    if (typeof mindMap.value.getData === 'function') {
+      jsonData = mindMap.value.getData()
+    } else if (typeof mindMap.value.export?.json === 'function') {
+      jsonData = await mindMap.value.export.json()
+      return // 这种情况下可能已经处理了下载
+    } else if (mindMap.value.data) {
+      jsonData = mindMap.value.data
+    } else {
+      throw new Error("无法获取思维导图数据")
+    }
+    
+    // 将数据转换为JSON字符串并下载
+    const jsonStr = JSON.stringify(jsonData, null, 2)
+    const blob = new Blob([jsonStr], {type: 'application/json'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${options.fileName}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出JSON成功')
+  } catch (e) {
+    console.error('导出JSON失败:', e)
+    ElMessage.error('导出JSON失败: ' + e.message)
+  }
+}
+
+// PDF导出
+const exportToPdf = async (options) => {
+  try {
+    // 尝试内置的PDF导出方法
+    if (typeof mindMap.value.exportPdf === 'function') {
+      await mindMap.value.exportPdf(options)
+      return
+    }
+    
+    // 使用 html2canvas + jsPDF 导出
+    const container = mindMapContainer.value
+    if (!container) {
+      throw new Error("找不到思维导图容器")
+    }
+    
+    const mindMapContent = container.querySelector('.mind-map-container') || container
+    const canvas = await html2canvas(mindMapContent, {
+      backgroundColor: options.backgroundColor || '#ffffff',
+      scale: options.scale || 2,
+      useCORS: true,
+      logging: false,
+      allowTaint: true,
+      foreignObjectRendering: true
+    })
+    
+    // 获取画布尺寸
+    const imgWidth = 210  // A4 宽度 (mm)
+    const pageHeight = 297  // A4 高度 (mm)
+    const imgHeight = canvas.height * imgWidth / canvas.width
+    
+    // 创建 PDF
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    
+    // 如果内容高度超过一页，需要分页处理
+    let heightLeft = imgHeight
+    let position = 0
+    
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
+    heightLeft -= pageHeight
+    
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight
+      pdf.addPage()
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+    }
+    
+    // 保存 PDF
+    pdf.save(`${options.fileName}.pdf`)
+    
+    ElMessage.success('导出PDF成功')
+  } catch (e) {
+    console.error('导出PDF失败:', e)
+    ElMessage.error('导出PDF失败: ' + e.message)
+  }
 }
 
 // 节点操作函数
@@ -851,36 +1182,68 @@ const updateNodeText = () => {
 
 const updateNodeStyle = () => {
   if (!mindMap.value || !selectedNode.value) return
-  mindMap.value.updateNode({
+  
+  // 收集所有样式属性
+  const styleData = {
     textColor: nodeTextColor.value,
     fontSize: nodeFontSize.value,
     backgroundColor: nodeColor.value,
-    shape: nodeShape.value
-  }, [selectedNode.value])
+    shape: nodeShape.value,
+    fontWeight: nodeFontWeight.value,
+    fontStyle: nodeFontStyle.value,
+    textDecoration: nodeTextDecoration.value,
+    borderWidth: nodeBorderWidth.value,
+    borderColor: nodeBorderColor.value,
+    opacity: nodeOpacity.value / 100,  // 转为0-1
+    fontFamily: nodeFontFamily.value
+  }
+  
+  // 更新节点
+  try {
+    mindMap.value.updateNode(styleData, [selectedNode.value])
+    
+    // 尝试触发重新渲染
+    mindMap.value.render && mindMap.value.render()
+  } catch (e) {
+    console.error('更新节点样式失败:', e)
+    ElMessage.error('更新样式失败')
+  }
 }
 
 const updateLineStyle = () => {
   if (!mindMap.value || !selectedNode.value) return
-  mindMap.value.updateNode({
+  
+  const lineData = {
     lineColor: lineColor.value,
-    lineStyle: lineStyle.value
-  }, [selectedNode.value])
+    lineStyle: lineStyle.value,
+    lineWidth: lineWidth.value,
+    lineDash: lineDash.value
+  }
+  
+  try {
+    mindMap.value.updateNode(lineData, [selectedNode.value])
+    
+    // 尝试触发重新渲染
+    mindMap.value.render && mindMap.value.render()
+  } catch (e) {
+    console.error('更新连线样式失败:', e)
+    ElMessage.error('更新连线样式失败')
+  }
 }
 
 const toggleBold = () => {
-  if (!mindMap.value || !selectedNode.value) return
-  const isBold = selectedNode.value.data.fontWeight === 'bold'
-  mindMap.value.updateNode({
-    fontWeight: isBold ? 'normal' : 'bold'
-  }, [selectedNode.value])
+  nodeFontWeight.value = nodeFontWeight.value === 'bold' ? 'normal' : 'bold'
+  updateNodeStyle()
 }
 
 const toggleItalic = () => {
-  if (!mindMap.value || !selectedNode.value) return
-  const isItalic = selectedNode.value.data.fontStyle === 'italic'
-  mindMap.value.updateNode({
-    fontStyle: isItalic ? 'normal' : 'italic'
-  }, [selectedNode.value])
+  nodeFontStyle.value = nodeFontStyle.value === 'italic' ? 'normal' : 'italic'
+  updateNodeStyle()
+}
+
+const toggleUnderline = () => {
+  nodeTextDecoration.value = nodeTextDecoration.value === 'underline' ? 'none' : 'underline'
+  updateNodeStyle()
 }
 
 const setMarker = (marker) => {
@@ -893,61 +1256,339 @@ const setMarker = (marker) => {
 
 // 布局和主题切换
 const changeLayout = (layout) => {
-  if (!mindMap.value) return
+  if (!mindMap.value || !currentMap.value) return
   try {
     console.log('尝试切换布局为:', layout)
     
-    // 简化调用，优先使用库的直接API
-    if (mindMap.value.setLayout) {
+    // 更新当前布局
+    currentLayout.value = layout
+    
+    // 重要：更新当前思维导图对象的布局设置
+    const index = maps.value.findIndex(m => m.id === currentMap.value.id)
+    if (index > -1) {
+      maps.value[index].layout = layout
+      currentMap.value.layout = layout
+      
+      // 保存到存储
+      saveMapsToStorage()
+    }
+    
+    // 应用布局更改
+    if (typeof mindMap.value.setLayout === 'function') {
       mindMap.value.setLayout(layout)
-      currentLayout.value = layout
       mindMap.value.render && mindMap.value.render()
       ElMessage.success(`布局已更改为: ${layout}`)
       return
     }
     
-    // 兼容处理
-    if (mindMap.value.setOptions) {
-      mindMap.value.setOptions({ layout })
-      currentLayout.value = layout
-      mindMap.value.render && mindMap.value.render()
-      ElMessage.success(`布局已更改为: ${layout}`)
+    // 如果API调用失败，尝试重新初始化
+    // 保存当前数据
+    let currentData = null
+    try {
+      if (typeof mindMap.value.getData === 'function') {
+        currentData = mindMap.value.getData()
+      } else if (mindMap.value.data) {
+        currentData = { data: JSON.parse(JSON.stringify(mindMap.value.data)) }
+      }
+    } catch (e) {
+      console.error('获取当前数据失败:', e)
+    }
+    
+    // 如果获取到了数据，重新初始化
+    if (currentData) {
+      // 销毁旧实例
+      try {
+        mindMap.value.destroy && mindMap.value.destroy()
+      } catch (e) {
+        console.warn('销毁旧实例失败:', e)
+      }
+      
+      // 使用新布局初始化
+      setTimeout(() => {
+        try {
+          initMindMapInstance(currentData)
+          setupEventListeners()
+          ElMessage.success(`布局已更改为: ${layout}`)
+        } catch (e) {
+          console.error('重新初始化失败:', e)
+          ElMessage.error('布局切换失败')
+        }
+      }, 100)
       return
     }
     
-    ElMessage.warning('切换布局功能在当前版本不可用')
+    ElMessage.warning('布局切换功能在当前版本不可用')
   } catch (e) {
     console.error('切换布局失败:', e)
     ElMessage.error('切换布局失败')
   }
 }
 
+// 改进主题切换函数，确保实时生效
 const changeTheme = (theme) => {
-  if (!mindMap.value) return
+  if (!mindMap.value || !currentMap.value) return
   try {
     console.log('尝试切换主题为:', theme)
     
-    // 简化调用，优先使用库的直接API
-    if (mindMap.value.setTheme) {
-      mindMap.value.setTheme(theme)
-      currentTheme.value = theme
-      ElMessage.success(`主题已更改为: ${theme}`)
-      return
+    // 更新当前主题
+    currentTheme.value = theme
+    
+    // 更新当前思维导图对象的主题设置
+    const index = maps.value.findIndex(m => m.id === currentMap.value.id)
+    if (index > -1) {
+      maps.value[index].theme = theme
+      currentMap.value.theme = theme
+      
+      // 保存到存储
+      saveMapsToStorage()
     }
     
-    // 兼容处理
-    if (mindMap.value.setOptions) {
-      mindMap.value.setOptions({ theme })
-      currentTheme.value = theme
-      mindMap.value.render && mindMap.value.render()
-      ElMessage.success(`主题已更改为: ${theme}`)
-      return
+    // 获取当前思维导图数据以便重新渲染
+    let currentData = null
+    try {
+      if (typeof mindMap.value.getData === 'function') {
+        currentData = mindMap.value.getData()
+      } else if (mindMap.value.data) {
+        currentData = { data: JSON.parse(JSON.stringify(mindMap.value.data)) }
+      }
+    } catch (e) {
+      console.error('获取当前数据失败:', e)
     }
     
-    ElMessage.warning('切换主题功能在当前版本不可用')
+    // 获取当前视图状态（位置和缩放）
+    let viewState = null
+    try {
+      if (mindMap.value.getViewState) {
+        viewState = mindMap.value.getViewState()
+      } else if (mindMap.value.view) {
+        viewState = {
+          scale: mindMap.value.view.scale || 1,
+          x: mindMap.value.view.x || 0,
+          y: mindMap.value.view.y || 0
+        }
+      }
+    } catch (e) {
+      console.error('获取视图状态失败:', e)
+    }
+    
+    // 强制重新初始化渲染，这是确保主题完全应用的最可靠方式
+    try {
+      // 销毁旧实例
+      mindMap.value.destroy && mindMap.value.destroy()
+    } catch (e) {
+      console.warn('销毁旧实例失败:', e)
+    }
+    
+    // 清空容器并重新创建实例
+    if (mindMapContainer.value) {
+      mindMapContainer.value.innerHTML = ''
+      
+      // 重新初始化
+      setTimeout(() => {
+        // 只有当获取到数据时才初始化
+        if (currentData) {
+          initMindMapInstance(currentData)
+          setupEventListeners()
+          
+          // 恢复视图状态
+          if (viewState && mindMap.value) {
+            try {
+              if (mindMap.value.setViewState) {
+                mindMap.value.setViewState(viewState)
+              } else if (mindMap.value.view) {
+                mindMap.value.view.scale = viewState.scale
+                mindMap.value.view.x = viewState.x
+                mindMap.value.view.y = viewState.y
+                mindMap.value.render()
+              }
+            } catch (e) {
+              console.warn('恢复视图状态失败:', e)
+            }
+          }
+          
+          ElMessage.success(`主题已更改为: ${theme}`)
+        } else {
+          console.error('重新初始化失败: 无法获取当前数据')
+          ElMessage.error('主题切换失败')
+        }
+      }, 50)
+    }
   } catch (e) {
     console.error('切换主题失败:', e)
-    ElMessage.error('切换主题失败')
+    ElMessage.error('主题切换失败')
+  }
+}
+
+// 生成主题配置
+const GenerateThemeConfig = (theme) => {
+  // 基础配置
+  const baseConfig = {
+    // 基本背景和颜色
+    backgroundColor: '#fff',
+    color: '#333',
+    
+    // 连线样式
+    lineColor: '#666',
+    lineWidth: 2,
+    lineStyle: 'curve', // curve, straight, round
+    
+    // 连接线风格
+    generalizationLineColor: '#999',
+    generalizationLineWidth: 1,
+    
+    // 根节点样式
+    rootNodeBorderRadius: 6,
+    rootNodeBackgroundColor: '#f66',
+    rootNodeColor: '#fff',
+    rootNodeFontSize: 18,
+    rootNodePadding: [10, 15],
+    rootNodeBorderWidth: 0,
+    rootNodeBorderColor: 'transparent',
+    
+    // 二级节点样式
+    secondNodeBorderRadius: 5,
+    secondNodeBackgroundColor: '#fd9',
+    secondNodeColor: '#555',
+    secondNodeFontSize: 16,
+    secondNodePadding: [6, 12],
+    secondNodeBorderWidth: 0,
+    secondNodeBorderColor: 'transparent',
+    
+    // 子节点样式
+    childNodeBorderRadius: 5,
+    childNodeBackgroundColor: '#eee',
+    childNodeColor: '#555',
+    childNodeFontSize: 14,
+    childNodePaddingX: 10,
+    childNodePaddingY: 6,
+    childNodeBorderWidth: 0,
+    childNodeBorderColor: 'transparent',
+    
+    // 激活状态
+    activeNodeBorderColor: '#409eff',
+    activeNodeBorderWidth: 2,
+    activeNodeBoxShadow: '0 0 6px rgba(64, 158, 255, 0.5)',
+    
+    // 连线样式
+    lineTextColor: '#666',
+    lineTextFontSize: 12,
+  }
+  
+  // 根据主题名称返回不同配置
+  switch (theme) {
+    case 'default':
+      return {
+        ...baseConfig,
+        backgroundColor: '#f5f5f5',
+        rootNodeBackgroundColor: '#ff7043',
+        secondNodeBackgroundColor: '#ffab91',
+        childNodeBackgroundColor: '#ffe0b2',
+        lineStyle: 'curve'
+      }
+    case 'classic':
+      return {
+        ...baseConfig,
+        rootNodeBorderRadius: 4,
+        rootNodeBackgroundColor: '#3573b3',
+        rootNodeColor: '#fff',
+        secondNodeBackgroundColor: '#4f9ff0',
+        secondNodeColor: '#fff',
+        childNodeBackgroundColor: '#e6f5ff',
+        childNodeColor: '#333',
+        lineColor: '#549ae8',
+        lineStyle: 'curve'
+      }
+    case 'dark':
+      return {
+        ...baseConfig,
+        backgroundColor: '#333',
+        color: '#eee',
+        lineColor: '#aaa',
+        rootNodeBackgroundColor: '#3e3e3e',
+        rootNodeBorderColor: '#666',
+        rootNodeBorderWidth: 1,
+        rootNodeColor: '#fff',
+        secondNodeBackgroundColor: '#484848',
+        secondNodeColor: '#fff',
+        childNodeBackgroundColor: '#444',
+        childNodeColor: '#ddd',
+        childNodeBorderColor: '#555',
+        childNodeBorderWidth: 1,
+        lineStyle: 'round',
+        activeNodeBorderColor: '#4db6ac',
+        activeNodeBoxShadow: '0 0 6px rgba(77, 182, 172, 0.5)'
+      }
+    case 'primary':
+      return {
+        ...baseConfig,
+        rootNodeBorderRadius: 25,
+        rootNodeBackgroundColor: '#409eff',
+        secondNodeBorderRadius: 15,
+        secondNodeBackgroundColor: '#79bbff',
+        childNodeBorderRadius: 12,
+        childNodeBackgroundColor: '#e6f5ff',
+        lineColor: '#409eff',
+        lineStyle: 'curve'
+      }
+    case 'green':
+      return {
+        ...baseConfig,
+        rootNodeBorderRadius: 0,
+        rootNodeBackgroundColor: '#67c23a',
+        secondNodeBorderRadius: 0,
+        secondNodeBackgroundColor: '#95d475',
+        childNodeBorderRadius: 0,
+        childNodeBackgroundColor: '#f0f9eb',
+        lineColor: '#67c23a',
+        lineStyle: 'straight'
+      }
+    case 'purple':
+      return {
+        ...baseConfig,
+        rootNodeBackgroundColor: '#9966cc',
+        rootNodeBorderRadius: 8,
+        secondNodeBackgroundColor: '#b990f0',
+        childNodeBackgroundColor: '#f4f0f9',
+        lineColor: '#9966cc',
+        lineStyle: 'round'
+      }
+    case 'gray':
+      return {
+        ...baseConfig,
+        rootNodeBackgroundColor: '#606266',
+        secondNodeBackgroundColor: '#909399',
+        childNodeBackgroundColor: '#f5f7fa',
+        lineColor: '#909399',
+        childNodeBorderColor: '#dcdfe6',
+        childNodeBorderWidth: 1,
+        lineStyle: 'straight'
+      }
+    case 'red':
+      return {
+        ...baseConfig,
+        rootNodeBackgroundColor: '#f56c6c',
+        rootNodeBorderRadius: 0,
+        secondNodeBackgroundColor: '#fab6b6',
+        secondNodeBorderRadius: 0,
+        childNodeBackgroundColor: '#fef0f0',
+        childNodeBorderRadius: 0,
+        lineColor: '#f56c6c',
+        lineStyle: 'straight'
+      }
+    case 'blue':
+      return {
+        ...baseConfig,
+        rootNodeBackgroundColor: '#1890ff',
+        rootNodeBorderRadius: 16,
+        secondNodeBackgroundColor: '#69c0ff',
+        secondNodeBorderRadius: 16,
+        childNodeBackgroundColor: '#e6f7ff',
+        childNodeBorderRadius: 16,
+        lineColor: '#1890ff',
+        lineStyle: 'curve'
+      }
+    default:
+      return baseConfig
   }
 }
 
@@ -1028,32 +1669,40 @@ const resetZoom = () => {
 const undo = () => {
   if (!mindMap.value) return
   try {
+    // 使用命令系统执行撤销
     if (mindMap.value.command) {
-      mindMap.value.command.undo()
-    } else if (mindMap.value.commandManager) {
-      mindMap.value.commandManager.undo()
-    } else if (typeof mindMap.value.undo === 'function') {
-      mindMap.value.undo()
+      mindMap.value.command.execute('undo')
+    } else if (mindMap.value.execCommand) {
+      mindMap.value.execCommand('undo')
     }
+    
+    // 更新状态
     updateUndoRedoState()
+    // 重新渲染
+    mindMap.value.render()
   } catch (e) {
-    console.error('撤销操作失败:', e)
+    console.error('撤销失败:', e)
+    ElMessage.error('撤销失败')
   }
 }
 
 const redo = () => {
   if (!mindMap.value) return
   try {
+    // 使用命令系统执行重做
     if (mindMap.value.command) {
-      mindMap.value.command.redo()
-    } else if (mindMap.value.commandManager) {
-      mindMap.value.commandManager.redo()
-    } else if (typeof mindMap.value.redo === 'function') {
-      mindMap.value.redo()
+      mindMap.value.command.execute('redo')
+    } else if (mindMap.value.execCommand) {
+      mindMap.value.execCommand('redo')
     }
+    
+    // 更新状态
     updateUndoRedoState()
+    // 重新渲染
+    mindMap.value.render()
   } catch (e) {
-    console.error('重做操作失败:', e)
+    console.error('重做失败:', e)
+    ElMessage.error('重做失败')
   }
 }
 
@@ -1354,6 +2003,86 @@ const keyboardShortcuts = [
   { keys: ['←'], description: '向左导航' },
   { keys: ['→'], description: '向右导航' },
 ]
+
+// 初始化节点样式信息
+const initNodeStyleInfo = (node) => {
+  if (!node) return
+  
+  // 读取节点当前的样式
+  const data = node.data || {}
+  
+  selectedNodeText.value = data.text || ''
+  nodeTextColor.value = data.textColor || '#333333'
+  nodeFontSize.value = data.fontSize || 14
+  nodeColor.value = data.backgroundColor || '#ffffff'
+  nodeShape.value = data.shape || 'roundRect'
+  lineColor.value = data.lineColor || '#666666'
+  lineStyle.value = data.lineStyle || 'curve'
+  selectedMarker.value = data.marker || ''
+  
+  // 新增样式属性
+  nodeFontWeight.value = data.fontWeight || 'normal'
+  nodeFontStyle.value = data.fontStyle || 'normal'
+  nodeTextDecoration.value = data.textDecoration || 'none'
+  nodeBorderWidth.value = data.borderWidth || 0
+  nodeBorderColor.value = data.borderColor || '#cccccc'
+  nodeOpacity.value = data.opacity !== undefined ? data.opacity * 100 : 100
+  lineWidth.value = data.lineWidth || 2
+  lineDash.value = data.lineDash || 'solid'
+  nodeFontFamily.value = data.fontFamily || ''
+}
+
+// 监听选中节点变化
+watch(selectedNode, (newVal) => {
+  if (newVal) {
+    initNodeStyleInfo(newVal)
+  }
+})
+
+// 将当前样式应用到所有同级节点
+const applyStyleToAll = () => {
+  if (!mindMap.value || !selectedNode.value) return
+  
+  try {
+    // 收集当前样式
+    const styleData = {
+      textColor: nodeTextColor.value,
+      fontSize: nodeFontSize.value,
+      backgroundColor: nodeColor.value,
+      shape: nodeShape.value,
+      fontWeight: nodeFontWeight.value,
+      fontStyle: nodeFontStyle.value,
+      textDecoration: nodeTextDecoration.value,
+      borderWidth: nodeBorderWidth.value,
+      borderColor: nodeBorderColor.value,
+      opacity: nodeOpacity.value / 100,
+      fontFamily: nodeFontFamily.value,
+      lineColor: lineColor.value,
+      lineStyle: lineStyle.value,
+      lineWidth: lineWidth.value,
+      lineDash: lineDash.value
+    }
+    
+    // 获取同级节点
+    let siblings = []
+    if (selectedNode.value.parent) {
+      // 获取父节点的所有子节点作为同级节点
+      siblings = selectedNode.value.parent.children || []
+    } else {
+      // 如果是根节点，则应用到所有一级节点
+      siblings = [selectedNode.value, ...(selectedNode.value.children || [])]
+    }
+    
+    // 应用样式到所有同级节点
+    mindMap.value.updateNode(styleData, siblings)
+    mindMap.value.render && mindMap.value.render()
+    
+    ElMessage.success('样式已应用到所有同级节点')
+  } catch (e) {
+    console.error('应用样式到同级节点失败:', e)
+    ElMessage.error('应用样式失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -1663,4 +2392,55 @@ const keyboardShortcuts = [
   align-items: center;
   gap: 4px;
 }
-</style> 
+
+.font-buttons .el-button.active {
+  background-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.font-family {
+  margin-top: 8px;
+}
+
+.border-controls, .opacity-control, .line-width, .line-dash {
+  margin-top: 10px;
+}
+
+.border-width, .border-color, .opacity-control, .line-width, .line-dash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.border-width span, .border-color span, .opacity-control span, .line-width span, .line-dash span {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  width: 70px;
+}
+
+.border-width .el-slider, .opacity-control .el-slider, .line-width .el-slider {
+  flex: 1;
+  margin-left: 8px;
+}
+
+/* 调整样式面板的滚动条 */
+.panel-content {
+  padding: 12px;
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+}
+
+.style-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.style-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+</style>
