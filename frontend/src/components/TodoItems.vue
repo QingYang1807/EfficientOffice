@@ -439,151 +439,21 @@
 
     <!-- 底部添加任务区 -->
     <div class="flex-none px-6 py-4">
-      <a-input
-        v-model:value="newTodo"
+      <FancyInput
+        v-model="newTodo"
+        :category="newTodoCategory"
+        :priority="newTodoPriority"
+        :dueDate="newDueDate"
+        :dueDateRange="dateRange"
         placeholder="添加新任务..."
-        class="add-task-input"
-        :bordered="true"
-        @keyup.enter="addTodo"
+        @enter="addTodo"
+        @update:category="setCategory"
+        @update:priority="setPriority"
+        @update:dueDate="newDueDate = $event"
+        @update:dueDateRange="dateRange = $event"
+        @setDueDate="setDueDate"
       >
-        <!-- 左侧前缀图标和下拉菜单 -->
-        <template #prefix>
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-2">
-              <!-- 分类标签 - 添加下拉菜单 -->
-              <a-dropdown :trigger="['hover']" placement="bottomLeft">
-                <a-tag 
-                  v-if="newTodoCategory" 
-                  :color="getCategoryColor(newTodoCategory)"
-                  size="small"
-                  class="hover:cursor-pointer"
-                >
-                  {{ getCategoryShortName(newTodoCategory) }}
-                </a-tag>
-                <template #overlay>
-                  <a-menu @click="({ key }) => setCategory(key)">
-                    <a-menu-item key="目标任务">
-                      <a-tag color="purple" size="small">目标</a-tag>
-                      <span class="ml-2">目标任务</span>
-                    </a-menu-item>
-                    <a-menu-item key="工作目标">
-                      <a-tag color="blue" size="small">工作</a-tag>
-                      <span class="ml-2">工作目标</span>
-                    </a-menu-item>
-                    <a-menu-item key="学习目标">
-                      <a-tag color="success" size="small">学习</a-tag>
-                      <span class="ml-2">学习目标</span>
-                    </a-menu-item>
-                    <a-menu-item key="生活目标">
-                      <a-tag color="warning" size="small">生活</a-tag>
-                      <span class="ml-2">生活目标</span>
-                    </a-menu-item>
-                    <a-menu-item key="其他目标">
-                      <a-tag color="default" size="small">其他</a-tag>
-                      <span class="ml-2">其他目标</span>
-                    </a-menu-item>
-                  </a-menu>
-                </template>
-              </a-dropdown>
-
-              <!-- 优先级标签 - 添加下拉菜单 -->
-              <a-dropdown :trigger="['hover']" placement="bottomLeft">
-                <a-tag 
-                  v-if="newTodoPriority" 
-                  :color="getPriorityColor(newTodoPriority)"
-                  size="small"
-                  class="hover:cursor-pointer"
-                >
-                  {{ newTodoPriority }}
-                </a-tag>
-                <template #overlay>
-                  <a-menu @click="({ key }) => setPriority(key)">
-                    <a-menu-item key="高">
-                      <a-tag color="error" size="small">高</a-tag>
-                      <span class="ml-2">高优先级</span>
-                    </a-menu-item>
-                    <a-menu-item key="中">
-                      <a-tag color="warning" size="small">中</a-tag>
-                      <span class="ml-2">中优先级</span>
-                    </a-menu-item>
-                    <a-menu-item key="低">
-                      <a-tag color="success" size="small">低</a-tag>
-                      <span class="ml-2">低优先级</span>
-                    </a-menu-item>
-                  </a-menu>
-                </template>
-              </a-dropdown>
-            </div>
-            <a-dropdown>
-              <plus-outlined class="text-gray-400 cursor-pointer hover:text-blue-500 text-lg" />
-              <template #overlay>
-                <a-menu>
-                  <a-menu-item-group title="任务分类">
-                    <a-menu-item key="work" @click="setCategory('工作目标')">
-                      <div class="flex items-center gap-2">
-                        <a-tag color="blue" size="small">工作</a-tag>
-                        <span>工作目标</span>
-                      </div>
-                    </a-menu-item>
-                    <a-menu-item key="study" @click="setCategory('学习目标')">
-                      <div class="flex items-center gap-2">
-                        <a-tag color="success" size="small">学习</a-tag>
-                        <span>学习目标</span>
-                      </div>
-                    </a-menu-item>
-                    <a-menu-item key="life" @click="setCategory('生活目标')">
-                      <div class="flex items-center gap-2">
-                        <a-tag color="warning" size="small">生活</a-tag>
-                        <span>生活目标</span>
-                      </div>
-                    </a-menu-item>
-                    <a-menu-item key="other" @click="setCategory('其他目标')">
-                      <div class="flex items-center gap-2">
-                        <a-tag color="default" size="small">其他</a-tag>
-                        <span>其他目标</span>
-                      </div>
-                    </a-menu-item>
-                  </a-menu-item-group>
-                  <a-menu-divider />
-                  <a-menu-item-group title="优先级">
-                    <a-menu-item key="high" @click="setPriority('高')">
-                      <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span>高优先级</span>
-                      </div>
-                    </a-menu-item>
-                    <a-menu-item key="medium" @click="setPriority('中')">
-                      <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-                        <span>中优先级</span>
-                      </div>
-                    </a-menu-item>
-                    <a-menu-item key="low" @click="setPriority('低')">
-                      <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span>低优先级</span>
-                      </div>
-                    </a-menu-item>
-                  </a-menu-item-group>
-                  <a-menu-divider />
-                  <a-menu-item key="date" @click="setDueDate">
-                    📅 设置截止日期
-                  </a-menu-item>
-                </a-menu>
-              </template>
-            </a-dropdown>
-          </div>
-        </template>
-
-        <!-- 右侧回车提示图标 -->
-        <template #suffix>
-          <enter-outlined 
-            v-if="newTodo.trim()"
-            class="text-gray-300 text-lg"
-            title="按回车键添加任务"
-          />
-        </template>
-      </a-input>
+      </FancyInput>
     </div>
 
     <!-- 添加日期选择器到模板中 -->
@@ -831,7 +701,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, h, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h, nextTick, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { 
@@ -863,6 +733,7 @@ import {
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import confetti from 'canvas-confetti'
+import FancyInput from './FancyInput.vue'
 
 // 初始化 router
 const router = useRouter()
@@ -1152,7 +1023,9 @@ const setPriority = (priority) => {
 }
 
 const setDueDate = () => {
-  datePickerVisible.value = true
+  datePickerVisible.value = true;
+  tempDueDate.value = newDueDate.value ? dayjs(newDueDate.value) : dayjs();
+  editingDueDate.value = null; // 表示我们正在为新任务设置截止日期
 }
 
 // 处理日期选择
@@ -1162,14 +1035,17 @@ const handleDateChange = (date) => {
 
 const handleDateOk = () => {
   if (editingDueDate.value) {
-    // 更新现有任务的截止日期
-    editingDueDate.value.dueDate = tempDueDate.value ? tempDueDate.value.valueOf() : null
-    saveTodosToStorage()
-    datePickerVisible.value = false
-    editingDueDate.value = null
-    tempDueDate.value = null
-    message.success('已设置截止日期')
+    // 为现有任务设置截止日期
+    const todo = todos.value.find(t => t.id === editingDueDate.value.id);
+    if (todo) {
+      todo.dueDate = tempDueDate.value.valueOf();
+      saveTodosToStorage(); // 修改这里，使用正确的函数名
+    }
+  } else {
+    // 为新任务设置截止日期
+    newDueDate.value = tempDueDate.value.valueOf();
   }
+  datePickerVisible.value = false;
 }
 
 // 获取优先级对应的样式类
@@ -1669,10 +1545,22 @@ const applyDateFilter = (filterType) => {
 
 // 处理日期范围确认
 const handleDateRangeOk = () => {
-  if (dateRange.value) {
-    applyDateFilter('custom')
+  if (dateRange.value && dateRange.value.length === 2) {
+    // 设置日期范围
+    const [start, end] = dateRange.value;
+    // 如果是为新任务设置日期范围
+    if (!editingDueDate.value) {
+      newDueDate.value = start.valueOf(); // 设置开始日期作为截止日期
+    } else {
+      // 为现有任务设置日期范围
+      const todo = todos.value.find(t => t.id === editingDueDate.value.id);
+      if (todo) {
+        todo.dueDate = start.valueOf();
+        saveTodosToStorage();
+      }
+    }
   }
-  datePickerVisible.value = false
+  datePickerVisible.value = false;
 }
 
 // 处理已完成任务菜单点击
@@ -1772,6 +1660,11 @@ const handleStatusFilterClick = ({ key }) => {
   filterStatus.value = key
   loadTodosFromStorage() // 重新加载数据并应用筛选
 }
+
+// 监视 newDueDate 的变化
+watch(newDueDate, (newVal) => {
+  console.log('newDueDate changed:', newVal);
+});
 </script>
 
 <style scoped>
