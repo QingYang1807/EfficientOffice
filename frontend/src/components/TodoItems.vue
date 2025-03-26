@@ -429,9 +429,19 @@
             <span class="pomodoro-count">🍅 x {{ record.pomodoros || 0 }}</span>
           </template>
 
-          <!-- 创建时间列 -->
-          <template v-else-if="column.key === 'createdAt'">
-            <span>{{ formatDate(record.createdAt) }}</span>
+          <!-- 开始时间列 -->
+          <template v-else-if="column.key === 'startDate'">
+            <div class="flex items-center gap-2">
+              <span 
+                :class="{ 
+                  'text-gray-400': record.completed
+                }"
+                class="cursor-pointer hover:text-blue-500"
+                @click="openDateRangePicker(record)"
+              >
+                {{ formatDate(record.startDate) || '设置开始时间' }}
+              </span>
+            </div>
           </template>
         </template>
       </a-table>
@@ -810,22 +820,18 @@ const columns = [
     sorter: (a, b) => (a.category || '').localeCompare(b.category || ''),
   },
   {
-    title: '创建时间',
-    key: 'createdAt',
+    title: '开始时间',
+    dataIndex: 'startDate',
+    key: 'startDate',
     width: 180,
-    defaultSortOrder: 'descend', // 默认降序
-    sorter: (a, b) => a.createdAt - b.createdAt,
+    sorter: (a, b) => (a.startDate || 0) - (b.startDate || 0),
   },
   {
-    title: '截止日期',
+    title: '截止时间',
+    dataIndex: 'dueDate',
     key: 'dueDate',
     width: 180,
-    sorter: (a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0
-      if (!a.dueDate) return 1
-      if (!b.dueDate) return -1
-      return a.dueDate - b.dueDate
-    },
+    sorter: (a, b) => (a.dueDate || 0) - (b.dueDate || 0),
   },
   {
     title: '番茄数',
@@ -927,23 +933,39 @@ const addTodo = () => {
     return
   }
 
+  // 获取开始时间和截止时间
+  let startDate = null;
+  let dueDate = null;
+  
+  if (dateRange.value && dateRange.value.length === 2) {
+    startDate = dateRange.value[0].valueOf();
+    dueDate = dateRange.value[1].valueOf();
+  } else {
+    dueDate = newDueDate.value;
+  }
+
   const todo = {
     id: Date.now(),
     text: newTodo.value.trim(),
     completed: false,
     category: newTodoCategory.value || '其他目标',
     priority: newTodoPriority.value || '中',
-    dueDate: newDueDate.value,
+    startDate: startDate,
+    dueDate: dueDate,
     pomodoros: 0,
     createdAt: Date.now()
   }
 
   todos.value.push(todo)
   saveTodosToStorage()
+  
+  // 清空输入框和工具栏内容
   newTodo.value = ''
   newTodoPriority.value = null
   newTodoCategory.value = null
   newDueDate.value = null
+  dateRange.value = null
+  
   message.success('添加成功')
 }
 
@@ -1546,18 +1568,20 @@ const applyDateFilter = (filterType) => {
 // 处理日期范围确认
 const handleDateRangeOk = () => {
   if (dateRange.value && dateRange.value.length === 2) {
-    // 设置日期范围
     const [start, end] = dateRange.value;
-    // 如果是为新任务设置日期范围
-    if (!editingDueDate.value) {
-      newDueDate.value = start.valueOf(); // 设置开始日期作为截止日期
-    } else {
+    
+    if (editingDueDate.value) {
       // 为现有任务设置日期范围
       const todo = todos.value.find(t => t.id === editingDueDate.value.id);
       if (todo) {
-        todo.dueDate = start.valueOf();
+        todo.startDate = start.valueOf();
+        todo.dueDate = end.valueOf();
         saveTodosToStorage();
       }
+    } else {
+      // 为新任务设置日期范围
+      newDueDate.value = end.valueOf(); // 设置结束日期作为截止日期
+      // 开始日期会在添加任务时使用
     }
   }
   datePickerVisible.value = false;
@@ -1665,6 +1689,23 @@ const handleStatusFilterClick = ({ key }) => {
 watch(newDueDate, (newVal) => {
   console.log('newDueDate changed:', newVal);
 });
+
+// 添加打开日期范围选择器的方法
+const openDateRangePicker = (record) => {
+  editingDueDate.value = record;
+  datePickerVisible.value = true;
+  
+  // 设置初始日期范围
+  if (record.startDate && record.dueDate) {
+    dateRange.value = [dayjs(record.startDate), dayjs(record.dueDate)];
+  } else if (record.dueDate) {
+    // 如果只有截止日期，将开始日期设为当前时间
+    dateRange.value = [dayjs(), dayjs(record.dueDate)];
+  } else {
+    // 默认设置为当前时间和一小时后
+    dateRange.value = [dayjs(), dayjs().add(1, 'hour')];
+  }
+}
 </script>
 
 <style scoped>
