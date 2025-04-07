@@ -240,13 +240,26 @@ async def UploadFile(file: UploadFile = File(...), parent_id: Optional[str] = Fo
 @app.post("/api/knowledge-base/folders")
 def CreateFolder(name: str = Form(...), parent_id: Optional[str] = Form(None)):
     folder_id = str(uuid.uuid4())
+    
+    # 创建实际文件夹
+    folder_path = os.path.join("data", name)
+    
+    # 检查文件夹是否已存在
+    if os.path.exists(folder_path):
+        raise HTTPException(status_code=400, detail="文件夹已存在")
+    
+    # 创建文件夹
+    os.makedirs(folder_path, exist_ok=True)
+    
+    # 添加到文件列表
     new_folder = {
         "id": folder_id,
         "name": name,
         "type": "folder",
         "updatedAt": datetime.now(),
         "size": 0,
-        "parentId": parent_id
+        "parentId": parent_id,
+        "path": folder_path
     }
     files_data.append(new_folder)
     return new_folder

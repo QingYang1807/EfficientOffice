@@ -571,6 +571,20 @@
         autofocus
       />
     </a-modal>
+
+    <!-- 创建文件夹对话框 -->
+    <a-modal
+      title="创建文件夹"
+      v-model:visible="createFolderModalVisible"
+      @ok="doCreateFolder"
+    >
+      <a-input 
+        v-model:value="newFolderName" 
+        placeholder="请输入文件夹名称"
+        autofocus
+        @pressEnter="doCreateFolder"
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -727,6 +741,10 @@ const fileNameRef = ref('')
 const renameModalVisible = ref(false);
 const fileToRename = ref(null);
 const newFileName = ref('');
+
+// 添加新的状态变量
+const createFolderModalVisible = ref(false);
+const newFolderName = ref('');
 
 // 计算属性
 const currentDate = computed(() => {
@@ -994,46 +1012,48 @@ const handleUploadChange = async (info) => {
 }
 
 // 创建文件夹
-const createFolder = async () => {
+const createFolder = () => {
+  newFolderName.value = '';
+  createFolderModalVisible.value = true;
+};
+
+// 执行创建文件夹操作
+const doCreateFolder = async () => {
   try {
-    folderNameRef.value = '';
-    Modal.confirm({
-      title: '创建文件夹',
-      content: h('div', [
-        h('a-input', {
-          placeholder: '请输入文件夹名称',
-          value: folderNameRef.value,
-          'onUpdate:value': val => folderNameRef.value = val
-        })
-      ]),
-      onOk: async () => {
-        const folderName = folderNameRef.value;
-        if (!folderName) return;
-        
-        const formData = new FormData();
-        formData.append('name', folderName);
-        
-        // 如果不是在根目录，需要添加父文件夹ID
-        if (currentPath.value.length > 1) {
-          const currentFolder = files.value.find(f => 
-            f.name === currentPath.value[currentPath.value.length - 1] && 
-            f.type === 'folder'
-          );
-          if (currentFolder) {
-            formData.append('parent_id', currentFolder.id);
-          }
-        }
-        
-        await api.post('/folders', formData);
-        message.success('创建文件夹成功');
-        await loadFiles();
+    if (!newFolderName.value) {
+      createFolderModalVisible.value = false;
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('name', newFolderName.value);
+    
+    // 如果不是在根目录，需要添加父文件夹ID
+    if (currentPath.value.length > 1) {
+      const currentFolder = files.value.find(f => 
+        f.name === currentPath.value[currentPath.value.length - 1] && 
+        f.type === 'folder'
+      );
+      if (currentFolder) {
+        formData.append('parent_id', currentFolder.id);
+      }
+    }
+    
+    // 使用 axios 直接发送请求，确保设置正确的 Content-Type
+    await axios.post(`${API_BASE_URL}/folders`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
       }
     });
+    
+    message.success('创建文件夹成功');
+    await loadFiles();
+    createFolderModalVisible.value = false;
   } catch (error) {
     console.error('创建文件夹失败:', error);
-    message.error('创建文件夹失败');
+    message.error('创建文件夹失败: ' + (error.response?.data?.detail || error.message));
   }
-}
+};
 
 // 加载文件夹内容
 const loadFolderContents = async (folderId) => {
