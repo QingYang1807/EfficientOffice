@@ -1,285 +1,400 @@
 <template>
-  <div class="knowledge-base-container">
-    <!-- 顶部导航栏 -->
-    <div class="kb-header">
-      <h1 class="kb-title">知识库</h1>
-      <div class="kb-search-container">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索知识库内容..."
-          prefix-icon="el-icon-search"
-          clearable
+  <div class="h-full flex flex-col relative">
+    <!-- 顶部标题区 -->
+    <div class="flex-none flex items-center justify-between px-6 py-2 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-1 h-6 bg-blue-500 rounded-full"></div>
+        <h1 class="text-xl font-medium text-gray-900">知识库 📚</h1>
+        <span class="text-sm text-gray-400">{{ currentDate }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a-tag :color="stats.totalFiles > 0 ? 'processing' : 'default'">
+          文件 {{ stats.totalFiles }}
+        </a-tag>
+        <a-tag color="success">
+          语料 {{ stats.totalCorpus }}
+        </a-tag>
+        <a-tag color="warning">
+          知识库 {{ stats.totalRag }}
+        </a-tag>
+      </div>
+    </div>
+
+    <!-- 搜索和视图切换区 -->
+    <div class="flex-none flex items-center gap-3 px-6 py-2 bg-white border-b border-gray-100">
+      <div class="flex-1 max-w-md relative group">
+        <a-input
+          v-model:value="searchQuery"
+          placeholder="搜索知识库内容... (按 '/' 快速搜索)"
+          class="search-input"
+          :bordered="false"
+          @focus="showSearchTips = true"
+          @blur="handleSearchBlur"
           @input="handleSearch"
-        />
-        <el-dropdown @command="handleViewChange">
-          <el-button type="primary" icon="el-icon-s-grid">
-            视图选项
-            <i class="el-icon-arrow-down"></i>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-item command="card">卡片视图</el-dropdown-item>
-            <el-dropdown-item command="list">列表视图</el-dropdown-item>
+          @pressEnter="onSearch"
+        >
+          <template #prefix>
+            <div class="search-prefix">
+              <search-outlined 
+                class="search-icon"
+                :class="{ 'searching': isSearching }"
+              />
+            </div>
           </template>
-        </el-dropdown>
+          <template #suffix>
+            <div class="search-suffix" v-if="searchQuery">
+              <close-circle-outlined
+                class="clear-icon"
+                @click="clearSearch"
+              />
+            </div>
+          </template>
+        </a-input>
+
+        <!-- 搜索提示面板 -->
+        <div 
+          class="search-tooltip"
+          :class="{ 'visible': showSearchTips }"
+        >
+          <div class="tooltip-header">
+            <span class="tooltip-title">搜索技巧</span>
+            <span class="tooltip-subtitle">点击标签快速筛选</span>
+          </div>
+          
+          <!-- 分类搜索区域 -->
+          <div class="tooltip-section">
+            <div class="section-header">
+              <folder-outlined class="text-blue-500" />
+              <span>按类型筛选</span>
+            </div>
+            <div class="tooltip-tags">
+              <a-tag 
+                v-for="type in fileTypes" 
+                :key="type.value"
+                :color="type.color"
+                class="search-tag"
+                @click="handleTagClick(type.value)"
+              >
+                {{ type.label }}
+              </a-tag>
+            </div>
+          </div>
+
+          <!-- 快捷搜索提示 -->
+          <div class="tooltip-footer">
+            <keyboard-outlined class="text-gray-400" />
+            <span>按 <kbd>/</kbd> 快速聚焦搜索框</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 视图切换 -->
+      <div class="flex items-center gap-2">
+        <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
+          <a-radio-button value="card">
+            <appstore-outlined />
+            卡片视图
+          </a-radio-button>
+          <a-radio-button value="list">
+            <bars-outlined />
+            列表视图
+          </a-radio-button>
+        </a-radio-group>
       </div>
     </div>
 
     <!-- 主要内容区域 -->
-    <div class="kb-main-content">
+    <div class="flex-1 flex overflow-hidden">
       <!-- 左侧导航菜单 -->
-      <div class="kb-sidebar">
-        <el-menu
-          :default-active="activeModule"
-          class="kb-menu"
+      <div class="flex-none w-60 border-r border-gray-100 bg-white">
+        <a-menu
+          mode="inline"
+          :selectedKeys="[activeModule]"
+          class="border-0 h-full"
           @select="handleModuleChange"
         >
-          <el-menu-item index="files">
-            <i class="el-icon-document"></i>
-            <span>文件管理</span>
-          </el-menu-item>
-          <el-menu-item index="corpus">
-            <i class="el-icon-collection"></i>
-            <span>语料管理</span>
-          </el-menu-item>
-          <el-menu-item index="rag">
-            <i class="el-icon-chat-dot-square"></i>
-            <span>RAG知识库</span>
-          </el-menu-item>
-        </el-menu>
+          <a-menu-item key="files" class="py-3">
+            <template #icon><file-outlined /></template>
+            文件管理
+          </a-menu-item>
+          <a-menu-item key="corpus" class="py-3">
+            <template #icon><read-outlined /></template>
+            语料管理
+          </a-menu-item>
+          <a-menu-item key="rag" class="py-3">
+            <template #icon><database-outlined /></template>
+            RAG知识库
+          </a-menu-item>
+        </a-menu>
         
-        <div class="kb-stats">
-          <h3>统计数据</h3>
-          <div class="stat-item">
-            <span>文件总数:</span>
-            <span class="stat-value">{{ stats.totalFiles }}</span>
-          </div>
-          <div class="stat-item">
-            <span>语料总数:</span>
-            <span class="stat-value">{{ stats.totalCorpus }}</span>
-          </div>
-          <div class="stat-item">
-            <span>知识库总数:</span>
-            <span class="stat-value">{{ stats.totalRag }}</span>
+        <!-- 统计数据 -->
+        <div class="p-4 border-t border-gray-100">
+          <h3 class="text-sm font-medium text-gray-700 mb-3">统计数据</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-600">文件总数:</span>
+              <span class="font-medium text-blue-500">{{ stats.totalFiles }}</span>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-600">语料总数:</span>
+              <span class="font-medium text-green-500">{{ stats.totalCorpus }}</span>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-600">知识库总数:</span>
+              <span class="font-medium text-orange-500">{{ stats.totalRag }}</span>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 右侧内容区域 -->
-      <div class="kb-content">
+      <div class="flex-1 overflow-auto p-6">
         <!-- 文件管理模块 -->
-        <div v-if="activeModule === 'files'" class="module-container">
-          <div class="module-header">
-            <h2>文件管理</h2>
-            <div class="module-actions">
-              <el-button type="primary" @click="showUploadDialog">
-                <i class="el-icon-upload"></i> 上传文件
-              </el-button>
-              <el-button @click="createFolder">
-                <i class="el-icon-folder-add"></i> 创建文件夹
-              </el-button>
+        <div v-if="activeModule === 'files'" class="h-full flex flex-col">
+          <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-medium text-gray-800">文件管理</h2>
+              <a-breadcrumb separator="/">
+                <a-breadcrumb-item 
+                  v-for="(path, index) in currentPath" 
+                  :key="index"
+                  @click="navigateTo(index)"
+                  :class="{'cursor-pointer hover:text-blue-500': index < currentPath.length - 1}"
+                >
+                  {{ path }}
+                </a-breadcrumb-item>
+              </a-breadcrumb>
+            </div>
+            <div class="flex gap-2">
+              <a-button type="primary" @click="showUploadDialog">
+                <template #icon><upload-outlined /></template>
+                上传文件
+              </a-button>
+              <a-button @click="createFolder">
+                <template #icon><folder-add-outlined /></template>
+                创建文件夹
+              </a-button>
             </div>
           </div>
           
-          <!-- 文件导航路径 -->
-          <el-breadcrumb separator="/">
-            <el-breadcrumb-item 
-              v-for="(path, index) in currentPath" 
-              :key="index"
-              @click="navigateTo(index)"
-            >
-              {{ path }}
-            </el-breadcrumb-item>
-          </el-breadcrumb>
-          
           <!-- 文件列表/卡片视图 -->
-          <div :class="['files-container', viewMode]">
-            <template v-if="viewMode === 'card'">
-              <el-card 
+          <div class="flex-1 overflow-hidden">
+            <!-- 卡片视图 -->
+            <div v-if="viewMode === 'card'" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <a-card 
                 v-for="file in filteredFiles" 
                 :key="file.id" 
-                class="file-card"
-                :class="{ 'is-folder': file.type === 'folder' }"
+                class="file-card hover:shadow-md transition-all cursor-pointer"
+                :class="{ 'bg-gray-50': file.type === 'folder' }"
+                hoverable
                 @click="handleFileClick(file)"
               >
-                <div class="file-icon">
-                  <i :class="getFileIcon(file)"></i>
-                </div>
-                <div class="file-info">
-                  <div class="file-name">{{ file.name }}</div>
-                  <div class="file-meta">
-                    <span>{{ formatDate(file.updatedAt) }}</span>
-                    <span>{{ formatSize(file.size) }}</span>
+                <div class="flex flex-col items-center">
+                  <div class="text-3xl mb-2" :class="getFileIconColor(file)">
+                    <component :is="getFileIconComponent(file)" />
+                  </div>
+                  <div class="w-full text-center">
+                    <div class="font-medium text-gray-800 truncate">{{ file.name }}</div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>{{ formatDate(file.updatedAt) }}</span>
+                      <span>{{ formatSize(file.size) }}</span>
+                    </div>
                   </div>
                 </div>
-                <div class="file-actions">
-                  <el-dropdown @command="(cmd) => handleFileAction(cmd, file)">
-                    <i class="el-icon-more"></i>
-                    <template #dropdown>
-                      <el-dropdown-item command="download">下载</el-dropdown-item>
-                      <el-dropdown-item command="rename">重命名</el-dropdown-item>
-                      <el-dropdown-item command="share">分享</el-dropdown-item>
-                      <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                    </template>
-                  </el-dropdown>
-                </div>
-              </el-card>
-            </template>
+                <template #actions>
+                  <download-outlined key="download" @click.stop="downloadFile(file)" />
+                  <edit-outlined key="edit" @click.stop="renameFile(file)" />
+                  <delete-outlined key="delete" @click.stop="deleteFile(file)" />
+                </template>
+              </a-card>
+            </div>
             
-            <template v-else>
-              <el-table :data="filteredFiles" style="width: 100%">
-                <el-table-column width="50">
-                  <template #default="scope">
-                    <i :class="getFileIcon(scope.row)"></i>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="name" label="文件名"></el-table-column>
-                <el-table-column prop="updatedAt" label="最后修改时间" width="180">
-                  <template #default="scope">
-                    {{ formatDate(scope.row.updatedAt) }}
-                  </template>
-                </el-table-column>
-                <el-table-column prop="size" label="文件大小" width="120">
-                  <template #default="scope">
-                    {{ formatSize(scope.row.size) }}
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="150">
-                  <template #default="scope">
-                    <el-dropdown @command="(cmd) => handleFileAction(cmd, scope.row)">
-                      <el-button type="text">
-                        操作
-                        <i class="el-icon-arrow-down"></i>
-                      </el-button>
-                      <template #dropdown>
-                        <el-dropdown-item command="download">下载</el-dropdown-item>
-                        <el-dropdown-item command="rename">重命名</el-dropdown-item>
-                        <el-dropdown-item command="share">分享</el-dropdown-item>
-                        <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                      </template>
-                    </el-dropdown>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </template>
+            <!-- 列表视图 -->
+            <a-table
+              v-else
+              :dataSource="filteredFiles"
+              :columns="fileColumns"
+              :pagination="false"
+              :scroll="{ y: 'calc(100vh - 280px)' }"
+              :bordered="false"
+              size="middle"
+              class="custom-table"
+            >
+              <template #bodyCell="{ column, record }">
+                <!-- 文件名列 -->
+                <template v-if="column.key === 'name'">
+                  <div class="flex items-center gap-2 cursor-pointer" @click="handleFileClick(record)">
+                    <component :is="getFileIconComponent(record)" :class="getFileIconColor(record)" />
+                    <span>{{ record.name }}</span>
+                  </div>
+                </template>
+                
+                <!-- 更新时间列 -->
+                <template v-else-if="column.key === 'updatedAt'">
+                  {{ formatDate(record.updatedAt) }}
+                </template>
+                
+                <!-- 文件大小列 -->
+                <template v-else-if="column.key === 'size'">
+                  {{ formatSize(record.size) }}
+                </template>
+                
+                <!-- 操作列 -->
+                <template v-else-if="column.key === 'action'">
+                  <div class="flex gap-2">
+                    <a-button type="text" @click.stop="downloadFile(record)">
+                      <template #icon><download-outlined /></template>
+                    </a-button>
+                    <a-button type="text" @click.stop="renameFile(record)">
+                      <template #icon><edit-outlined /></template>
+                    </a-button>
+                    <a-button type="text" @click.stop="deleteFile(record)" danger>
+                      <template #icon><delete-outlined /></template>
+                    </a-button>
+                  </div>
+                </template>
+              </template>
+            </a-table>
           </div>
         </div>
 
         <!-- 语料管理模块 -->
-        <div v-if="activeModule === 'corpus'" class="module-container">
-          <div class="module-header">
-            <h2>语料管理</h2>
-            <div class="module-actions">
-              <el-button type="primary" @click="showAddCorpusDialog">
-                <i class="el-icon-plus"></i> 添加语料
-              </el-button>
-              <el-button @click="importCorpus">
-                <i class="el-icon-upload2"></i> 导入语料
-              </el-button>
+        <div v-if="activeModule === 'corpus'" class="h-full flex flex-col">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-medium text-gray-800">语料管理</h2>
+            <div class="flex gap-2">
+              <a-button type="primary" @click="showAddCorpusDialog">
+                <template #icon><plus-outlined /></template>
+                添加语料
+              </a-button>
+              <a-button @click="importCorpus">
+                <template #icon><import-outlined /></template>
+                导入语料
+              </a-button>
             </div>
           </div>
           
           <!-- 语料分类标签 -->
-          <div class="corpus-tags">
-            <el-tag 
+          <div class="flex flex-wrap gap-2 mb-4">
+            <a-tag 
               v-for="tag in corpusTags" 
               :key="tag.id"
-              :class="{ active: activeTag === tag.id }"
+              :color="activeTag === tag.id ? 'blue' : 'default'"
+              class="cursor-pointer px-3 py-1"
               @click="filterByTag(tag.id)"
             >
               {{ tag.name }} ({{ tag.count }})
-            </el-tag>
-            <el-button size="small" icon="el-icon-plus" @click="showAddTagDialog">
+            </a-tag>
+            <a-button size="small" @click="showAddTagDialog">
+              <template #icon><plus-outlined /></template>
               新建标签
-            </el-button>
+            </a-button>
           </div>
           
           <!-- 语料列表 -->
-          <div class="corpus-list">
-            <el-card 
+          <div class="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a-card 
               v-for="corpus in filteredCorpus" 
               :key="corpus.id" 
               class="corpus-card"
+              hoverable
             >
-              <div class="corpus-header">
-                <h3>{{ corpus.title }}</h3>
-                <div class="corpus-tags">
-                  <el-tag size="small" v-for="tag in corpus.tags" :key="tag" type="info">
-                    {{ tag }}
-                  </el-tag>
+              <template #title>
+                <div class="flex justify-between items-center">
+                  <span class="truncate">{{ corpus.title }}</span>
+                  <div class="flex gap-1">
+                    <a-tag v-for="tag in corpus.tags" :key="tag" size="small" color="blue">
+                      {{ tag }}
+                    </a-tag>
+                  </div>
                 </div>
-              </div>
-              <div class="corpus-content">
+              </template>
+              <div class="corpus-content text-gray-600">
                 {{ corpus.content.substring(0, 200) }}{{ corpus.content.length > 200 ? '...' : '' }}
               </div>
-              <div class="corpus-footer">
-                <span class="corpus-date">{{ formatDate(corpus.updatedAt) }}</span>
-                <div class="corpus-actions">
-                  <el-button size="mini" icon="el-icon-edit" @click="editCorpus(corpus)"></el-button>
-                  <el-button size="mini" icon="el-icon-delete" @click="deleteCorpus(corpus)"></el-button>
+              <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-100">
+                <span class="text-xs text-gray-500">{{ formatDate(corpus.updatedAt) }}</span>
+                <div class="flex gap-2">
+                  <a-button type="text" @click="editCorpus(corpus)">
+                    <template #icon><edit-outlined /></template>
+                  </a-button>
+                  <a-button type="text" danger @click="deleteCorpus(corpus)">
+                    <template #icon><delete-outlined /></template>
+                  </a-button>
                 </div>
               </div>
-            </el-card>
+            </a-card>
           </div>
         </div>
 
         <!-- RAG知识库模块 -->
-        <div v-if="activeModule === 'rag'" class="module-container">
-          <div class="module-header">
-            <h2>RAG知识库</h2>
-            <div class="module-actions">
-              <el-button type="primary" @click="createRagKnowledgeBase">
-                <i class="el-icon-plus"></i> 创建知识库
-              </el-button>
-            </div>
+        <div v-if="activeModule === 'rag'" class="h-full flex flex-col">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-medium text-gray-800">RAG知识库</h2>
+            <a-button type="primary" @click="createRagKnowledgeBase">
+              <template #icon><plus-outlined /></template>
+              创建知识库
+            </a-button>
           </div>
           
           <!-- RAG知识库列表 -->
-          <div class="rag-list">
-            <el-card 
+          <div class="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a-card 
               v-for="kb in filteredRagKBs" 
               :key="kb.id" 
               class="rag-card"
+              hoverable
             >
-              <div class="rag-header">
-                <h3>{{ kb.name }}</h3>
-                <el-tag :type="kb.status === 'active' ? 'success' : 'info'">
-                  {{ kb.status }}
-                </el-tag>
-              </div>
+              <template #title>
+                <div class="flex justify-between items-center">
+                  <span>{{ kb.name }}</span>
+                  <a-tag :color="kb.status === 'active' ? 'success' : 'default'">
+                    {{ kb.status === 'active' ? '已激活' : '未激活' }}
+                  </a-tag>
+                </div>
+              </template>
               <div class="rag-info">
-                <div class="rag-stats">
-                  <div class="rag-stat-item">
-                    <i class="el-icon-document"></i>
+                <div class="flex justify-between text-sm text-gray-500 mb-2">
+                  <div class="flex items-center gap-1">
+                    <file-outlined />
                     <span>{{ kb.documentCount }} 文档</span>
                   </div>
-                  <div class="rag-stat-item">
-                    <i class="el-icon-time"></i>
+                  <div class="flex items-center gap-1">
+                    <clock-circle-outlined />
                     <span>{{ formatDate(kb.updatedAt) }}</span>
                   </div>
                 </div>
-                <div class="rag-description">
-                  {{ kb.description }}
-                </div>
+                <p class="text-gray-600">{{ kb.description }}</p>
               </div>
-              <div class="rag-footer">
-                <el-button type="primary" @click="openRagChat(kb)">
+              <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-100">
+                <a-button type="primary" @click="openRagChat(kb)">
+                  <template #icon><message-outlined /></template>
                   提问
-                </el-button>
-                <div class="rag-actions">
-                  <el-dropdown @command="(cmd) => handleRagAction(cmd, kb)">
-                    <el-button type="text">
-                      <i class="el-icon-more"></i>
-                    </el-button>
-                    <template #dropdown>
-                      <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                      <el-dropdown-item command="update">更新知识库</el-dropdown-item>
-                      <el-dropdown-item command="export">导出</el-dropdown-item>
-                      <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                    </template>
-                  </el-dropdown>
-                </div>
+                </a-button>
+                <a-dropdown>
+                  <template #overlay>
+                    <a-menu @click="({ key }) => handleRagAction(key, kb)">
+                      <a-menu-item key="edit">
+                        <edit-outlined /> 编辑
+                      </a-menu-item>
+                      <a-menu-item key="update">
+                        <sync-outlined /> 更新知识库
+                      </a-menu-item>
+                      <a-menu-item key="export">
+                        <export-outlined /> 导出
+                      </a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="delete" danger>
+                        <delete-outlined /> 删除
+                      </a-menu-item>
+                    </a-menu>
+                  </template>
+                  <a-button>
+                    <template #icon><more-outlined /></template>
+                  </a-button>
+                </a-dropdown>
               </div>
-            </el-card>
+            </a-card>
           </div>
         </div>
       </div>
@@ -287,1303 +402,1084 @@
 
     <!-- 对话框组件 -->
     <!-- 文件上传对话框 -->
-    <el-dialog
+    <a-modal
       title="上传文件"
-      v-model="uploadDialogVisible"
+      v-model:visible="uploadDialogVisible"
+      :footer="null"
       width="500px"
     >
-      <el-upload
-        class="upload-container"
-        drag
+      <a-upload-dragger
+        name="file"
+        :multiple="true"
         action="/api/knowledge-base/upload"
-        multiple
-        :on-success="handleUploadSuccess"
-        :on-error="handleUploadError"
+        @change="handleUploadChange"
       >
-        <i class="el-icon-upload"></i>
-        <div class="el-upload__text">
-          将文件拖到此处，或
-          <em>点击上传</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持各种文档格式，单个文件不超过10MB
-          </div>
-        </template>
-      </el-upload>
-    </el-dialog>
+        <p class="ant-upload-drag-icon">
+          <inbox-outlined />
+        </p>
+        <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
+        <p class="ant-upload-hint">
+          支持各种文档格式，单个文件不超过10MB
+        </p>
+      </a-upload-dragger>
+    </a-modal>
 
     <!-- 添加语料对话框 -->
-    <el-dialog
+    <a-modal
       title="添加语料"
-      v-model="corpusDialogVisible"
+      v-model:visible="corpusDialogVisible"
+      @ok="saveCorpus"
       width="700px"
     >
-      <el-form :model="corpusForm" label-width="100px">
-        <el-form-item label="标题" required>
-          <el-input v-model="corpusForm.title"></el-input>
-        </el-form-item>
-        <el-form-item label="内容" required>
-          <el-input
-            type="textarea"
-            v-model="corpusForm.content"
+      <a-form :model="corpusForm" layout="vertical">
+        <a-form-item label="标题" required>
+          <a-input v-model:value="corpusForm.title" placeholder="请输入语料标题" />
+        </a-form-item>
+        <a-form-item label="内容" required>
+          <a-textarea
+            v-model:value="corpusForm.content"
+            placeholder="请输入语料内容"
             :rows="10"
-          ></el-input>
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-select
-            v-model="corpusForm.tags"
-            multiple
-            filterable
-            allow-create
-            default-first-option
+          />
+        </a-form-item>
+        <a-form-item label="标签">
+          <a-select
+            v-model:value="corpusForm.tags"
+            mode="tags"
+            style="width: 100%"
             placeholder="选择或创建标签"
-          >
-            <el-option
-              v-for="tag in availableTags"
-              :key="tag"
-              :label="tag"
-              :value="tag"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="corpusDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveCorpus">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
+            :options="availableTags.map(tag => ({ value: tag, label: tag }))"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <!-- RAG知识库创建对话框 -->
-    <el-dialog
+    <a-modal
       title="创建RAG知识库"
-      v-model="ragDialogVisible"
+      v-model:visible="ragDialogVisible"
+      @ok="saveRagKnowledgeBase"
       width="700px"
     >
-      <el-form :model="ragForm" label-width="120px">
-        <el-form-item label="名称" required>
-          <el-input v-model="ragForm.name"></el-input>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            type="textarea"
-            v-model="ragForm.description"
+      <a-form :model="ragForm" layout="vertical">
+        <a-form-item label="名称" required>
+          <a-input v-model:value="ragForm.name" placeholder="请输入知识库名称" />
+        </a-form-item>
+        <a-form-item label="描述">
+          <a-textarea
+            v-model:value="ragForm.description"
+            placeholder="请输入知识库描述"
             :rows="3"
-          ></el-input>
-        </el-form-item>
-        <el-form-item label="数据源">
-          <el-tabs v-model="ragForm.sourceType">
-            <el-tab-pane label="文件" name="files">
-              <el-transfer
-                v-model="ragForm.selectedFiles"
-                :data="transferFiles"
+          />
+        </a-form-item>
+        <a-form-item label="数据源">
+          <a-tabs v-model:activeKey="ragForm.sourceType">
+            <a-tab-pane key="files" tab="文件">
+              <a-transfer
+                v-model:targetKeys="ragForm.selectedFiles"
+                :dataSource="transferFiles"
                 :titles="['可选文件', '已选文件']"
-              ></el-transfer>
-            </el-tab-pane>
-            <el-tab-pane label="语料" name="corpus">
-              <el-transfer
-                v-model="ragForm.selectedCorpus"
-                :data="transferCorpus"
+                :render="item => item.title"
+              />
+            </a-tab-pane>
+            <a-tab-pane key="corpus" tab="语料">
+              <a-transfer
+                v-model:targetKeys="ragForm.selectedCorpus"
+                :dataSource="transferCorpus"
                 :titles="['可选语料', '已选语料']"
-              ></el-transfer>
-            </el-tab-pane>
-          </el-tabs>
-        </el-form-item>
-        <el-form-item label="嵌入模型">
-          <el-select v-model="ragForm.embeddingModel" style="width: 100%">
-            <el-option
+                :render="item => item.title"
+              />
+            </a-tab-pane>
+          </a-tabs>
+        </a-form-item>
+        <a-form-item label="嵌入模型">
+          <a-select v-model:value="ragForm.embeddingModel" style="width: 100%">
+            <a-select-option
               v-for="model in embeddingModels"
               :key="model.id"
-              :label="model.name"
               :value="model.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="ragDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveRagKnowledgeBase">创建</el-button>
-        </span>
-      </template>
-    </el-dialog>
+            >
+              {{ model.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <!-- RAG聊天对话框 -->
-    <el-dialog
-      :title="activeRagKB ? activeRagKB.name : 'RAG知识库对话'"
-      v-model="ragChatVisible"
+    <a-drawer
+      :title="activeRagKB ? activeRagKB.name + ' - 知识库对话' : '知识库对话'"
+      v-model:visible="ragChatVisible"
       width="800px"
-      fullscreen
+      class="rag-chat-drawer"
     >
-      <div class="rag-chat-container">
-        <div class="chat-messages">
+      <div class="h-full flex flex-col">
+        <div class="flex-1 overflow-auto bg-gray-50 rounded-lg p-4 mb-4">
           <div 
             v-for="(message, index) in chatMessages" 
             :key="index"
-            :class="['chat-message', message.role]"
+            :class="[
+              'mb-4 flex', 
+              message.role === 'user' ? 'justify-end' : 'justify-start'
+            ]"
           >
-            <div class="message-avatar">
-              <i :class="message.role === 'user' ? 'el-icon-user' : 'el-icon-s-custom'"></i>
-            </div>
-            <div class="message-content">
+            <div 
+              :class="[
+                'max-w-3/4 rounded-lg p-3', 
+                message.role === 'user' 
+                  ? 'bg-blue-500 text-white rounded-tr-none' 
+                  : 'bg-white text-gray-800 rounded-tl-none shadow-sm'
+              ]"
+            >
               <div class="message-text" v-html="formatMessage(message.content)"></div>
-              <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+              <div 
+                :class="[
+                  'text-xs mt-1 text-right', 
+                  message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                ]"
+              >
+                {{ formatTime(message.timestamp) }}
+              </div>
             </div>
           </div>
         </div>
-        <div class="chat-input">
-          <el-input
-            v-model="chatInput"
-            type="textarea"
-            :rows="3"
+        <div class="flex gap-2">
+          <a-textarea
+            v-model:value="chatInput"
             placeholder="输入您的问题..."
-            @keyup.enter="sendMessage"
-          ></el-input>
-          <el-button type="primary" icon="el-icon-s-promotion" @click="sendMessage">
+            :rows="3"
+            @pressEnter="sendMessage"
+          />
+          <a-button type="primary" @click="sendMessage">
+            <template #icon><send-outlined /></template>
             发送
-          </el-button>
+          </a-button>
         </div>
       </div>
-    </el-dialog>
+    </a-drawer>
   </div>
 </template>
 
-<script>
-// 导入所需的组件和依赖
-import { defineComponent } from 'vue'
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 import { 
-  ElMessage, 
-  ElMessageBox,
-  ElButton,
-  ElInput,
-  ElDropdown,
-  ElDropdownItem,
-  ElMenu,
-  ElMenuItem,
-  ElBreadcrumb,
-  ElBreadcrumbItem,
-  ElCard,
-  ElTable,
-  ElTableColumn,
-  ElTag,
-  ElDialog,
-  ElUpload,
-  ElForm,
-  ElFormItem,
-  ElSelect,
-  ElOption,
-  ElTabs,
-  ElTabPane,
-  ElTransfer
-} from 'element-plus'
+  SearchOutlined,
+  FileOutlined,
+  FolderOutlined,
+  DatabaseOutlined,
+  UploadOutlined,
+  DownloadOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  InboxOutlined,
+  MessageOutlined,
+  SendOutlined,
+  SyncOutlined,
+  MoreOutlined,
+  AppstoreOutlined,
+  BarsOutlined,
+  ReadOutlined,
+  ClockCircleOutlined,
+  FolderAddOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  FileExcelOutlined,
+  FilePptOutlined,
+  FileImageOutlined,
+  FileZipOutlined,
+  FileTextOutlined,
+  KeyboardOutlined,
+  CloseCircleOutlined
+} from '@ant-design/icons-vue'
 
-export default defineComponent({
-  name: 'KnowledgeBaseView',
-  
-  components: {
-    // 注册所有使用的 Element Plus 组件
-    ElButton,
-    ElInput,
-    ElDropdown,
-    ElDropdownItem,
-    ElMenu,
-    ElMenuItem,
-    ElBreadcrumb,
-    ElBreadcrumbItem,
-    ElCard,
-    ElTable,
-    ElTableColumn,
-    ElTag,
-    ElDialog,
-    ElUpload,
-    ElForm,
-    ElFormItem,
-    ElSelect,
-    ElOption,
-    ElTabs,
-    ElTabPane,
-    ElTransfer
-  },
-
-  data() {
-    return {
-      // 当前活动模块
-      activeModule: 'files',
-      // 搜索查询
-      searchQuery: '',
-      // 视图模式
-      viewMode: 'card',
-      // 当前文件路径
-      currentPath: ['根目录'],
-      // 统计数据
-      stats: {
-        totalFiles: 0,
-        totalCorpus: 0,
-        totalRag: 0
-      },
-      
-      // 文件数据
-      files: [],
-      
-      // 语料数据
-      corpus: [],
-      corpusTags: [],
-      activeTag: null,
-      
-      // RAG知识库数据
-      ragKBs: [],
-      
-      // 对话框控制
-      uploadDialogVisible: false,
-      corpusDialogVisible: false,
-      ragDialogVisible: false,
-      ragChatVisible: false,
-      
-      // 表单数据
-      corpusForm: {
-        title: '',
-        content: '',
-        tags: []
-      },
-      ragForm: {
-        name: '',
-        description: '',
-        sourceType: 'files',
-        selectedFiles: [],
-        selectedCorpus: [],
-        embeddingModel: ''
-      },
-      
-      // 嵌入模型选项
-      embeddingModels: [
-        { id: 'openai-ada-002', name: 'OpenAI Ada 002' },
-        { id: 'bge-large-zh', name: 'BGE Large Chinese' },
-        { id: 'bge-large-en', name: 'BGE Large English' }
-      ],
-      
-      // 聊天相关
-      activeRagKB: null,
-      chatMessages: [],
-      chatInput: '',
-      
-      // 可用标签
-      availableTags: ['文档', '笔记', '研究', '项目', '参考资料']
-    };
-  },
-
-  computed: {
-    // 过滤后的文件列表
-    filteredFiles() {
-      if (!this.searchQuery) {
-        return this.files;
-      }
-      
-      const query = this.searchQuery.toLowerCase();
-      return this.files.filter(file => 
-        file.name.toLowerCase().includes(query)
-      );
-    },
-    
-    // 过滤后的语料列表
-    filteredCorpus() {
-      let result = this.corpus;
-      
-      // 先按标签过滤
-      if (this.activeTag) {
-        result = result.filter(item => 
-          item.tags.includes(this.activeTag)
-        );
-      }
-      
-      // 再按搜索词过滤
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        result = result.filter(item => 
-          item.title.toLowerCase().includes(query) || 
-          item.content.toLowerCase().includes(query)
-        );
-      }
-      
-      return result;
-    },
-    
-    // 过滤后的RAG知识库列表
-    filteredRagKBs() {
-      if (!this.searchQuery) {
-        return this.ragKBs;
-      }
-      
-      const query = this.searchQuery.toLowerCase();
-      return this.ragKBs.filter(kb => 
-        kb.name.toLowerCase().includes(query) || 
-        kb.description.toLowerCase().includes(query)
-      );
-    },
-    
-    // 用于穿梭框的文件数据
-    transferFiles() {
-      return this.files.map(file => ({
-        key: file.id,
-        label: file.name,
-        disabled: file.type === 'folder'
-      }));
-    },
-    
-    // 用于穿梭框的语料数据
-    transferCorpus() {
-      return this.corpus.map(item => ({
-        key: item.id,
-        label: item.title
-      }));
-    }
-  },
-
-  methods: {
-    // 修改消息提示方法
-    showMessage(message, type = 'info') {
-      ElMessage({
-        message,
-        type
-      })
-    },
-
-    // 修改确认对话框方法
-    async confirmAction(message, title = '警告') {
-      try {
-        await ElMessageBox.confirm(message, title, {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        })
-        return true
-      } catch {
-        return false
-      }
-    },
-
-    // 修改文件删除方法
-    async deleteFile(file) {
-      const confirmed = await this.confirmAction(`确定要删除 ${file.name} 吗？`)
-      if (confirmed) {
-        // 删除文件逻辑
-        this.showMessage('删除成功', 'success')
-        this.loadFiles()
-      }
-    },
-
-    // 修改语料删除方法
-    async deleteCorpus(corpus) {
-      const confirmed = await this.confirmAction(`确定要删除语料 ${corpus.title} 吗？`)
-      if (confirmed) {
-        // 删除语料逻辑
-        this.showMessage('删除成功', 'success')
-        this.loadCorpus()
-      }
-    },
-
-    // 修改RAG知识库删除方法
-    async deleteRagKB(kb) {
-      const confirmed = await this.confirmAction(`确定要删除知识库 ${kb.name} 吗？`)
-      if (confirmed) {
-        // 删除知识库逻辑
-        this.showMessage('删除成功', 'success')
-        this.loadRagKBs()
-      }
-    },
-
-    // 修改保存语料方法
-    saveCorpus() {
-      if (!this.corpusForm.title || !this.corpusForm.content) {
-        this.showMessage('标题和内容不能为空', 'warning')
-        return
-      }
-      
-      // 保存语料逻辑
-      this.showMessage('保存成功', 'success')
-      this.corpusDialogVisible = false
-      this.loadCorpus()
-    },
-
-    // 修改保存RAG知识库方法
-    saveRagKnowledgeBase() {
-      if (!this.ragForm.name) {
-        this.showMessage('名称不能为空', 'warning')
-        return
-      }
-      
-      // 保存知识库逻辑
-      this.showMessage('创建成功', 'success')
-      this.ragDialogVisible = false
-      this.loadRagKBs()
-    },
-
-    // 修改上传成功处理方法
-    handleUploadSuccess(response, file, fileList) {
-      this.showMessage('上传成功', 'success')
-      this.uploadDialogVisible = false
-      this.loadFiles()
-    },
-
-    // 修改上传错误处理方法
-    handleUploadError(err, file, fileList) {
-      this.showMessage('上传失败', 'error')
-    },
-
-    // 模块切换处理
-    handleModuleChange(index) {
-      this.activeModule = index;
-    },
-    
-    // 搜索处理
-    handleSearch() {
-      // 实现搜索逻辑
-    },
-    
-    // 视图模式切换
-    handleViewChange(command) {
-      this.viewMode = command;
-    },
-    
-    // 文件图标获取
-    getFileIcon(file) {
-      if (file.type === 'folder') {
-        return 'el-icon-folder';
-      }
-      
-      const iconMap = {
-        'pdf': 'el-icon-document',
-        'doc': 'el-icon-document-word',
-        'docx': 'el-icon-document-word',
-        'xls': 'el-icon-document-excel',
-        'xlsx': 'el-icon-document-excel',
-        'ppt': 'el-icon-document-ppt',
-        'pptx': 'el-icon-document-ppt',
-        'txt': 'el-icon-document-text',
-        'jpg': 'el-icon-picture',
-        'jpeg': 'el-icon-picture',
-        'png': 'el-icon-picture',
-        'zip': 'el-icon-document-zip',
-        'rar': 'el-icon-document-zip'
-      };
-      
-      const ext = file.name.split('.').pop().toLowerCase();
-      return iconMap[ext] || 'el-icon-document';
-    },
-    
-    // 日期格式化
-    formatDate(date) {
-      if (!date) return '';
-      const d = new Date(date);
-      return d.toLocaleDateString();
-    },
-    
-    // 时间格式化
-    formatTime(timestamp) {
-      if (!timestamp) return '';
-      const d = new Date(timestamp);
-      return d.toLocaleTimeString();
-    },
-    
-    // 文件大小格式化
-    formatSize(size) {
-      if (!size) return '0 B';
-      
-      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-      let i = 0;
-      while (size >= 1024 && i < units.length - 1) {
-        size /= 1024;
-        i++;
-      }
-      
-      return `${size.toFixed(2)} ${units[i]}`;
-    },
-    
-    // 消息格式化
-    formatMessage(content) {
-      // 简单的Markdown格式支持
-      return content
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/\n/g, '<br>');
-    },
-    
-    // 文件点击处理
-    handleFileClick(file) {
-      if (file.type === 'folder') {
-        this.currentPath.push(file.name);
-        // 加载文件夹内容
-        this.loadFolderContents(file.id);
-      } else {
-        // 预览文件
-        this.previewFile(file);
-      }
-    },
-    
-    // 文件操作处理
-    handleFileAction(command, file) {
-      switch (command) {
-        case 'download':
-          this.downloadFile(file);
-          break;
-        case 'rename':
-          this.renameFile(file);
-          break;
-        case 'share':
-          this.shareFile(file);
-          break;
-        case 'delete':
-          this.deleteFile(file);
-          break;
-      }
-    },
-    
-    // RAG知识库操作处理
-    handleRagAction(command, kb) {
-      switch (command) {
-        case 'edit':
-          this.editRagKB(kb);
-          break;
-        case 'update':
-          this.updateRagKB(kb);
-          break;
-        case 'export':
-          this.exportRagKB(kb);
-          break;
-        case 'delete':
-          this.deleteRagKB(kb);
-          break;
-      }
-    },
-    
-    // 路径导航
-    navigateTo(index) {
-      if (index < this.currentPath.length - 1) {
-        this.currentPath = this.currentPath.slice(0, index + 1);
-        // 加载对应路径的内容
-        this.loadCurrentPathContents();
-      }
-    },
-    
-    // 显示上传对话框
-    showUploadDialog() {
-      this.uploadDialogVisible = true;
-    },
-    
-    // 创建文件夹
-    createFolder() {
-      this.$prompt('请输入文件夹名称', '创建文件夹', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-      }).then(({ value }) => {
-        if (value) {
-          // 创建文件夹逻辑
-          this.$message({
-            type: 'success',
-            message: `文件夹创建成功: ${value}`
-          });
-        }
-      }).catch(() => {});
-    },
-    
-    // 加载文件夹内容
-    loadFolderContents(folderId) {
-      // 从API获取特定文件夹内容的逻辑
-      // 模拟数据
-      this.files = [
-        { id: 6, name: '子文件夹', type: 'folder', updatedAt: new Date(), size: 0 },
-        { id: 7, name: '技术规范.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.8 },
-        { id: 8, name: '开发计划.docx', type: 'file', updatedAt: new Date(), size: 1024 * 300 }
-      ];
-    },
-    
-    // 加载当前路径内容
-    loadCurrentPathContents() {
-      // 根据当前路径加载内容
-      if (this.currentPath.length === 1) {
-        this.loadFiles();
-      } else {
-        // 模拟加载特定路径的内容
-        this.loadFolderContents();
-      }
-    },
-    
-    // 预览文件
-    previewFile(file) {
-      // 文件预览逻辑
-      this.$message({
-        message: `预览文件: ${file.name}`,
-        type: 'info'
-      });
-    },
-    
-    // 下载文件
-    downloadFile(file) {
-      // 文件下载逻辑
-      this.$message({
-        message: `下载文件: ${file.name}`,
-        type: 'success'
-      });
-    },
-    
-    // 重命名文件
-    renameFile(file) {
-      this.$prompt(this.$t('knowledgeBase.enterNewName'), this.$t('knowledgeBase.rename'), {
-        confirmButtonText: this.$t('common.confirm'),
-        cancelButtonText: this.$t('common.cancel'),
-        inputValue: file.name
-      }).then(({ value }) => {
-        if (value) {
-          // 重命名文件逻辑
-          this.$message({
-            type: 'success',
-            message: `${this.$t('knowledgeBase.renamed')}: ${value}`
-          });
-        }
-      }).catch(() => {});
-    },
-    
-    // 分享文件
-    shareFile(file) {
-      // 文件分享逻辑
-      this.$message({
-        message: `分享文件: ${file.name}`,
-        type: 'info'
-      });
-    },
-    
-    // 显示添加语料对话框
-    showAddCorpusDialog() {
-      this.corpusForm = {
-        title: '',
-        content: '',
-        tags: []
-      };
-      this.corpusDialogVisible = true;
-    },
-    
-    // 导入语料
-    importCorpus() {
-      // 导入语料逻辑
-    },
-    
-    // 编辑语料
-    editCorpus(corpus) {
-      this.corpusForm = {
-        id: corpus.id,
-        title: corpus.title,
-        content: corpus.content,
-        tags: [...corpus.tags]
-      };
-      this.corpusDialogVisible = true;
-    },
-    
-    // 按标签过滤
-    filterByTag(tagId) {
-      this.activeTag = this.activeTag === tagId ? null : tagId;
-    },
-    
-    // 显示添加标签对话框
-    showAddTagDialog() {
-      this.$prompt(this.$t('knowledgeBase.enterTagName'), this.$t('knowledgeBase.newTag'), {
-        confirmButtonText: this.$t('common.confirm'),
-        cancelButtonText: this.$t('common.cancel')
-      }).then(({ value }) => {
-        if (value) {
-          // 添加标签逻辑
-          this.corpusTags.push({
-            id: Date.now(),
-            name: value,
-            count: 0
-          });
-          this.$message({
-            type: 'success',
-            message: this.$t('knowledgeBase.tagCreated')
-          });
-        }
-      }).catch(() => {});
-    },
-    
-    // 加载语料数据
-    loadCorpus() {
-      // 从API获取语料数据的逻辑
-      // 模拟数据
-      this.corpus = [
-        {
-          id: 1,
-          title: '人工智能基础概念',
-          content: '人工智能（AI）是计算机科学的一个分支，致力于创建能够执行通常需要人类智能的任务的系统。这包括视觉感知、语音识别、决策制定和语言翻译等。',
-          tags: ['研究', '技术'],
-          updatedAt: new Date()
-        },
-        {
-          id: 2,
-          title: '机器学习算法比较',
-          content: '监督学习算法需要标记的训练数据，而无监督学习算法可以在没有标记的情况下工作。常见的监督学习算法包括线性回归、逻辑回归和支持向量机。无监督学习算法包括K均值聚类和主成分分析。',
-          tags: ['研究', '算法'],
-          updatedAt: new Date()
-        },
-        {
-          id: 3,
-          title: '深度学习框架概述',
-          content: 'TensorFlow和PyTorch是两个最流行的深度学习框架。TensorFlow由Google开发，提供了强大的生产部署工具。PyTorch由Facebook开发，以其动态计算图和易用性而闻名。',
-          tags: ['技术', '工具'],
-          updatedAt: new Date()
-        }
-      ];
-      
-      // 更新标签数据
-      this.updateCorpusTags();
-      
-      // 更新统计数据
-      this.updateStats();
-    },
-    
-    // 更新语料标签
-    updateCorpusTags() {
-      const tagCounts = {};
-      
-      // 计算每个标签的使用次数
-      this.corpus.forEach(item => {
-        item.tags.forEach(tag => {
-          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        });
-      });
-      
-      // 更新标签列表
-      this.corpusTags = Object.keys(tagCounts).map(tag => ({
-        id: tag,
-        name: tag,
-        count: tagCounts[tag]
-      }));
-    },
-    
-    // 创建RAG知识库
-    createRagKnowledgeBase() {
-      this.ragForm = {
-        name: '',
-        description: '',
-        sourceType: 'files',
-        selectedFiles: [],
-        selectedCorpus: [],
-        embeddingModel: this.embeddingModels[0].id
-      };
-      this.ragDialogVisible = true;
-    },
-    
-    // 编辑RAG知识库
-    editRagKB(kb) {
-      // 编辑RAG知识库逻辑
-    },
-    
-    // 更新RAG知识库
-    updateRagKB(kb) {
-      // 更新RAG知识库逻辑
-    },
-    
-    // 导出RAG知识库
-    exportRagKB(kb) {
-      // 导出RAG知识库逻辑
-    },
-    
-    // 打开RAG聊天
-    openRagChat(kb) {
-      this.activeRagKB = kb;
-      this.chatMessages = [
-        {
-          role: 'system',
-          content: `欢迎使用"${kb.name}"知识库。您可以询问任何相关问题，我将基于知识库内容为您解答。`,
-          timestamp: new Date()
-        }
-      ];
-      this.chatInput = '';
-      this.ragChatVisible = true;
-    },
-    
-    // 发送消息
-    sendMessage() {
-      if (!this.chatInput.trim()) return;
-      
-      // 添加用户消息
-      this.chatMessages.push({
-        role: 'user',
-        content: this.chatInput,
-        timestamp: new Date()
-      });
-      
-      const userQuestion = this.chatInput;
-      this.chatInput = '';
-      
-      // 模拟AI响应
-      setTimeout(() => {
-        this.chatMessages.push({
-          role: 'assistant',
-          content: `基于"${this.activeRagKB.name}"知识库，对于您的问题"${userQuestion}"，我找到了以下信息：\n\n这是一个基于RAG（检索增强生成）的回答示例。在实际应用中，这里会返回从知识库中检索到的相关信息，并生成针对用户问题的回答。`,
-          timestamp: new Date()
-        });
-      }, 1000);
-    },
-    
-    // 更新统计数据
-    updateStats() {
-      this.stats = {
-        totalFiles: this.files.length,
-        totalCorpus: this.corpus.length,
-        totalRag: this.ragKBs.length
-      };
-    },
-    
-    // 加载文件数据
-    loadFiles() {
-      // 从API获取文件数据的逻辑
-      // 模拟数据
-      this.files = [
-        { id: 1, name: '项目文档', type: 'folder', updatedAt: new Date(), size: 0 },
-        { id: 2, name: '研究报告.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 2.5 },
-        { id: 3, name: '会议记录.docx', type: 'file', updatedAt: new Date(), size: 1024 * 500 },
-        { id: 4, name: '数据分析.xlsx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.2 },
-        { id: 5, name: '产品说明.pptx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 3.7 }
-      ];
-      
-      // 更新统计数据
-      this.updateStats();
-    },
-    
-    // 加载RAG知识库数据
-    loadRagKBs() {
-      // 从API获取RAG知识库数据的逻辑
-      // 模拟数据
-      this.ragKBs = [
-        {
-          id: 1,
-          name: '产品知识库',
-          description: '包含所有产品相关的文档、规格和使用说明',
-          status: 'active',
-          documentCount: 24,
-          updatedAt: new Date()
-        },
-        {
-          id: 2,
-          name: '研究论文库',
-          description: '收集了领域内的重要研究论文和文献',
-          status: 'active',
-          documentCount: 57,
-          updatedAt: new Date()
-        },
-        {
-          id: 3,
-          name: '技术文档库',
-          description: '技术规范、API文档和开发指南的集合',
-          status: 'inactive',
-          documentCount: 18,
-          updatedAt: new Date()
-        }
-      ];
-      
-      // 更新统计数据
-      this.updateStats();
-    }
-  },
-
-  created() {
-    // 初始化加载数据
-    this.loadFiles()
-    this.loadCorpus()
-    this.loadRagKBs()
-  }
+// 状态
+const activeModule = ref('files')
+const searchQuery = ref('')
+const viewMode = ref('card')
+const currentPath = ref(['根目录'])
+const stats = ref({
+  totalFiles: 0,
+  totalCorpus: 0,
+  totalRag: 0
 })
+
+// 文件数据
+const files = ref([])
+const fileColumns = [
+  {
+    title: '文件名',
+    dataIndex: 'name',
+    key: 'name',
+  },
+  {
+    title: '更新时间',
+    dataIndex: 'updatedAt',
+    key: 'updatedAt',
+    width: 180,
+  },
+  {
+    title: '大小',
+    dataIndex: 'size',
+    key: 'size',
+    width: 120,
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 150,
+  }
+]
+
+// 语料数据
+const corpus = ref([])
+const corpusTags = ref([])
+const activeTag = ref(null)
+
+// RAG知识库数据
+const ragKBs = ref([])
+
+// 对话框控制
+const uploadDialogVisible = ref(false)
+const corpusDialogVisible = ref(false)
+const ragDialogVisible = ref(false)
+const ragChatVisible = ref(false)
+
+// 表单数据
+const corpusForm = ref({
+  title: '',
+  content: '',
+  tags: []
+})
+
+const ragForm = ref({
+  name: '',
+  description: '',
+  sourceType: 'files',
+  selectedFiles: [],
+  selectedCorpus: [],
+  embeddingModel: ''
+})
+
+// 嵌入模型选项
+const embeddingModels = [
+  { id: 'openai-ada-002', name: 'OpenAI Ada 002' },
+  { id: 'bge-large-zh', name: 'BGE Large Chinese' },
+  { id: 'bge-large-en', name: 'BGE Large English' }
+]
+
+// 聊天相关
+const activeRagKB = ref(null)
+const chatMessages = ref([])
+const chatInput = ref('')
+
+// 可用标签
+const availableTags = ref(['文档', '笔记', '研究', '项目', '参考资料'])
+
+// 搜索相关
+const showSearchTips = ref(false)
+const isSearching = ref(false)
+const fileTypes = [
+  { label: '文档', value: 'document', color: 'blue' },
+  { label: '图片', value: 'image', color: 'green' },
+  { label: '表格', value: 'spreadsheet', color: 'orange' },
+  { label: '演示', value: 'presentation', color: 'purple' },
+  { label: '压缩包', value: 'archive', color: 'red' },
+  { label: '文件夹', value: 'folder', color: 'default' }
+]
+
+// 计算属性
+const currentDate = computed(() => {
+  return new Date().toLocaleDateString('zh-CN', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  })
+})
+
+// 过滤后的文件列表
+const filteredFiles = computed(() => {
+  if (!searchQuery.value) {
+    return files.value
+  }
+  
+  const query = searchQuery.value.toLowerCase()
+  return files.value.filter(file => 
+    file.name.toLowerCase().includes(query)
+  )
+})
+
+// 过滤后的语料列表
+const filteredCorpus = computed(() => {
+  let result = corpus.value
+  
+  // 先按标签过滤
+  if (activeTag.value) {
+    result = result.filter(item => 
+      item.tags.includes(activeTag.value)
+    )
+  }
+  
+  // 再按搜索词过滤
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(item => 
+      item.title.toLowerCase().includes(query) || 
+      item.content.toLowerCase().includes(query)
+    )
+  }
+  
+  return result
+})
+
+// 过滤后的RAG知识库列表
+const filteredRagKBs = computed(() => {
+  if (!searchQuery.value) {
+    return ragKBs.value
+  }
+  
+  const query = searchQuery.value.toLowerCase()
+  return ragKBs.value.filter(kb => 
+    kb.name.toLowerCase().includes(query) || 
+    kb.description.toLowerCase().includes(query)
+  )
+})
+
+// 用于穿梭框的文件数据
+const transferFiles = computed(() => {
+  return files.value.map(file => ({
+    key: file.id,
+    title: file.name,
+    description: `${formatDate(file.updatedAt)} - ${formatSize(file.size)}`,
+    disabled: file.type === 'folder'
+  }))
+})
+
+// 用于穿梭框的语料数据
+const transferCorpus = computed(() => {
+  return corpus.value.map(item => ({
+    key: item.id,
+    title: item.title,
+    description: item.content.substring(0, 50) + (item.content.length > 50 ? '...' : '')
+  }))
+})
+
+// 方法
+// 模块切换处理
+const handleModuleChange = ({ key }) => {
+  activeModule.value = key
+}
+
+// 搜索处理
+const handleSearch = () => {
+  if (searchQuery.value) {
+    isSearching.value = true
+  } else {
+    isSearching.value = false
+  }
+}
+
+// 搜索框失焦处理
+const handleSearchBlur = () => {
+  setTimeout(() => {
+    showSearchTips.value = false
+  }, 200)
+}
+
+// 清除搜索
+const clearSearch = () => {
+  searchQuery.value = ''
+  isSearching.value = false
+  message.success('已清除搜索')
+}
+
+// 执行搜索
+const onSearch = () => {
+  if (!searchQuery.value.trim()) return
+  
+  message.success({
+    content: '搜索完成 🔍',
+    duration: 1
+  })
+}
+
+// 标签点击处理
+const handleTagClick = (value) => {
+  searchQuery.value = value
+  onSearch()
+}
+
+// 文件图标获取
+const getFileIconComponent = (file) => {
+  if (file.type === 'folder') {
+    return FolderOutlined
+  }
+  
+  const ext = file.name.split('.').pop().toLowerCase()
+  
+  const iconMap = {
+    'pdf': FilePdfOutlined,
+    'doc': FileWordOutlined,
+    'docx': FileWordOutlined,
+    'xls': FileExcelOutlined,
+    'xlsx': FileExcelOutlined,
+    'ppt': FilePptOutlined,
+    'pptx': FilePptOutlined,
+    'txt': FileTextOutlined,
+    'jpg': FileImageOutlined,
+    'jpeg': FileImageOutlined,
+    'png': FileImageOutlined,
+    'gif': FileImageOutlined,
+    'zip': FileZipOutlined,
+    'rar': FileZipOutlined
+  }
+  
+  return iconMap[ext] || FileOutlined
+}
+
+// 获取文件图标颜色
+const getFileIconColor = (file) => {
+  if (file.type === 'folder') {
+    return 'text-blue-500'
+  }
+  
+  const ext = file.name.split('.').pop().toLowerCase()
+  
+  const colorMap = {
+    'pdf': 'text-red-500',
+    'doc': 'text-blue-600',
+    'docx': 'text-blue-600',
+    'xls': 'text-green-600',
+    'xlsx': 'text-green-600',
+    'ppt': 'text-orange-500',
+    'pptx': 'text-orange-500',
+    'txt': 'text-gray-600',
+    'jpg': 'text-purple-500',
+    'jpeg': 'text-purple-500',
+    'png': 'text-purple-500',
+    'gif': 'text-purple-500',
+    'zip': 'text-yellow-600',
+    'rar': 'text-yellow-600'
+  }
+  
+  return colorMap[ext] || 'text-gray-500'
+}
+
+// 日期格式化
+const formatDate = (date) => {
+  if (!date) return ''
+  return dayjs(date).format('YYYY-MM-DD HH:mm')
+}
+
+// 时间格式化
+const formatTime = (timestamp) => {
+  if (!timestamp) return ''
+  return dayjs(timestamp).format('HH:mm:ss')
+}
+
+// 文件大小格式化
+const formatSize = (size) => {
+  if (!size) return '0 B'
+  
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let formattedSize = size
+  
+  while (formattedSize >= 1024 && i < units.length - 1) {
+    formattedSize /= 1024
+    i++
+  }
+  
+  return `${formattedSize.toFixed(2)} ${units[i]}`
+}
+
+// 消息格式化
+const formatMessage = (content) => {
+  // 简单的Markdown格式支持
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>')
+}
+
+// 文件点击处理
+const handleFileClick = (file) => {
+  if (file.type === 'folder') {
+    currentPath.value.push(file.name)
+    // 加载文件夹内容
+    loadFolderContents(file.id)
+  } else {
+    // 预览文件
+    previewFile(file)
+  }
+}
+
+// 路径导航
+const navigateTo = (index) => {
+  if (index < currentPath.value.length - 1) {
+    currentPath.value = currentPath.value.slice(0, index + 1)
+    // 加载对应路径的内容
+    loadCurrentPathContents()
+  }
+}
+
+// 显示上传对话框
+const showUploadDialog = () => {
+  uploadDialogVisible.value = true
+}
+
+// 处理上传变化
+const handleUploadChange = (info) => {
+  if (info.file.status === 'done') {
+    message.success(`${info.file.name} 上传成功`)
+    loadFiles()
+  } else if (info.file.status === 'error') {
+    message.error(`${info.file.name} 上传失败`)
+  }
+}
+
+// 创建文件夹
+const createFolder = () => {
+  message.info('创建文件夹功能')
+}
+
+// 加载文件夹内容
+const loadFolderContents = (folderId) => {
+  // 从API获取特定文件夹内容的逻辑
+  // 模拟数据
+  files.value = [
+    { id: 6, name: '子文件夹', type: 'folder', updatedAt: new Date(), size: 0 },
+    { id: 7, name: '技术规范.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.8 },
+    { id: 8, name: '开发计划.docx', type: 'file', updatedAt: new Date(), size: 1024 * 300 }
+  ]
+}
+
+// 加载当前路径内容
+const loadCurrentPathContents = () => {
+  // 根据当前路径加载内容
+  if (currentPath.value.length === 1) {
+    loadFiles()
+  } else {
+    // 模拟加载特定路径的内容
+    loadFolderContents()
+  }
+}
+
+// 预览文件
+const previewFile = (file) => {
+  // 文件预览逻辑
+  message.info(`预览文件: ${file.name}`)
+}
+
+// 下载文件
+const downloadFile = (file) => {
+  // 文件下载逻辑
+  message.success(`下载文件: ${file.name}`)
+}
+
+// 重命名文件
+const renameFile = (file) => {
+  // 重命名文件逻辑
+  message.info(`重命名文件: ${file.name}`)
+}
+
+// 删除文件
+const deleteFile = async (file) => {
+  try {
+    await message.confirm(`确定要删除 ${file.name} 吗？`)
+    // 删除文件逻辑
+    message.success('删除成功')
+    loadFiles()
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 显示添加语料对话框
+const showAddCorpusDialog = () => {
+  corpusForm.value = {
+    title: '',
+    content: '',
+    tags: []
+  }
+  corpusDialogVisible.value = true
+}
+
+// 导入语料
+const importCorpus = () => {
+  // 导入语料逻辑
+  message.info('导入语料功能')
+}
+
+// 编辑语料
+const editCorpus = (item) => {
+  corpusForm.value = {
+    id: item.id,
+    title: item.title,
+    content: item.content,
+    tags: [...item.tags]
+  }
+  corpusDialogVisible.value = true
+}
+
+// 删除语料
+const deleteCorpus = async (corpus) => {
+  try {
+    await message.confirm(`确定要删除语料 ${corpus.title} 吗？`)
+    // 删除语料逻辑
+    message.success('删除成功')
+    loadCorpus()
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 保存语料
+const saveCorpus = () => {
+  if (!corpusForm.value.title || !corpusForm.value.content) {
+    message.warning('标题和内容不能为空')
+    return
+  }
+  
+  // 保存语料逻辑
+  message.success('保存成功')
+  corpusDialogVisible.value = false
+  loadCorpus()
+}
+
+// 按标签过滤
+const filterByTag = (tagId) => {
+  activeTag.value = activeTag.value === tagId ? null : tagId
+}
+
+// 显示添加标签对话框
+const showAddTagDialog = () => {
+  message.info('添加标签功能')
+}
+
+// 创建RAG知识库
+const createRagKnowledgeBase = () => {
+  ragForm.value = {
+    name: '',
+    description: '',
+    sourceType: 'files',
+    selectedFiles: [],
+    selectedCorpus: [],
+    embeddingModel: embeddingModels[0].id
+  }
+  ragDialogVisible.value = true
+}
+
+// 保存RAG知识库
+const saveRagKnowledgeBase = () => {
+  if (!ragForm.value.name) {
+    message.warning('名称不能为空')
+    return
+  }
+  
+  // 保存知识库逻辑
+  message.success('创建成功')
+  ragDialogVisible.value = false
+  loadRagKBs()
+}
+
+// RAG知识库操作处理
+const handleRagAction = (command, kb) => {
+  switch (command) {
+    case 'edit':
+      message.info(`编辑知识库: ${kb.name}`)
+      break
+    case 'update':
+      message.info(`更新知识库: ${kb.name}`)
+      break
+    case 'export':
+      message.info(`导出知识库: ${kb.name}`)
+      break
+    case 'delete':
+      deleteRagKB(kb)
+      break
+  }
+}
+
+// 删除RAG知识库
+const deleteRagKB = async (kb) => {
+  try {
+    await message.confirm(`确定要删除知识库 ${kb.name} 吗？`)
+    // 删除知识库逻辑
+    message.success('删除成功')
+    loadRagKBs()
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 打开RAG聊天
+const openRagChat = (kb) => {
+  activeRagKB.value = kb
+  chatMessages.value = [
+    {
+      role: 'system',
+      content: `欢迎使用"${kb.name}"知识库。您可以询问任何相关问题，我将基于知识库内容为您解答。`,
+      timestamp: new Date()
+    }
+  ]
+  chatInput.value = ''
+  ragChatVisible.value = true
+}
+
+// 发送消息
+const sendMessage = () => {
+  if (!chatInput.value.trim()) return
+  
+  // 添加用户消息
+  chatMessages.value.push({
+    role: 'user',
+    content: chatInput.value,
+    timestamp: new Date()
+  })
+  
+  const userQuestion = chatInput.value
+  chatInput.value = ''
+  
+  // 模拟AI响应
+  setTimeout(() => {
+    chatMessages.value.push({
+      role: 'assistant',
+      content: `基于"${activeRagKB.value.name}"知识库，对于您的问题"${userQuestion}"，我找到了以下信息：\n\n这是一个基于RAG（检索增强生成）的回答示例。在实际应用中，这里会返回从知识库中检索到的相关信息，并生成针对用户问题的回答。`,
+      timestamp: new Date()
+    })
+  }, 1000)
+}
+
+// 更新统计数据
+const updateStats = () => {
+  stats.value = {
+    totalFiles: files.value.length,
+    totalCorpus: corpus.value.length,
+    totalRag: ragKBs.value.length
+  }
+}
+
+// 加载文件数据
+const loadFiles = () => {
+  // 从API获取文件数据的逻辑
+  // 模拟数据
+  files.value = [
+    { id: 1, name: '项目文档', type: 'folder', updatedAt: new Date(), size: 0 },
+    { id: 2, name: '研究报告.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 2.5 },
+    { id: 3, name: '会议记录.docx', type: 'file', updatedAt: new Date(), size: 1024 * 500 },
+    { id: 4, name: '数据分析.xlsx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.2 },
+    { id: 5, name: '产品说明.pptx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 3.7 }
+  ]
+  
+  // 更新统计数据
+  updateStats()
+}
+
+// 加载语料数据
+const loadCorpus = () => {
+  // 从API获取语料数据的逻辑
+  // 模拟数据
+  corpus.value = [
+    {
+      id: 1,
+      title: '人工智能基础概念',
+      content: '人工智能（AI）是计算机科学的一个分支，致力于创建能够执行通常需要人类智能的任务的系统。这包括视觉感知、语音识别、决策制定和语言翻译等。',
+      tags: ['研究', '技术'],
+      updatedAt: new Date()
+    },
+    {
+      id: 2,
+      title: '机器学习算法比较',
+      content: '监督学习算法需要标记的训练数据，而无监督学习算法可以在没有标记的情况下工作。常见的监督学习算法包括线性回归、逻辑回归和支持向量机。无监督学习算法包括K均值聚类和主成分分析。',
+      tags: ['研究', '算法'],
+      updatedAt: new Date()
+    },
+    {
+      id: 3,
+      title: '深度学习框架概述',
+      content: 'TensorFlow和PyTorch是两个最流行的深度学习框架。TensorFlow由Google开发，提供了强大的生产部署工具。PyTorch由Facebook开发，以其动态计算图和易用性而闻名。',
+      tags: ['技术', '工具'],
+      updatedAt: new Date()
+    }
+  ]
+  
+  // 更新标签数据
+  updateCorpusTags()
+  
+  // 更新统计数据
+  updateStats()
+}
+
+// 更新语料标签
+const updateCorpusTags = () => {
+  const tagCounts = {}
+  
+  // 计算每个标签的使用次数
+  corpus.value.forEach(item => {
+    item.tags.forEach(tag => {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1
+    })
+  })
+  
+  // 更新标签列表
+  corpusTags.value = Object.keys(tagCounts).map(tag => ({
+    id: tag,
+    name: tag,
+    count: tagCounts[tag]
+  }))
+}
+
+// 加载RAG知识库数据
+const loadRagKBs = () => {
+  // 从API获取RAG知识库数据的逻辑
+  // 模拟数据
+  ragKBs.value = [
+    {
+      id: 1,
+      name: '产品知识库',
+      description: '包含所有产品相关的文档、规格和使用说明',
+      status: 'active',
+      documentCount: 24,
+      updatedAt: new Date()
+    },
+    {
+      id: 2,
+      name: '研究论文库',
+      description: '收集了领域内的重要研究论文和文献',
+      status: 'active',
+      documentCount: 57,
+      updatedAt: new Date()
+    },
+    {
+      id: 3,
+      name: '技术文档库',
+      description: '技术规范、API文档和开发指南的集合',
+      status: 'inactive',
+      documentCount: 18,
+      updatedAt: new Date()
+    }
+  ]
+  
+  // 更新统计数据
+  updateStats()
+}
+
+// 添加键盘快捷键监听
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+  
+  // 初始化加载数据
+  loadFiles()
+  loadCorpus()
+  loadRagKBs()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+
+const handleKeyDown = (e) => {
+  // 当按下 '/' 键且不在输入框中时，聚焦搜索框
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    e.preventDefault()
+    const searchInput = document.querySelector('.search-input input')
+    if (searchInput) {
+      searchInput.focus()
+    }
+  }
+}
 </script>
 
 <style scoped>
-.knowledge-base-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+/* 搜索框样式 */
+.search-input {
+  @apply bg-white hover:bg-gray-50 transition-all duration-300 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.kb-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #ebeef5;
+.search-input:hover,
+.search-input:focus-within {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.kb-title {
-  margin: 0;
-  font-size: 24px;
-  color: #303133;
+.search-prefix {
+  @apply flex items-center mr-2;
 }
 
-.kb-search-container {
-  display: flex;
-  gap: 16px;
-  width: 50%;
+.search-icon {
+  @apply text-gray-400 text-lg transition-all duration-300;
 }
 
-.kb-main-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+.search-icon.searching {
+  @apply text-blue-500;
+  animation: searching 1.5s ease-in-out infinite;
 }
 
-.kb-sidebar {
-  width: 240px;
-  border-right: 1px solid #ebeef5;
-  display: flex;
-  flex-direction: column;
+.search-suffix {
+  @apply flex items-center gap-2;
 }
 
-.kb-menu {
-  border-right: none;
-}
-
-.kb-stats {
-  margin-top: auto;
-  padding: 16px;
-  border-top: 1px solid #ebeef5;
-}
-
-.kb-stats h3 {
-  margin-top: 0;
-  margin-bottom: 12px;
+.clear-icon {
+  @apply text-gray-400 hover:text-red-500 cursor-pointer transition-colors;
   font-size: 16px;
-  color: #606266;
 }
 
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #606266;
+/* 搜索提示框样式 */
+.search-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
 }
 
-.stat-value {
-  font-weight: bold;
-  color: #409eff;
+.search-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
-.kb-content {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
+.tooltip-header {
+  @apply flex items-center justify-between mb-4 pb-3 border-b border-gray-100;
 }
 
-.module-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+.tooltip-title {
+  @apply text-base font-medium text-gray-700;
 }
 
-.module-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+.tooltip-subtitle {
+  @apply text-sm text-gray-400;
 }
 
-.module-header h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #303133;
+.tooltip-section {
+  @apply mb-4;
 }
 
-.module-actions {
-  display: flex;
-  gap: 12px;
+.section-header {
+  @apply flex items-center gap-2 mb-2 text-sm text-gray-600;
 }
 
-.files-container {
-  margin-top: 16px;
+.tooltip-tags {
+  @apply flex flex-wrap gap-2;
 }
 
-.files-container.card {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+.search-tag {
+  @apply cursor-pointer transition-all hover:scale-105;
+  padding: 4px 8px;
 }
 
+.tooltip-footer {
+  @apply flex items-center gap-2 mt-4 pt-3 border-t border-gray-100 text-sm text-gray-500;
+}
+
+.tooltip-footer kbd {
+  @apply bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-sm font-mono;
+}
+
+/* 文件卡片样式 */
 .file-card {
-  cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
 }
 
 .file-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
-.file-card.is-folder {
-  background-color: #f5f7fa;
-}
-
-.file-icon {
-  font-size: 32px;
-  color: #409eff;
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.file-info {
-  text-align: center;
-}
-
-.file-name {
-  font-weight: bold;
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #909399;
-}
-
-.file-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.file-card:hover .file-actions {
-  opacity: 1;
-}
-
-.corpus-tags {
-  margin-bottom: 16px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.el-tag {
-  cursor: pointer;
-}
-
-.el-tag.active {
-  background-color: #409eff;
-  color: white;
-  border-color: #409eff;
-}
-
-.corpus-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-
+/* 语料卡片样式 */
 .corpus-card {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.corpus-header {
-  margin-bottom: 12px;
-}
-
-.corpus-header h3 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  font-size: 18px;
-}
-
-.corpus-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 .corpus-content {
-  flex: 1;
-  color: #606266;
-  font-size: 14px;
-  line-height: 1.5;
+  max-height: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 
-.corpus-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #ebeef5;
+/* 自定义表格样式 */
+.custom-table :deep(.ant-table) {
+  @apply bg-transparent;
 }
 
-.corpus-date {
-  font-size: 12px;
-  color: #909399;
+.custom-table :deep(.ant-table-thead > tr > th) {
+  @apply bg-transparent !important;
+  @apply text-gray-500 font-medium !important;
+  @apply border-b border-gray-100 !important;
+  @apply before:hidden !important;
+  @apply py-3 !important;
 }
 
-.corpus-actions {
-  display: flex;
-  gap: 8px;
+.custom-table :deep(.ant-table-tbody > tr > td) {
+  @apply border-none !important;
+  @apply py-3 !important;
 }
 
-.rag-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
+.custom-table :deep(.ant-table-tbody > tr) {
+  @apply hover:bg-gray-50/80;
 }
 
-.rag-card {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+/* 美化滚动条 */
+:deep(::-webkit-scrollbar) {
+  @apply w-1.5;
 }
 
-.rag-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+:deep(::-webkit-scrollbar-track) {
+  @apply bg-transparent;
 }
 
-.rag-header h3 {
-  margin: 0;
-  font-size: 18px;
+:deep(::-webkit-scrollbar-thumb) {
+  @apply bg-gray-200 rounded-full;
 }
 
-.rag-info {
-  flex: 1;
+:deep(::-webkit-scrollbar-thumb:hover) {
+  @apply bg-gray-300;
 }
 
-.rag-stats {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+/* 搜索图标动画 */
+@keyframes searching {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
 }
 
-.rag-stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  color: #606266;
-}
-
-.rag-description {
-  color: #606266;
-  font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 16px;
-}
-
-.rag-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #ebeef5;
-}
-
-.rag-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.rag-chat-container {
-  height: 70vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  margin-bottom: 16px;
-}
-
-.chat-message {
-  display: flex;
-  margin-bottom: 16px;
-}
-
-.chat-message.user {
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: #409eff;
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;
-  margin: 0 12px;
-}
-
-.chat-message.user .message-avatar {
-  background-color: #67c23a;
-}
-
-.message-content {
-  max-width: 70%;
-  background-color: white;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-}
-
-.chat-message.user .message-content {
-  background-color: #ecf5ff;
-}
-
+/* 聊天消息样式 */
 .message-text {
-  color: #303133;
   line-height: 1.5;
 }
 
-.message-time {
-  text-align: right;
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-.chat-input {
-  display: flex;
-  gap: 16px;
-}
-
-.upload-container {
-  width: 100%;
-}
-
+/* 响应式调整 */
 @media (max-width: 768px) {
-  .kb-main-content {
+  .flex-1.flex {
     flex-direction: column;
   }
   
-  .kb-sidebar {
+  .flex-none.w-60 {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid #ebeef5;
-  }
-  
-  .files-container.card {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
-  
-  .corpus-list, .rag-list {
-    grid-template-columns: 1fr;
+    border-bottom: 1px solid #f0f0f0;
   }
 }
 </style>
