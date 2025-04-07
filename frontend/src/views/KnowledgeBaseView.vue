@@ -411,7 +411,8 @@
       <a-upload-dragger
         name="file"
         :multiple="true"
-        action="/api/knowledge-base/upload"
+        :action="`${API_BASE_URL}/upload`"
+        :data="uploadData"
         @change="handleUploadChange"
       >
         <p class="ant-upload-drag-icon">
@@ -561,9 +562,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { ref, computed, onMounted, onUnmounted, reactive, h } from 'vue'
+import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
+import axios from 'axios'
 import { 
   SearchOutlined,
   FileOutlined,
@@ -596,6 +598,18 @@ import {
   KeyboardOutlined,
   CloseCircleOutlined
 } from '@ant-design/icons-vue'
+
+// API基础URL
+const API_BASE_URL = '/api/knowledge-base'
+
+// 创建axios实例
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
 
 // 状态
 const activeModule = ref('files')
@@ -692,6 +706,10 @@ const fileTypes = [
   { label: '文件夹', value: 'folder', color: 'default' }
 ]
 
+// 添加引用变量用于对话框
+const folderNameRef = ref('')
+const fileNameRef = ref('')
+
 // 计算属性
 const currentDate = computed(() => {
   return new Date().toLocaleDateString('zh-CN', {
@@ -766,6 +784,21 @@ const transferCorpus = computed(() => {
     title: item.title,
     description: item.content.substring(0, 50) + (item.content.length > 50 ? '...' : '')
   }))
+})
+
+// 上传数据
+const uploadData = computed(() => {
+  // 如果不是在根目录，需要添加父文件夹ID
+  if (currentPath.value.length > 1) {
+    const currentFolder = files.value.find(f => 
+      f.name === currentPath.value[currentPath.value.length - 1] && 
+      f.type === 'folder'
+    )
+    if (currentFolder) {
+      return { parent_id: currentFolder.id }
+    }
+  }
+  return {}
 })
 
 // 方法
@@ -933,39 +966,101 @@ const showUploadDialog = () => {
 }
 
 // 处理上传变化
-const handleUploadChange = (info) => {
+const handleUploadChange = async (info) => {
   if (info.file.status === 'done') {
     message.success(`${info.file.name} 上传成功`)
-    loadFiles()
+    await loadFiles()
   } else if (info.file.status === 'error') {
     message.error(`${info.file.name} 上传失败`)
   }
 }
 
 // 创建文件夹
-const createFolder = () => {
-  message.info('创建文件夹功能')
+const createFolder = async () => {
+  try {
+    folderNameRef.value = '';
+    Modal.confirm({
+      title: '创建文件夹',
+      content: h('div', [
+        h('a-input', {
+          placeholder: '请输入文件夹名称',
+          value: folderNameRef.value,
+          'onUpdate:value': val => folderNameRef.value = val
+        })
+      ]),
+      onOk: async () => {
+        const folderName = folderNameRef.value;
+        if (!folderName) return;
+        
+        const formData = new FormData();
+        formData.append('name', folderName);
+        
+        // 如果不是在根目录，需要添加父文件夹ID
+        if (currentPath.value.length > 1) {
+          const currentFolder = files.value.find(f => 
+            f.name === currentPath.value[currentPath.value.length - 1] && 
+            f.type === 'folder'
+          );
+          if (currentFolder) {
+            formData.append('parent_id', currentFolder.id);
+          }
+        }
+        
+        await api.post('/folders', formData);
+        message.success('创建文件夹成功');
+        await loadFiles();
+      }
+    });
+  } catch (error) {
+    console.error('创建文件夹失败:', error);
+    message.error('创建文件夹失败');
+  }
 }
 
 // 加载文件夹内容
-const loadFolderContents = (folderId) => {
-  // 从API获取特定文件夹内容的逻辑
-  // 模拟数据
-  files.value = [
-    { id: 6, name: '子文件夹', type: 'folder', updatedAt: new Date(), size: 0 },
-    { id: 7, name: '技术规范.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.8 },
-    { id: 8, name: '开发计划.docx', type: 'file', updatedAt: new Date(), size: 1024 * 300 }
-  ]
+const loadFolderContents = async (folderId) => {
+  try {
+    const response = await api.get('/files', { 
+      params: { parent_id: folderId } 
+    })
+    files.value = response.data
+  } catch (error) {
+    console.error('加载文件夹内容失败:', error)
+    message.error('加载文件夹内容失败')
+  }
 }
 
 // 加载当前路径内容
-const loadCurrentPathContents = () => {
-  // 根据当前路径加载内容
+const loadCurrentPathContents = async () => {
   if (currentPath.value.length === 1) {
-    loadFiles()
+    await loadFiles()
   } else {
-    // 模拟加载特定路径的内容
-    loadFolderContents()
+    // 需要找到当前路径对应的文件夹ID
+    let currentFolderId = null
+    let parentId = null
+    
+    for (let i = 1; i < currentPath.value.length; i++) {
+      const folderName = currentPath.value[i]
+      
+      // 加载当前层级的文件夹
+      const response = await api.get('/files', { 
+        params: { parent_id: parentId } 
+      })
+      
+      // 查找当前文件夹
+      const folder = response.data.find(f => f.name === folderName && f.type === 'folder')
+      if (!folder) {
+        message.error(`找不到文件夹: ${folderName}`)
+        return
+      }
+      
+      currentFolderId = folder.id
+      parentId = folder.id
+    }
+    
+    if (currentFolderId) {
+      await loadFolderContents(currentFolderId)
+    }
   }
 }
 
@@ -977,25 +1072,78 @@ const previewFile = (file) => {
 
 // 下载文件
 const downloadFile = (file) => {
-  // 文件下载逻辑
-  message.success(`下载文件: ${file.name}`)
+  // 创建一个临时链接来模拟下载
+  // 在实际应用中，这里应该调用真实的下载API
+  const url = `${API_BASE_URL}/files/${file.id}/download`;
+  
+  // 创建一个隐藏的a标签
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = file.name;
+  
+  // 添加到文档并触发点击
+  document.body.appendChild(a);
+  a.click();
+  
+  // 清理
+  setTimeout(() => {
+    document.body.removeChild(a);
+  }, 100);
+  
+  message.success(`开始下载: ${file.name}`);
 }
 
 // 重命名文件
-const renameFile = (file) => {
-  // 重命名文件逻辑
-  message.info(`重命名文件: ${file.name}`)
+const renameFile = async (file) => {
+  try {
+    fileNameRef.value = file.name;
+    
+    Modal.confirm({
+      title: '重命名文件',
+      content: h('div', [
+        h('a-input', {
+          placeholder: '请输入新名称',
+          value: fileNameRef.value,
+          'onUpdate:value': val => fileNameRef.value = val
+        })
+      ]),
+      onOk: async () => {
+        const newName = fileNameRef.value;
+        if (!newName || newName === file.name) return;
+        
+        const formData = new FormData();
+        formData.append('name', newName);
+        
+        await api.put(`/files/${file.id}`, formData);
+        message.success('重命名成功');
+        await loadFiles();
+      }
+    });
+  } catch (error) {
+    console.error('重命名失败:', error);
+    message.error('重命名失败');
+  }
 }
 
 // 删除文件
 const deleteFile = async (file) => {
   try {
-    await message.confirm(`确定要删除 ${file.name} 吗？`)
-    // 删除文件逻辑
-    message.success('删除成功')
-    loadFiles()
-  } catch {
-    // 用户取消删除
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除 ${file.name} 吗？`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await api.delete(`/files/${file.id}`);
+        message.success('删除成功');
+        await loadFiles();
+      }
+    });
+  } catch (error) {
+    console.error('删除失败:', error);
+    message.error('删除失败');
   }
 }
 
@@ -1011,8 +1159,7 @@ const showAddCorpusDialog = () => {
 
 // 导入语料
 const importCorpus = () => {
-  // 导入语料逻辑
-  message.info('导入语料功能')
+  message.info('导入语料功能尚未实现')
 }
 
 // 编辑语料
@@ -1029,26 +1176,54 @@ const editCorpus = (item) => {
 // 删除语料
 const deleteCorpus = async (corpus) => {
   try {
-    await message.confirm(`确定要删除语料 ${corpus.title} 吗？`)
-    // 删除语料逻辑
-    message.success('删除成功')
-    loadCorpus()
-  } catch {
-    // 用户取消删除
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除语料 ${corpus.title} 吗？`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await api.delete(`/corpus/${corpus.id}`);
+        message.success('删除成功');
+        await loadCorpus();
+      }
+    });
+  } catch (error) {
+    console.error('删除语料失败:', error);
+    message.error('删除语料失败');
   }
 }
 
 // 保存语料
-const saveCorpus = () => {
+const saveCorpus = async () => {
   if (!corpusForm.value.title || !corpusForm.value.content) {
     message.warning('标题和内容不能为空')
     return
   }
   
-  // 保存语料逻辑
-  message.success('保存成功')
-  corpusDialogVisible.value = false
-  loadCorpus()
+  try {
+    const data = {
+      title: corpusForm.value.title,
+      content: corpusForm.value.content,
+      tags: corpusForm.value.tags
+    }
+    
+    if (corpusForm.value.id) {
+      // 更新现有语料
+      await api.put(`/corpus/${corpusForm.value.id}`, data)
+      message.success('更新成功')
+    } else {
+      // 创建新语料
+      await api.post('/corpus', data)
+      message.success('创建成功')
+    }
+    
+    corpusDialogVisible.value = false
+    await loadCorpus()
+  } catch (error) {
+    console.error('保存语料失败:', error)
+    message.error('保存语料失败')
+  }
 }
 
 // 按标签过滤
@@ -1075,32 +1250,72 @@ const createRagKnowledgeBase = () => {
 }
 
 // 保存RAG知识库
-const saveRagKnowledgeBase = () => {
+const saveRagKnowledgeBase = async () => {
   if (!ragForm.value.name) {
     message.warning('名称不能为空')
     return
   }
   
-  // 保存知识库逻辑
-  message.success('创建成功')
-  ragDialogVisible.value = false
-  loadRagKBs()
+  try {
+    const data = {
+      name: ragForm.value.name,
+      description: ragForm.value.description,
+      sourceType: ragForm.value.sourceType,
+      selectedFiles: ragForm.value.selectedFiles,
+      selectedCorpus: ragForm.value.selectedCorpus,
+      embeddingModel: ragForm.value.embeddingModel
+    }
+    
+    if (ragForm.value.id) {
+      // 更新现有知识库
+      await api.put(`/rag/${ragForm.value.id}`, data)
+      message.success('更新成功')
+    } else {
+      // 创建新知识库
+      await api.post('/rag', data)
+      message.success('创建成功')
+    }
+    
+    ragDialogVisible.value = false
+    await loadRagKBs()
+  } catch (error) {
+    console.error('保存知识库失败:', error)
+    message.error('保存知识库失败')
+  }
 }
 
 // RAG知识库操作处理
-const handleRagAction = (command, kb) => {
+const handleRagAction = async (command, kb) => {
   switch (command) {
     case 'edit':
-      message.info(`编辑知识库: ${kb.name}`)
+      // 编辑知识库
+      ragForm.value = {
+        id: kb.id,
+        name: kb.name,
+        description: kb.description,
+        sourceType: 'files',
+        selectedFiles: [],
+        selectedCorpus: [],
+        embeddingModel: embeddingModels[0].id
+      }
+      ragDialogVisible.value = true
       break
     case 'update':
-      message.info(`更新知识库: ${kb.name}`)
+      // 更新知识库
+      try {
+        await api.put(`/rag/${kb.id}/status`, { status: kb.status === 'active' ? 'inactive' : 'active' })
+        message.success(`知识库状态已${kb.status === 'active' ? '停用' : '激活'}`)
+        await loadRagKBs()
+      } catch (error) {
+        console.error('更新知识库状态失败:', error)
+        message.error('更新知识库状态失败')
+      }
       break
     case 'export':
-      message.info(`导出知识库: ${kb.name}`)
+      message.info(`导出知识库功能尚未实现: ${kb.name}`)
       break
     case 'delete':
-      deleteRagKB(kb)
+      await deleteRagKB(kb)
       break
   }
 }
@@ -1108,17 +1323,26 @@ const handleRagAction = (command, kb) => {
 // 删除RAG知识库
 const deleteRagKB = async (kb) => {
   try {
-    await message.confirm(`确定要删除知识库 ${kb.name} 吗？`)
-    // 删除知识库逻辑
-    message.success('删除成功')
-    loadRagKBs()
-  } catch {
-    // 用户取消删除
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除知识库 ${kb.name} 吗？`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await api.delete(`/rag/${kb.id}`);
+        message.success('删除成功');
+        await loadRagKBs();
+      }
+    });
+  } catch (error) {
+    console.error('删除知识库失败:', error);
+    message.error('删除知识库失败');
   }
 }
 
 // 打开RAG聊天
-const openRagChat = (kb) => {
+const openRagChat = async (kb) => {
   activeRagKB.value = kb
   chatMessages.value = [
     {
@@ -1132,141 +1356,136 @@ const openRagChat = (kb) => {
 }
 
 // 发送消息
-const sendMessage = () => {
+const sendMessage = async () => {
   if (!chatInput.value.trim()) return
   
   // 添加用户消息
-  chatMessages.value.push({
+  const userMessage = {
     role: 'user',
     content: chatInput.value,
     timestamp: new Date()
-  })
+  }
+  chatMessages.value.push(userMessage)
   
   const userQuestion = chatInput.value
   chatInput.value = ''
   
-  // 模拟AI响应
-  setTimeout(() => {
+  try {
+    // 发送消息到后端
+    const formData = new FormData()
+    formData.append('message', userQuestion)
+    
+    const response = await api.post(`/rag/${activeRagKB.value.id}/chat`, formData)
+    
+    // 添加AI回复
+    chatMessages.value.push(response.data)
+  } catch (error) {
+    console.error('发送消息失败:', error)
+    
+    // 添加错误消息
     chatMessages.value.push({
       role: 'assistant',
-      content: `基于"${activeRagKB.value.name}"知识库，对于您的问题"${userQuestion}"，我找到了以下信息：\n\n这是一个基于RAG（检索增强生成）的回答示例。在实际应用中，这里会返回从知识库中检索到的相关信息，并生成针对用户问题的回答。`,
+      content: '抱歉，处理您的问题时出现了错误。请稍后再试。',
       timestamp: new Date()
     })
-  }, 1000)
+  }
 }
 
-// 更新统计数据
-const updateStats = () => {
-  stats.value = {
-    totalFiles: files.value.length,
-    totalCorpus: corpus.value.length,
-    totalRag: ragKBs.value.length
+// 加载统计数据
+const loadStats = async () => {
+  try {
+    const response = await api.get('/stats')
+    stats.value = response.data
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+    message.error('加载统计数据失败')
   }
 }
 
 // 加载文件数据
-const loadFiles = () => {
-  // 从API获取文件数据的逻辑
-  // 模拟数据
-  files.value = [
-    { id: 1, name: '项目文档', type: 'folder', updatedAt: new Date(), size: 0 },
-    { id: 2, name: '研究报告.pdf', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 2.5 },
-    { id: 3, name: '会议记录.docx', type: 'file', updatedAt: new Date(), size: 1024 * 500 },
-    { id: 4, name: '数据分析.xlsx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 1.2 },
-    { id: 5, name: '产品说明.pptx', type: 'file', updatedAt: new Date(), size: 1024 * 1024 * 3.7 }
-  ]
-  
-  // 更新统计数据
-  updateStats()
+const loadFiles = async () => {
+  try {
+    const params = {}
+    if (currentPath.value.length > 1) {
+      // 如果不是根目录，需要获取当前文件夹的ID
+      const folderName = currentPath.value[currentPath.value.length - 1]
+      const folder = files.value.find(f => f.name === folderName && f.type === 'folder')
+      if (folder) {
+        params.parent_id = folder.id
+      }
+    }
+    
+    if (searchQuery.value) {
+      params.search = searchQuery.value
+    }
+    
+    const response = await api.get('/files', { params })
+    files.value = response.data
+    
+    // 更新统计数据
+    await loadStats()
+  } catch (error) {
+    console.error('加载文件失败:', error)
+    message.error('加载文件失败')
+  }
 }
 
 // 加载语料数据
-const loadCorpus = () => {
-  // 从API获取语料数据的逻辑
-  // 模拟数据
-  corpus.value = [
-    {
-      id: 1,
-      title: '人工智能基础概念',
-      content: '人工智能（AI）是计算机科学的一个分支，致力于创建能够执行通常需要人类智能的任务的系统。这包括视觉感知、语音识别、决策制定和语言翻译等。',
-      tags: ['研究', '技术'],
-      updatedAt: new Date()
-    },
-    {
-      id: 2,
-      title: '机器学习算法比较',
-      content: '监督学习算法需要标记的训练数据，而无监督学习算法可以在没有标记的情况下工作。常见的监督学习算法包括线性回归、逻辑回归和支持向量机。无监督学习算法包括K均值聚类和主成分分析。',
-      tags: ['研究', '算法'],
-      updatedAt: new Date()
-    },
-    {
-      id: 3,
-      title: '深度学习框架概述',
-      content: 'TensorFlow和PyTorch是两个最流行的深度学习框架。TensorFlow由Google开发，提供了强大的生产部署工具。PyTorch由Facebook开发，以其动态计算图和易用性而闻名。',
-      tags: ['技术', '工具'],
-      updatedAt: new Date()
+const loadCorpus = async () => {
+  try {
+    const params = {}
+    
+    if (activeTag.value) {
+      params.tag = activeTag.value
     }
-  ]
-  
-  // 更新标签数据
-  updateCorpusTags()
-  
-  // 更新统计数据
-  updateStats()
+    
+    if (searchQuery.value) {
+      params.search = searchQuery.value
+    }
+    
+    const response = await api.get('/corpus', { params })
+    corpus.value = response.data
+    
+    // 加载标签
+    await loadCorpusTags()
+    
+    // 更新统计数据
+    await loadStats()
+  } catch (error) {
+    console.error('加载语料失败:', error)
+    message.error('加载语料失败')
+  }
 }
 
-// 更新语料标签
-const updateCorpusTags = () => {
-  const tagCounts = {}
-  
-  // 计算每个标签的使用次数
-  corpus.value.forEach(item => {
-    item.tags.forEach(tag => {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1
-    })
-  })
-  
-  // 更新标签列表
-  corpusTags.value = Object.keys(tagCounts).map(tag => ({
-    id: tag,
-    name: tag,
-    count: tagCounts[tag]
-  }))
+// 加载语料标签
+const loadCorpusTags = async () => {
+  try {
+    const response = await api.get('/corpus/tags')
+    corpusTags.value = response.data
+  } catch (error) {
+    console.error('加载语料标签失败:', error)
+    message.error('加载语料标签失败')
+  }
 }
 
 // 加载RAG知识库数据
-const loadRagKBs = () => {
-  // 从API获取RAG知识库数据的逻辑
-  // 模拟数据
-  ragKBs.value = [
-    {
-      id: 1,
-      name: '产品知识库',
-      description: '包含所有产品相关的文档、规格和使用说明',
-      status: 'active',
-      documentCount: 24,
-      updatedAt: new Date()
-    },
-    {
-      id: 2,
-      name: '研究论文库',
-      description: '收集了领域内的重要研究论文和文献',
-      status: 'active',
-      documentCount: 57,
-      updatedAt: new Date()
-    },
-    {
-      id: 3,
-      name: '技术文档库',
-      description: '技术规范、API文档和开发指南的集合',
-      status: 'inactive',
-      documentCount: 18,
-      updatedAt: new Date()
+const loadRagKBs = async () => {
+  try {
+    const params = {}
+    
+    if (searchQuery.value) {
+      params.search = searchQuery.value
     }
-  ]
-  
-  // 更新统计数据
-  updateStats()
+    
+    const response = await api.get('/rag', { params })
+    ragKBs.value = response.data
+    
+    // 更新统计数据
+    await loadStats()
+  } catch (error) {
+    console.error('加载知识库失败:', error)
+    message.error('加载知识库失败')
+  }
 }
 
 // 添加键盘快捷键监听

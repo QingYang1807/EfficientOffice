@@ -5,6 +5,11 @@ module.exports = defineConfig({
   devServer: {
     port: 8888,
     proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        ws: true
+      },
       '/api/kimi': {
         target: 'https://api.moonshot.cn/v1',
         changeOrigin: true,

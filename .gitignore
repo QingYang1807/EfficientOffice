@@ -35,3 +35,13 @@ python_service/
 .vscode
 python_server/
 .cursorignore
+
+venv/
+*.pyc
+
+.gitignore
+
+static/
+data/
+__pycache__/
+
