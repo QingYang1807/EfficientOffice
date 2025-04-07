@@ -185,9 +185,19 @@
                 v-for="file in filteredFiles" 
                 :key="file.id" 
                 class="file-card hover:shadow-md transition-all cursor-pointer"
-                :class="{ 'bg-gray-50': file.type === 'folder' }"
+                :class="{ 
+                  'bg-gray-50': file.type === 'folder',
+                  'dragging': draggedFile && draggedFile.id === file.id,
+                  'drag-over': dragTargetFolder && dragTargetFolder.id === file.id
+                }"
                 hoverable
                 @click="handleFileClick(file)"
+                draggable="true"
+                @dragstart="(e) => handleDragStart(file, e)"
+                @dragend="handleDragEnd"
+                @dragover="(e) => handleDragOver(file, e)"
+                @dragleave="handleDragLeave"
+                @drop="(e) => handleDrop(file, e)"
               >
                 <div class="flex flex-col items-center">
                   <div class="text-3xl mb-2" :class="getFileIconColor(file)">
@@ -223,7 +233,20 @@
               <template #bodyCell="{ column, record }">
                 <!-- 文件名列 -->
                 <template v-if="column.key === 'name'">
-                  <div class="flex items-center gap-2 cursor-pointer" @click="handleFileClick(record)">
+                  <div 
+                    class="flex items-center gap-2 cursor-pointer" 
+                    @click="handleFileClick(record)"
+                    :class="{ 
+                      'dragging': draggedFile && draggedFile.id === record.id,
+                      'drag-over': dragTargetFolder && dragTargetFolder.id === record.id
+                    }"
+                    draggable="true"
+                    @dragstart="(e) => handleDragStart(record, e)"
+                    @dragend="handleDragEnd"
+                    @dragover="(e) => handleDragOver(record, e)"
+                    @dragleave="handleDragLeave"
+                    @drop="(e) => handleDrop(record, e)"
+                  >
                     <component :is="getFileIconComponent(record)" :class="getFileIconColor(record)" />
                     <span>{{ record.name }}</span>
                   </div>
@@ -746,6 +769,14 @@ const newFileName = ref('');
 const createFolderModalVisible = ref(false);
 const newFolderName = ref('');
 
+// 添加以下状态变量
+const draggedFile = ref(null);
+const dragTargetFolder = ref(null);
+const isDragging = ref(false);
+
+// 添加一个变量来跟踪当前文件夹的ID
+const currentFolderId = ref(null);
+
 // 计算属性
 const currentDate = computed(() => {
   return new Date().toLocaleDateString('zh-CN', {
@@ -978,14 +1009,18 @@ const formatMessage = (content) => {
 // 文件点击处理
 const handleFileClick = (file) => {
   if (file.type === 'folder') {
-    currentPath.value.push(file.name)
+    console.log('点击文件夹:', file);
+    currentPath.value.push(file.name);
+    // 保存当前文件夹ID
+    currentFolderId.value = file.id;
+    console.log('设置当前文件夹ID:', currentFolderId.value);
     // 加载文件夹内容
-    loadFolderContents(file.id)
+    loadFolderContents(file.id);
   } else {
     // 预览文件
-    previewFile(file)
+    previewFile(file);
   }
-}
+};
 
 // 路径导航
 const navigateTo = (index) => {
@@ -1028,26 +1063,34 @@ const doCreateFolder = async () => {
     const formData = new FormData();
     formData.append('name', newFolderName.value);
     
-    // 如果不是在根目录，需要添加父文件夹ID
-    if (currentPath.value.length > 1) {
-      const currentFolder = files.value.find(f => 
-        f.name === currentPath.value[currentPath.value.length - 1] && 
-        f.type === 'folder'
-      );
-      if (currentFolder) {
-        formData.append('parent_id', currentFolder.id);
-      }
+    // 直接使用当前文件夹ID
+    if (currentFolderId.value) {
+      console.log('使用当前文件夹ID创建子文件夹:', currentFolderId.value);
+      formData.append('parent_id', currentFolderId.value);
+    } else {
+      console.log('在根目录创建文件夹');
     }
     
-    // 使用 axios 直接发送请求，确保设置正确的 Content-Type
-    await axios.post(`${API_BASE_URL}/folders`, formData, {
+    console.log('发送创建文件夹请求，表单数据:', Object.fromEntries(formData));
+    
+    // 使用 axios 直接发送请求
+    const response = await axios.post(`${API_BASE_URL}/folders`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
     
+    console.log('创建文件夹响应:', response.data);
+    
     message.success('创建文件夹成功');
-    await loadFiles();
+    
+    // 重新加载当前目录内容
+    if (currentFolderId.value) {
+      await loadFolderContents(currentFolderId.value);
+    } else {
+      await loadFiles();
+    }
+    
     createFolderModalVisible.value = false;
   } catch (error) {
     console.error('创建文件夹失败:', error);
@@ -1058,15 +1101,22 @@ const doCreateFolder = async () => {
 // 加载文件夹内容
 const loadFolderContents = async (folderId) => {
   try {
+    console.log('加载文件夹内容, ID:', folderId);
+    
+    // 清除搜索查询，确保显示所有文件
+    searchQuery.value = '';
+    
     const response = await api.get('/files', { 
       params: { parent_id: folderId } 
-    })
-    files.value = response.data
+    });
+    
+    console.log('文件夹内容响应:', response.data);
+    files.value = response.data;
   } catch (error) {
-    console.error('加载文件夹内容失败:', error)
-    message.error('加载文件夹内容失败')
+    console.error('加载文件夹内容失败:', error);
+    message.error('加载文件夹内容失败: ' + (error.response?.data?.detail || error.message));
   }
-}
+};
 
 // 加载当前路径内容
 const loadCurrentPathContents = async () => {
@@ -1445,30 +1495,29 @@ const loadStats = async () => {
 // 加载文件数据
 const loadFiles = async () => {
   try {
-    const params = {}
+    const params = {};
+    
+    // 如果不是根目录，需要获取当前文件夹的ID
     if (currentPath.value.length > 1) {
-      // 如果不是根目录，需要获取当前文件夹的ID
-      const folderName = currentPath.value[currentPath.value.length - 1]
-      const folder = files.value.find(f => f.name === folderName && f.type === 'folder')
-      if (folder) {
-        params.parent_id = folder.id
-      }
+      // 需要找到当前路径对应的文件夹ID
+      await loadCurrentPathContents();
+      return; // loadCurrentPathContents 已经加载了文件
     }
     
     if (searchQuery.value) {
-      params.search = searchQuery.value
+      params.search = searchQuery.value;
     }
     
-    const response = await api.get('/files', { params })
-    files.value = response.data
+    const response = await api.get('/files', { params });
+    files.value = response.data;
     
     // 更新统计数据
-    await loadStats()
+    await loadStats();
   } catch (error) {
-    console.error('加载文件失败:', error)
-    message.error('加载文件失败')
+    console.error('加载文件失败:', error);
+    message.error('加载文件失败: ' + (error.response?.data?.detail || error.message));
   }
-}
+};
 
 // 加载语料数据
 const loadCorpus = async () => {
@@ -1552,6 +1601,99 @@ const handleKeyDown = (e) => {
     }
   }
 }
+
+// 添加拖拽处理函数
+const handleDragStart = (file, event) => {
+  // 只允许拖拽文件，不允许拖拽文件夹
+  if (file.type === 'folder') return;
+  
+  draggedFile.value = file;
+  isDragging.value = true;
+  
+  // 设置拖拽图像
+  if (event.dataTransfer) {
+    // 创建一个自定义拖拽图像
+    const dragImage = document.createElement('div');
+    dragImage.className = 'drag-image';
+    dragImage.innerHTML = `
+      <div class="flex items-center gap-2 bg-white p-2 rounded shadow-lg border border-blue-300">
+        <component :is="getFileIconComponent(file)" class="${getFileIconColor(file)}" />
+        <span class="text-sm font-medium">${file.name}</span>
+      </div>
+    `;
+    document.body.appendChild(dragImage);
+    
+    // 设置拖拽图像
+    event.dataTransfer.setDragImage(dragImage, 20, 20);
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(dragImage);
+    }, 0);
+  }
+};
+
+const handleDragEnd = () => {
+  isDragging.value = false;
+  draggedFile.value = null;
+  dragTargetFolder.value = null;
+};
+
+const handleDragOver = (folder, event) => {
+  // 只允许拖放到文件夹上
+  if (folder.type !== 'folder' || !draggedFile.value) return;
+  
+  event.preventDefault();
+  dragTargetFolder.value = folder;
+};
+
+const handleDragLeave = () => {
+  dragTargetFolder.value = null;
+};
+
+const handleDrop = async (folder, event) => {
+  event.preventDefault();
+  
+  // 确保有拖拽的文件和目标文件夹
+  if (!draggedFile.value || folder.type !== 'folder') {
+    handleDragEnd();
+    return;
+  }
+  
+  try {
+    // 保存文件和文件夹名称，以防在API调用后对象被清空
+    const fileName = draggedFile.value.name;
+    const folderName = folder.name;
+    
+    // 调用API移动文件
+    await moveFileToFolder(draggedFile.value, folder);
+    message.success(`已将 ${fileName} 移动到 ${folderName}`);
+    
+    // 重新加载当前目录内容
+    if (currentFolderId.value) {
+      await loadFolderContents(currentFolderId.value);
+    } else {
+      await loadFiles();
+    }
+  } catch (error) {
+    console.error('移动文件失败:', error);
+    message.error('移动文件失败: ' + (error.response?.data?.detail || error.message));
+  } finally {
+    handleDragEnd();
+  }
+};
+
+// 移动文件到文件夹的API调用
+const moveFileToFolder = async (file, folder) => {
+  const formData = new FormData();
+  formData.append('parent_id', folder.id);
+  
+  return axios.put(`${API_BASE_URL}/files/${file.id}/move`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+};
 </script>
 
 <style scoped>
@@ -1739,6 +1881,65 @@ const handleKeyDown = (e) => {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #f0f0f0;
+  }
+}
+
+/* 拖拽相关样式 */
+.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.drag-over {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border: 2px dashed #3b82f6 !important;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+}
+
+.drag-over .ant-card-body {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* 拖拽动画 */
+.file-card, .custom-table :deep(tr) {
+  transition: all 0.3s ease;
+}
+
+/* 拖拽图像样式 */
+.drag-image {
+  position: absolute;
+  top: -1000px;
+  left: -1000px;
+  z-index: -1;
+}
+
+/* 文件夹高亮效果 */
+.file-card.drag-over::before {
+  content: '放置到此文件夹';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(59, 130, 246, 0.9);
+  color: white;
+  padding: 4px;
+  font-size: 12px;
+  text-align: center;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
   }
 }
 </style>

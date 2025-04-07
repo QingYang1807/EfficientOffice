@@ -165,44 +165,84 @@ def GetStats():
 # 文件管理接口
 @app.get("/api/knowledge-base/files", response_model=List[FileItem])
 def GetFiles(parent_id: Optional[str] = None, search: Optional[str] = None):
-    files_data.clear()
+    result_files = []
     
-    # 获取data目录下的所有文件
-    data_dir = "data"
-    for file in os.listdir(data_dir):
-        file_path = os.path.join(data_dir, file)
-        if os.path.isfile(file_path):
-            file_size = os.path.getsize(file_path)
-            files_data.append({
-                "id": str(uuid.uuid4()),
-                "name": file,
+    # 基础目录
+    base_dir = "data"
+    
+    # 确定当前目录路径
+    current_dir = base_dir
+    if parent_id:
+        # 查找父文件夹的路径
+        parent_folder = None
+        for file in files_data:
+            if file["id"] == parent_id:
+                parent_folder = file
+                break
+        
+        if parent_folder and "path" in parent_folder:
+            current_dir = parent_folder["path"]
+    
+    # 检查目录是否存在
+    if not os.path.exists(current_dir) or not os.path.isdir(current_dir):
+        return []
+    
+    # 扫描当前目录
+    for item in os.listdir(current_dir):
+        item_path = os.path.join(current_dir, item)
+        item_id = str(uuid.uuid4())
+        
+        # 检查是否已经有这个文件/文件夹的记录
+        existing_item = None
+        for file in files_data:
+            if "path" in file and file["path"] == item_path:
+                existing_item = file
+                item_id = file["id"]  # 使用已存在的ID
+                break
+        
+        if os.path.isfile(item_path):
+            # 文件
+            file_size = os.path.getsize(item_path)
+            file_info = {
+                "id": item_id,
+                "name": item,
                 "type": "file",
                 "updatedAt": datetime.now(),
                 "size": file_size,
-                "path": file_path,
+                "path": item_path,
                 "parentId": parent_id
-            })
-        elif os.path.isdir(file_path):
-            files_data.append({
-                "id": str(uuid.uuid4()),
-                "name": file,
+            }
+            
+            if not existing_item:
+                files_data.append(file_info)
+            
+            # 添加到结果
+            result_files.append(file_info)
+            
+        elif os.path.isdir(item_path):
+            # 文件夹
+            folder_info = {
+                "id": item_id,
+                "name": item,
                 "type": "folder",
                 "updatedAt": datetime.now(),
                 "size": 0,
-                "path": file_path,
+                "path": item_path,
                 "parentId": parent_id
-            })
+            }
+            
+            if not existing_item:
+                files_data.append(folder_info)
+            
+            # 添加到结果
+            result_files.append(folder_info)
     
-    if parent_id:
-        filtered_files = [file for file in files_data if file["parentId"] == parent_id]
-    else:
-        filtered_files = [file for file in files_data if file["parentId"] is None]
-    
+    # 过滤搜索结果
     if search:
         search = search.lower()
-        filtered_files = [file for file in filtered_files if search in file["name"].lower()]
+        result_files = [file for file in result_files if search in file["name"].lower()]
     
-    return filtered_files
+    return result_files
 
 @app.post("/api/knowledge-base/upload")
 async def UploadFile(file: UploadFile = File(...), parent_id: Optional[str] = Form(None)):
@@ -241,8 +281,19 @@ async def UploadFile(file: UploadFile = File(...), parent_id: Optional[str] = Fo
 def CreateFolder(name: str = Form(...), parent_id: Optional[str] = Form(None)):
     folder_id = str(uuid.uuid4())
     
-    # 创建实际文件夹
-    folder_path = os.path.join("data", name)
+    # 确定父文件夹路径
+    parent_path = "data"  # 默认为根目录
+    
+    if parent_id:
+        # 查找父文件夹
+        for file in files_data:
+            if file["id"] == parent_id and file["type"] == "folder":
+                if "path" in file:
+                    parent_path = file["path"]
+                break
+    
+    # 创建实际文件夹路径
+    folder_path = os.path.join(parent_path, name)
     
     # 检查文件夹是否已存在
     if os.path.exists(folder_path):
@@ -250,6 +301,7 @@ def CreateFolder(name: str = Form(...), parent_id: Optional[str] = Form(None)):
     
     # 创建文件夹
     os.makedirs(folder_path, exist_ok=True)
+    print(f"创建文件夹: {folder_path}")
     
     # 添加到文件列表
     new_folder = {
@@ -294,34 +346,90 @@ def RenameFile(file_id: str, name: str = Form(...)):
 @app.delete("/api/knowledge-base/files/{file_id}")
 def DeleteFile(file_id: str):
     global files_data
+    
+    # 打印当前文件列表中的所有ID，帮助调试
+    print(f"正在尝试删除文件ID: {file_id}")
+    print(f"当前文件列表中的ID: {[f['id'] for f in files_data]}")
+    
+    # 先尝试在内存中查找文件
+    file_to_delete = None
     for i, file in enumerate(files_data):
-        print(file['id'])
         if file["id"] == file_id:
-            deleted_file = files_data.pop(i)
-            
-            # 如果是文件，删除实际文件
-            if deleted_file["type"] == "file":
-                file_path = os.path.join("data", deleted_file["name"])
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            
-            # 如果是文件夹，还需要删除其中的所有文件
-            if deleted_file["type"] == "folder":
-                # 先获取所有要删除的文件
-                files_to_delete = [f for f in files_data if f["parentId"] == file_id]
+            file_to_delete = file
+            files_data.pop(i)
+            break
+    
+    # 如果在内存中找不到，可能是因为文件列表被重新加载了
+    # 尝试从文件系统中查找并删除
+    if not file_to_delete:
+        # 重新加载文件列表
+        all_files = []
+        for root, dirs, files in os.walk("data"):
+            for name in files:
+                file_path = os.path.join(root, name)
+                all_files.append({
+                    "id": file_id,  # 使用传入的ID
+                    "name": name,
+                    "path": file_path,
+                    "type": "file"
+                })
+        
+        # 尝试删除文件
+        for file in all_files:
+            if os.path.exists(file["path"]):
+                try:
+                    os.remove(file["path"])
+                    print(f"文件已删除: {file['path']}")
+                    return {"success": True}
+                except Exception as e:
+                    print(f"删除文件失败: {file['path']}, 错误: {str(e)}")
+        
+        # 如果还是找不到，返回404
+        raise HTTPException(status_code=404, detail="文件未找到")
+    
+    # 如果在内存中找到了文件
+    # 如果是文件，删除实际文件
+    if file_to_delete["type"] == "file":
+        # 使用文件的完整路径
+        file_path = file_to_delete.get("path")
+        if not file_path:
+            # 尝试构建路径
+            parent_id = file_to_delete.get("parentId")
+            if parent_id:
+                # 查找父文件夹
+                parent_folder = None
+                for f in files_data:
+                    if f["id"] == parent_id:
+                        parent_folder = f
+                        break
                 
-                # 删除实际文件
-                for f in files_to_delete:
-                    if f["type"] == "file":
-                        file_path = os.path.join("data", f["name"])
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                
-                # 从数据中删除
-                files_data = [f for f in files_data if f["parentId"] != file_id]
-                
-            return {"success": True}
-    raise HTTPException(status_code=404, detail="文件未找到")
+                if parent_folder and "path" in parent_folder:
+                    file_path = os.path.join(parent_folder["path"], file_to_delete["name"])
+            else:
+                # 默认路径
+                file_path = os.path.join("data", file_to_delete["name"])
+        
+        # 删除文件
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"文件已删除: {file_path}")
+        else:
+            print(f"文件不存在或路径未知: {file_to_delete}")
+    
+    # 如果是文件夹，删除文件夹及其内容
+    elif file_to_delete["type"] == "folder":
+        folder_path = file_to_delete.get("path")
+        if folder_path and os.path.exists(folder_path):
+            try:
+                shutil.rmtree(folder_path)
+                print(f"文件夹已删除: {folder_path}")
+            except Exception as e:
+                print(f"删除文件夹失败: {folder_path}, 错误: {str(e)}")
+        
+        # 从内存中删除子文件
+        files_data = [f for f in files_data if f.get("parentId") != file_id]
+    
+    return {"success": True}
 
 @app.get("/api/knowledge-base/files/{file_id}/download")
 def DownloadFile(file_id: str):
@@ -348,6 +456,61 @@ def DownloadFile(file_id: str):
         filename=file["name"],
         media_type="application/octet-stream"
     )
+
+@app.put("/api/knowledge-base/files/{file_id}/move")
+def MoveFile(file_id: str, parent_id: str = Form(...)):
+    # 查找文件
+    file_to_move = None
+    for file in files_data:
+        if file["id"] == file_id:
+            file_to_move = file
+            break
+    
+    if not file_to_move:
+        raise HTTPException(status_code=404, detail="文件未找到")
+    
+    # 查找目标文件夹
+    target_folder = None
+    for file in files_data:
+        if file["id"] == parent_id and file["type"] == "folder":
+            target_folder = file
+            break
+    
+    if not target_folder:
+        raise HTTPException(status_code=404, detail="目标文件夹未找到")
+    
+    # 如果是文件，需要移动实际文件
+    if file_to_move["type"] == "file":
+        # 使用完整路径而不是假设文件在根目录
+        old_path = file_to_move.get("path")
+        if not old_path:
+            old_path = os.path.join("data", file_to_move["name"])
+            
+        # 确保目标文件夹路径存在
+        target_path = target_folder.get("path")
+        if not target_path:
+            target_path = os.path.join("data", target_folder["name"])
+            
+        new_path = os.path.join(target_path, file_to_move["name"])
+        
+        # 检查文件是否存在
+        if os.path.exists(old_path):
+            # 确保目标文件夹存在
+            os.makedirs(target_path, exist_ok=True)
+            # 移动文件
+            shutil.move(old_path, new_path)
+            print(f"文件已移动: {old_path} -> {new_path}")
+            
+            # 更新文件的路径
+            file_to_move["path"] = new_path
+        else:
+            print(f"文件不存在: {old_path}")
+    
+    # 更新文件的父文件夹ID
+    file_to_move["parentId"] = parent_id
+    file_to_move["updatedAt"] = datetime.now()
+    
+    return file_to_move
 
 # 语料管理接口
 @app.get("/api/knowledge-base/corpus", response_model=List[Corpus])
