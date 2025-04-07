@@ -558,6 +558,19 @@
         </div>
       </div>
     </a-drawer>
+
+    <!-- 重命名文件对话框 -->
+    <a-modal
+      title="重命名文件"
+      v-model:visible="renameModalVisible"
+      @ok="doRenameFile"
+    >
+      <a-input 
+        v-model:value="newFileName" 
+        placeholder="请输入新名称"
+        autofocus
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -709,6 +722,11 @@ const fileTypes = [
 // 添加引用变量用于对话框
 const folderNameRef = ref('')
 const fileNameRef = ref('')
+
+// 添加一个状态变量来控制模态框的显示
+const renameModalVisible = ref(false);
+const fileToRename = ref(null);
+const newFileName = ref('');
 
 // 计算属性
 const currentDate = computed(() => {
@@ -1095,36 +1113,38 @@ const downloadFile = (file) => {
 }
 
 // 重命名文件
-const renameFile = async (file) => {
+const renameFile = (file) => {
+  fileToRename.value = file;
+  newFileName.value = file.name;
+  renameModalVisible.value = true;
+};
+
+// 执行重命名操作
+const doRenameFile = async () => {
   try {
-    fileNameRef.value = file.name;
+    if (!newFileName.value || newFileName.value === fileToRename.value.name) {
+      renameModalVisible.value = false;
+      return;
+    }
     
-    Modal.confirm({
-      title: '重命名文件',
-      content: h('div', [
-        h('a-input', {
-          placeholder: '请输入新名称',
-          value: fileNameRef.value,
-          'onUpdate:value': val => fileNameRef.value = val
-        })
-      ]),
-      onOk: async () => {
-        const newName = fileNameRef.value;
-        if (!newName || newName === file.name) return;
-        
-        const formData = new FormData();
-        formData.append('name', newName);
-        
-        await api.put(`/files/${file.id}`, formData);
-        message.success('重命名成功');
-        await loadFiles();
+    const formData = new FormData();
+    formData.append('name', newFileName.value);
+    
+    // 发送请求时不使用默认的 Content-Type，让 axios 自动设置
+    await axios.put(`${API_BASE_URL}/files/${fileToRename.value.id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
       }
     });
+    
+    message.success('重命名成功');
+    await loadFiles();
+    renameModalVisible.value = false;
   } catch (error) {
     console.error('重命名失败:', error);
     message.error('重命名失败');
   }
-}
+};
 
 // 删除文件
 const deleteFile = async (file) => {

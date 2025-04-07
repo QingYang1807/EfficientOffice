@@ -179,6 +179,7 @@ def GetFiles(parent_id: Optional[str] = None, search: Optional[str] = None):
                 "type": "file",
                 "updatedAt": datetime.now(),
                 "size": file_size,
+                "path": file_path,
                 "parentId": parent_id
             })
         elif os.path.isdir(file_path):
@@ -188,6 +189,7 @@ def GetFiles(parent_id: Optional[str] = None, search: Optional[str] = None):
                 "type": "folder",
                 "updatedAt": datetime.now(),
                 "size": 0,
+                "path": file_path,
                 "parentId": parent_id
             })
     
@@ -253,8 +255,26 @@ def CreateFolder(name: str = Form(...), parent_id: Optional[str] = Form(None)):
 def RenameFile(file_id: str, name: str = Form(...)):
     for file in files_data:
         if file["id"] == file_id:
+            # 保存旧文件名
+            old_name = file["name"]
+            
+            # 更新文件对象
             file["name"] = name
             file["updatedAt"] = datetime.now()
+            
+            # 如果是实际文件，还需要重命名文件系统中的文件
+            if file["type"] == "file":
+                old_path = os.path.join("data", old_name)  # 使用旧文件名
+                new_path = os.path.join("data", name)
+                
+                # 检查文件是否存在
+                if os.path.exists(old_path):
+                    # 重命名文件
+                    os.rename(old_path, new_path)
+                    print(f"文件重命名: {old_path} -> {new_path}")
+                else:
+                    print(f"文件不存在: {old_path}")
+            
             return file
     raise HTTPException(status_code=404, detail="文件未找到")
 
