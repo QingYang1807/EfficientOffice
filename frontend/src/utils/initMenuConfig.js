@@ -189,6 +189,12 @@ const defaultMenus = [
     icon: 'Setting',
     visible: true,
     children: []
+  },
+  {
+    title: '工作流',
+    icon: 'el-icon-share',
+    path: '/workflow',
+    name: 'workflow'
   }
 ]
 

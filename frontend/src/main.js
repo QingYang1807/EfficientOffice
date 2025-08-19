@@ -28,6 +28,9 @@ import 'md-editor-v3/lib/style.css'
 
 import './styles/index.css'  // 引入全局样式
 
+// 添加这一行导入
+import '@fortawesome/fontawesome-free/css/all.min.css'
+
 const app = createApp(App)
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)

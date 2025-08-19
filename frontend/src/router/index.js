@@ -1,8 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from '../layouts/MainLayout.vue';
 import Dashboard from '../views/Dashboard.vue';
-import HelloWorld from '../components/HelloWorld.vue';
-import GetStart from '../components/GetStart.vue';
 import PasswordGenerator from '../components/PasswordGenerator.vue';
 import ReportSummary from '../components/ReportSummary.vue';
 import PomodoroTimer from '../components/PomodoroTimer.vue';
@@ -20,8 +18,9 @@ import AIChatView from '../views/AIChatView.vue'
 import GratitudeDiaryView from '../views/GratitudeDiaryView.vue'
 import IframeView from '../views/IframeView.vue'
 import WebView from '../views/WebView.vue'
-import WebNavigationView from '../views/WebNavigationView.vue'
+// import WebNavigationView from '../views/WebNavigationView.vue'
 import WebNav from '../views/WebNav.vue'
+import WorkflowView from '@/views/WorkflowView.vue';
 
 // 路由配置
 export const routes = [
@@ -164,12 +163,19 @@ export const routes = [
         path: 'web-nav',
         name: 'WebNav',
         component: WebNav
+      },
+      {
+        path: '/workflow',
+        name: 'workflow',
+        component: WorkflowView,
+        meta: {
+          requiresAuth: true,
+          title: '工作流'
+        }
       }
     ]
   },
   // 保留原来的欢迎和开始页面作为独立路由
-  { path: '/welcome', name: 'WelcomePage', component: HelloWorld, description: '欢迎来到高效办公', meta: { title: '欢迎来到高效办公 - 高效办公' } },
-  { path: '/get-start', name: 'GetStart', component: GetStart, description: '开始使用', meta: { title: '开始使用 - 高效办公' } },
   {
     path: '/login',
     name: 'Login',
