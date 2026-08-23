@@ -1,88 +1,192 @@
 import { defineStore } from 'pinia'
+import { buildTree, getDescendantIds, validateMove } from '@/domain/hierarchy'
+import { deriveTaskView } from '@/domain/progress'
+import { loadWorkspace, patchWorkspace } from '@/repositories/workspaceRepository'
 
-export const useTaskStore = defineStore('tasks', {
-  state: () => ({
-    tasks: []
-  }),
+function makeId() {
+  return `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function timestamp() {
+  return new Date().toISOString()
+}
+
+function cloneRecords(records) {
+  return records.map(record => ({ ...record }))
+}
+
+function normalizeGoalId(goalId) {
+  return goalId == null ? null : String(goalId)
+}
+
+function buildTask(input, tasks) {
+  const now = timestamp()
+  const parentTaskId = input.parentTaskId == null ? null : String(input.parentTaskId)
+  const parent = parentTaskId == null ? null : tasks.find(task => String(task.id) === parentTaskId)
+  if (parentTaskId != null && !parent) throw new Error('父任务不存在')
+
+  const suppliedGoalId = normalizeGoalId(input.goalId)
+  const parentGoalId = parent ? normalizeGoalId(parent.goalId) : null
+  if (parent && Object.prototype.hasOwnProperty.call(input, 'goalId') && suppliedGoalId !== parentGoalId) {
+    throw new Error('子任务必须与父任务属于同一目标')
+  }
+
+  return {
+    id: input.id == null ? makeId() : String(input.id),
+    goalId: parent ? parentGoalId : suppliedGoalId,
+    parentTaskId,
+    title: String(input.title || input.text || '').trim(),
+    description: String(input.description || ''),
+    completed: Boolean(input.completed),
+    weight: input.weight == null ? 1 : Number(input.weight),
+    priority: ['高', '中', '低'].includes(input.priority) ? input.priority : '中',
+    deadline: input.deadline ?? input.dueDate ?? null,
+    createdAt: input.createdAt ?? now,
+    updatedAt: input.updatedAt ?? now
+  }
+}
+
+export const useTaskStore = defineStore('tasks-v2', {
+  state: () => ({ tasks: [], initialized: false, lastError: null }),
 
   getters: {
-    getAllTasks: (state) => state.tasks
+    byId: state => id => state.tasks.find(task => String(task.id) === String(id)) || null,
+    tasksForGoal: state => (goalId, includeDescendants = false, goals = []) => {
+      const ids = new Set([String(goalId)])
+      if (includeDescendants) {
+        getDescendantIds(goals, goalId, 'parentGoalId').forEach(id => ids.add(id))
+      }
+      return state.tasks.filter(task => task.goalId != null && ids.has(String(task.goalId)))
+    },
+    treeForGoal: state => goalId => buildTree(
+      state.tasks.filter(task => normalizeGoalId(task.goalId) === normalizeGoalId(goalId)),
+      'parentTaskId'
+    ),
+    viewFor: state => (id, now = Date.now()) => deriveTaskView(id, state.tasks, now)
   },
 
   actions: {
-    // 初始化任务列表
-    initTasks() {
-      const storedTasks = localStorage.getItem('tasks')
-      if (storedTasks) {
-        this.tasks = JSON.parse(storedTasks)
-      }
-    },
-
-    // 获取所有任务
-    getTasks() {
+    initialize() {
+      if (this.initialized) return this.tasks
+      const workspace = loadWorkspace(localStorage)
+      this.tasks = cloneRecords(workspace.tasks)
+      this.initialized = true
+      this.lastError = null
       return this.tasks
     },
 
-    // 创建单个任务
-    createTask(task) {
-      const newTask = {
-        ...task,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
-      }
-      this.tasks.push(newTask)
-      this.saveTasks()
-      return newTask
-    },
-
-    // 批量创建任务
-    createBatchTasks(newTasks) {
-      const tasksWithIds = newTasks.map(task => ({
-        ...task,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
-      }))
-      this.tasks.push(...tasksWithIds)
-      this.saveTasks()
-      return tasksWithIds
-    },
-
-    // 更新任务
-    updateTask(updatedTask) {
-      const index = this.tasks.findIndex(t => t.id === updatedTask.id)
-      if (index !== -1) {
-        this.tasks[index] = updatedTask
-        this.saveTasks()
-      }
-      return updatedTask
-    },
-
-    // 删除任务
-    deleteTask(taskId) {
-      this.tasks = this.tasks.filter(t => t.id !== taskId)
-      this.saveTasks()
-    },
-
-    // 切换任务完成状态
-    toggleTaskComplete(taskId) {
-      const task = this.tasks.find(t => t.id === taskId)
-      if (task) {
-        task.completed = !task.completed
-        this.saveTasks()
+    persist(snapshot) {
+      try {
+        patchWorkspace(localStorage, { tasks: this.tasks })
+        this.lastError = null
+      } catch (error) {
+        this.tasks = snapshot
+        this.lastError = '工作区保存失败'
+        throw error
       }
     },
 
-    // 保存到 localStorage
-    saveTasks() {
-      localStorage.setItem('tasks', JSON.stringify(this.tasks))
+    createTask(input = {}) {
+      this.initialize()
+      const snapshot = cloneRecords(this.tasks)
+      const task = buildTask(input, this.tasks)
+      if (this.tasks.some(item => String(item.id) === task.id)) throw new Error('任务ID已存在')
+
+      const candidate = [...this.tasks, { ...task, parentTaskId: null }]
+      const validation = validateMove({
+        items: candidate,
+        id: task.id,
+        newParentId: task.parentTaskId,
+        parentKey: 'parentTaskId'
+      })
+      if (!validation.ok) throw new Error(validation.reason)
+
+      this.tasks.push(task)
+      this.persist(snapshot)
+      return task
     },
 
-    // 转换优先级格式
-    convertPriority(priority) {
-      const priorityMap = {
-        '高': '高',
-        '中': '中',
-        '低': '低'
+    createBatchTasks(inputs = []) {
+      this.initialize()
+      const snapshot = cloneRecords(this.tasks)
+      const created = []
+      try {
+        for (const input of inputs) {
+          const task = buildTask(input, this.tasks)
+          if (this.tasks.some(item => String(item.id) === task.id)) throw new Error('任务ID已存在')
+          const candidate = [...this.tasks, { ...task, parentTaskId: null }]
+          const validation = validateMove({ items: candidate, id: task.id, newParentId: task.parentTaskId, parentKey: 'parentTaskId' })
+          if (!validation.ok) throw new Error(validation.reason)
+          this.tasks.push(task)
+          created.push(task)
+        }
+        this.persist(snapshot)
+        return created
+      } catch (error) {
+        this.tasks = snapshot
+        throw error
       }
-      return priorityMap[priority] || '中'
+    },
+
+    updateTask(id, patch = {}) {
+      this.initialize()
+      const task = this.byId(id)
+      if (!task) throw new Error('任务不存在')
+      if (Object.prototype.hasOwnProperty.call(patch, 'parentTaskId') || Object.prototype.hasOwnProperty.call(patch, 'goalId')) {
+        return this.moveTask(id, {
+          parentTaskId: Object.prototype.hasOwnProperty.call(patch, 'parentTaskId') ? patch.parentTaskId : task.parentTaskId,
+          goalId: Object.prototype.hasOwnProperty.call(patch, 'goalId') ? patch.goalId : task.goalId,
+          patch
+        })
+      }
+      const snapshot = cloneRecords(this.tasks)
+      Object.assign(task, patch, { id: task.id, updatedAt: timestamp() })
+      this.persist(snapshot)
+      return task
+    },
+
+    toggleTask(id, completed) {
+      const task = this.byId(id) || (this.initialize(), this.byId(id))
+      if (!task) throw new Error('任务不存在')
+      const next = completed == null ? !task.completed : Boolean(completed)
+      return this.updateTask(id, { completed: next })
+    },
+
+    moveTask(id, options = {}) {
+      this.initialize()
+      const task = this.byId(id)
+      if (!task) throw new Error('任务不存在')
+      const parentTaskId = options.parentTaskId == null ? null : String(options.parentTaskId)
+      const parent = parentTaskId == null ? null : this.byId(parentTaskId)
+      if (parentTaskId != null && !parent) throw new Error('父任务不存在')
+
+      const requestedGoalId = normalizeGoalId(options.goalId)
+      const goalId = parent ? normalizeGoalId(parent.goalId) : requestedGoalId
+      if (parent && Object.prototype.hasOwnProperty.call(options, 'goalId') && requestedGoalId !== goalId) {
+        throw new Error('子任务必须与父任务属于同一目标')
+      }
+      const validation = validateMove({ items: this.tasks, id, newParentId: parentTaskId, parentKey: 'parentTaskId' })
+      if (!validation.ok) throw new Error(validation.reason)
+
+      const snapshot = cloneRecords(this.tasks)
+      const affectedIds = new Set([String(id), ...getDescendantIds(this.tasks, id, 'parentTaskId')])
+      const now = timestamp()
+      for (const item of this.tasks) {
+        if (affectedIds.has(String(item.id))) {
+          item.goalId = goalId
+          item.updatedAt = now
+        }
+      }
+      task.parentTaskId = parentTaskId
+      if (options.patch) {
+        const safePatch = { ...options.patch }
+        delete safePatch.id
+        delete safePatch.parentTaskId
+        delete safePatch.goalId
+        Object.assign(task, safePatch)
+      }
+      this.persist(snapshot)
+      return task
     }
   }
-}) 
+})
