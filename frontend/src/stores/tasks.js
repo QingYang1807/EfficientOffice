@@ -141,6 +141,22 @@ export const useTaskStore = defineStore('tasks-v2', {
       }
     },
 
+    deleteBatchTasks(ids = []) {
+      this.initialize()
+      const requestedIds = [...new Set(ids.map(String))]
+      const existingIds = new Set(this.tasks.map(task => String(task.id)))
+      if (requestedIds.some(id => !existingIds.has(id))) throw new Error('任务不存在')
+
+      const removedIds = new Set(requestedIds)
+      for (const id of requestedIds) {
+        getDescendantIds(this.tasks, id, 'parentTaskId').forEach(childId => removedIds.add(childId))
+      }
+      const snapshot = cloneRecords(this.tasks)
+      this.tasks = this.tasks.filter(task => !removedIds.has(String(task.id)))
+      this.persist(snapshot)
+      return [...removedIds]
+    },
+
     updateTask(id, patch = {}) {
       this.initialize()
       const task = this.byId(id)

@@ -1,0 +1,50 @@
+import dayjs from 'dayjs'
+
+function dateKey(value) {
+  return value == null ? null : dayjs(value).format('YYYY-MM-DD')
+}
+
+function taskInput(form) {
+  return {
+    title: String(form.title || '').trim(),
+    description: String(form.description || ''),
+    priority: ['高', '中', '低'].includes(form.priority) ? form.priority : '中',
+    deadline: form.deadline || null
+  }
+}
+
+export function getCalendarTasksByDate(taskStore, date) {
+  const selected = dateKey(date)
+  return taskStore.tasks
+    .filter(task => dateKey(task.deadline) === selected)
+    .map(task => ({
+      ...task,
+      id: String(task.id),
+      text: task.title,
+      dueDate: task.deadline,
+      completed: taskStore.viewFor(task.id).completed
+    }))
+}
+
+export function createCalendarTask(form, taskStore) {
+  return taskStore.createTask({
+    ...taskInput(form),
+    goalId: null,
+    parentTaskId: null,
+    weight: 1
+  })
+}
+
+export function updateCalendarTask(id, form, taskStore) {
+  return taskStore.updateTask(String(id), taskInput(form))
+}
+
+export function toggleCalendarTask(id, completed, taskStore) {
+  return taskStore.toggleTask(String(id), completed)
+}
+
+export function deleteCalendarTasks(date, taskStore) {
+  const ids = getCalendarTasksByDate(taskStore, date).map(task => task.id)
+  if (ids.length) taskStore.deleteBatchTasks(ids)
+  return ids
+}

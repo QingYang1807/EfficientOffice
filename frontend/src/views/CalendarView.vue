@@ -87,14 +87,17 @@
                 item.priority, 
                 { 
                   completed: item.completed,
-                  'due-date': isDueDate(current, item),
-                  'create-date': isCreateDate(current, item)
+                  'due-date': isDueDate(current, item)
                 }
               ]"
             >
               <span class="todo-tag" v-if="isDueDate(current, item)">截止</span>
-              <span class="todo-tag" v-if="isCreateDate(current, item)">开始</span>
-              {{ item.text }}
+              <a-checkbox
+                :checked="item.completed"
+                @click.stop
+                @change="event => handleToggleTodo(item, event.target.checked)"
+              />
+              <span @click.stop="handleEditTodo(item)">{{ item.title }}</span>
             </div>
           </div>
         </div>
@@ -108,7 +111,7 @@
         <span>添加待办事项</span>
       </div>
       <div 
-        v-if="todoStore.getTodosByDate(selectedDate).length"
+        v-if="getTodosByDate(selectedDate).length"
         class="menu-item" 
         @click="handleViewTodos"
       >
@@ -116,7 +119,7 @@
         <span>查看待办事项</span>
       </div>
       <div 
-        v-if="todoStore.getTodosByDate(selectedDate).length"
+        v-if="getTodosByDate(selectedDate).length"
         class="menu-item" 
         @click="handleDeleteTodo"
       >
@@ -128,7 +131,7 @@
     <!-- 添加待办事项对话框 -->
     <a-modal
       v-model:open="dialogVisible"
-      :title="dragMode ? '批量添加待办事项' : '添加待办事项'"
+      :title="todoForm.id ? '编辑待办事项' : (dragMode ? '批量添加待办事项' : '添加待办事项')"
       @ok="saveTodo"
       @cancel="dialogVisible = false"
     >
@@ -153,13 +156,8 @@
           </a-select>
         </a-form-item>
 
-        <a-form-item label="分类">
-          <a-select v-model:value="todoForm.category">
-            <a-select-option value="工作目标">工作目标</a-select-option>
-            <a-select-option value="学习目标">学习目标</a-select-option>
-            <a-select-option value="生活目标">生活目标</a-select-option>
-            <a-select-option value="其他目标">其他目标</a-select-option>
-          </a-select>
+        <a-form-item label="日期" required>
+          <a-input v-model:value="todoForm.deadline" type="date" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -167,7 +165,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { 
   PlusOutlined, 
@@ -177,10 +175,18 @@ import {
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { Lunar } from 'lunar-javascript'
-import { useTodoStore } from '@/stores/todo'
+import { useTaskStore } from '@/stores/tasks'
+import {
+  createCalendarTask,
+  deleteCalendarTasks,
+  getCalendarTasksByDate,
+  toggleCalendarTask,
+  updateCalendarTask
+} from '@/services/calendarTaskAdapter'
 
 const router = useRouter()
-const todoStore = useTodoStore()
+const taskStore = useTaskStore()
+taskStore.initialize()
 
 const currentDate = ref(dayjs())
 const dialogVisible = ref(false)
@@ -188,15 +194,13 @@ const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const selectedDate = ref(null)
 const dragMode = ref(false)
-const selectedDates = ref([])
 
 const todoForm = ref({
+  id: null,
   title: '',
-  date: null,
   description: '',
   priority: '中',
-  category: '其他目标',
-  dueDate: null
+  deadline: null
 })
 
 // 计算起始年份（当前年份前5年）
@@ -226,24 +230,14 @@ const getLunarDate = (date) => {
     
     // 其他日期显示农历日期
     return lunar.getDayInChinese()
-  } catch (error) {
-    console.error('getLunarDate error:', error)
+  } catch {
     return ''
   }
 }
 
 // 获取指定日期的待办事项
 const getTodosByDate = (date) => {
-  return todoStore.getTodosByDate(date)
-}
-
-// 格式化日期范围
-const formatDateRange = (dates) => {
-  if (!dates.length) return ''
-  return dates
-    .sort()
-    .map(date => dayjs(date).format('YYYY年MM月DD日'))
-    .join(' 至 ')
+  return getCalendarTasksByDate(taskStore, date)
 }
 
 // 右键菜单样式
@@ -262,21 +256,39 @@ const handleContextMenu = (e, date) => {
   }
   selectedDate.value = date
   dragMode.value = false
-  selectedDates.value = [date]
 }
 
 // 添加待办事项
 const handleAddTodo = () => {
   todoForm.value = {
+    id: null,
     title: '',
     description: '',
     priority: '中',
-    category: '其他目标',
-    date: dayjs(selectedDate.value).format('YYYY-MM-DD'),
-    dueDate: null
+    deadline: dayjs(selectedDate.value).format('YYYY-MM-DD')
   }
   dialogVisible.value = true
   showContextMenu.value = false
+}
+
+const handleEditTodo = (task) => {
+  todoForm.value = {
+    id: String(task.id),
+    title: task.title,
+    description: task.description || '',
+    priority: task.priority || '中',
+    deadline: task.deadline ? dayjs(task.deadline).format('YYYY-MM-DD') : null
+  }
+  selectedDate.value = dayjs(task.deadline)
+  dialogVisible.value = true
+}
+
+const handleToggleTodo = (task, completed) => {
+  try {
+    toggleCalendarTask(task.id, completed, taskStore)
+  } catch (error) {
+    message.error(error.message || '更新失败')
+  }
 }
 
 // 查看待办事项
@@ -291,9 +303,14 @@ const handleDeleteTodo = () => {
     title: '确认删除',
     content: '确定要删除这天的所有待办事项吗？',
     onOk: () => {
-      todoStore.deleteTodosByDate(selectedDate.value)
-      message.success('删除成功')
-      showContextMenu.value = false
+      try {
+        deleteCalendarTasks(selectedDate.value, taskStore)
+        message.success('删除成功')
+        showContextMenu.value = false
+      } catch (error) {
+        message.error(error.message || '删除失败')
+        throw error
+      }
     }
   })
 }
@@ -304,23 +321,23 @@ const saveTodo = () => {
     message.warning('请输入待办事项标题')
     return
   }
-
-  todoStore.addTodo(todoForm.value)
-  message.success('添加成功')
-  dialogVisible.value = false
-}
-
-// 重置表单
-const resetForm = () => {
-  todoForm.value = {
-    title: '',
-    date: null,
-    description: '',
-    priority: '中',
-    category: '其他目标',
-    dueDate: null
+  if (!todoForm.value.deadline) {
+    message.warning('请选择日期')
+    return
   }
-  selectedDates.value = []
+
+  try {
+    if (todoForm.value.id) {
+      updateCalendarTask(todoForm.value.id, todoForm.value, taskStore)
+      message.success('更新成功')
+    } else {
+      createCalendarTask(todoForm.value, taskStore)
+      message.success('添加成功')
+    }
+    dialogVisible.value = false
+  } catch (error) {
+    message.error(error.message || '保存失败')
+  }
 }
 
 // 点击外部关闭右键菜单
@@ -332,6 +349,7 @@ const handleClickOutside = (e) => {
 
 // 监听点击事件
 window.addEventListener('click', handleClickOutside)
+onUnmounted(() => window.removeEventListener('click', handleClickOutside))
 
 // 判断是否为节假日（周末或法定节假日）
 const isHoliday = (date) => {
@@ -363,14 +381,8 @@ const isHoliday = (date) => {
 
 // 判断是否为截止日期
 const isDueDate = (date, todo) => {
-  if (!todo.dueDate) return false
-  return dayjs(todo.dueDate).format('YYYY-MM-DD') === dayjs(date).format('YYYY-MM-DD')
-}
-
-// 判断是否为创建日期
-const isCreateDate = (date, todo) => {
-  if (!todo.date) return false
-  return todo.date === dayjs(date).format('YYYY-MM-DD')
+  if (!todo.deadline) return false
+  return dayjs(todo.deadline).format('YYYY-MM-DD') === dayjs(date).format('YYYY-MM-DD')
 }
 </script>
 
@@ -595,4 +607,4 @@ const isCreateDate = (date, todo) => {
 :deep(.ant-select-dropdown) {
   z-index: 1100;
 }
-</style> 
+</style>
