@@ -44,7 +44,7 @@ const normalizeTask = (task, validGoalIds, now) => ({
   completed: Boolean(task.completed),
   weight: normalizeWeight(task.weight),
   priority: priorities.has(task.priority) ? task.priority : '中',
-  deadline: task.deadline || task.dueDate || null,
+  deadline: task.deadline ?? task.dueDate ?? task.date ?? null,
   pomodoros: Math.max(0, Math.floor(Number(task.pomodoros) || 0)),
   pomodoroStartedAt: task.pomodoroStartedAt ?? null,
   completedAt: task.completedAt ?? null,

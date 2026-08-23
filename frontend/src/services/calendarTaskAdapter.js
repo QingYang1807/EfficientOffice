@@ -5,11 +5,13 @@ function dateKey(value) {
 }
 
 function taskInput(form) {
+  const title = String(form.title ?? '').trim()
+  if (!title) throw new Error('任务标题不能为空')
   return {
-    title: String(form.title || '').trim(),
+    title,
     description: String(form.description || ''),
     priority: ['高', '中', '低'].includes(form.priority) ? form.priority : '中',
-    deadline: form.deadline || null
+    deadline: form.deadline ?? null
   }
 }
 

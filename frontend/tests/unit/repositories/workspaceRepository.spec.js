@@ -60,6 +60,21 @@ it('preserves zero-valued weights and timestamps while migrating', () => {
   expect(data.tasks[0]).toMatchObject({ weight: 0, createdAt: 0, updatedAt: 0 })
 })
 
+it('migrates legacy task dates with nullish fallback without losing zero', () => {
+  const storage = storageWith({
+    goals: '[]',
+    todos: JSON.stringify([
+      { id: 'deadline-zero', deadline: 0, dueDate: '2026-08-21', date: '2026-08-22' },
+      { id: 'due-zero', deadline: null, dueDate: 0, date: '2026-08-22' },
+      { id: 'calendar-date', deadline: null, dueDate: null, date: '2026-08-23' }
+    ])
+  })
+
+  const data = migrateLegacyWorkspace(storage, now)
+
+  expect(data.tasks.map(task => task.deadline)).toEqual([0, 0, '2026-08-23'])
+})
+
 it('defaults only nullish or invalid legacy weights', () => {
   const storage = storageWith({
     goals: JSON.stringify([{ id: 'g1', weight: null }, { id: 'g2', weight: 'not-a-number' }, { id: 'g3', weight: '' }]),

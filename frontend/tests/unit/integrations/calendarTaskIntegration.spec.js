@@ -33,6 +33,28 @@ describe('calendar task integration', () => {
     expect(created.id).toBe('task-1')
   })
 
+  it('keeps a legacy date-only task visible after workspace migration', () => {
+    localStorage.setItem('todos', JSON.stringify([
+      { id: 7, text: '旧日历任务', date: '2026-08-23', completed: false }
+    ]))
+    setActivePinia(createPinia())
+    const taskStore = useTaskStore()
+    taskStore.initialize()
+
+    expect(getCalendarTasksByDate(taskStore, '2026-08-23')).toEqual([
+      expect.objectContaining({ id: '7', title: '旧日历任务', deadline: '2026-08-23' })
+    ])
+  })
+
+  it('rejects blank create and update titles before mutating the task store', () => {
+    const taskStore = { createTask: vi.fn(), updateTask: vi.fn() }
+
+    expect(() => createCalendarTask({ title: '  ', deadline: '2026-08-23' }, taskStore)).toThrow('任务标题不能为空')
+    expect(() => updateCalendarTask(1, { title: '\n', deadline: '2026-08-23' }, taskStore)).toThrow('任务标题不能为空')
+    expect(taskStore.createTask).not.toHaveBeenCalled()
+    expect(taskStore.updateTask).not.toHaveBeenCalled()
+  })
+
   it('uses canonical update, completion and one atomic date deletion', () => {
     const taskStore = {
       tasks: [
