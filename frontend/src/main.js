@@ -30,6 +30,9 @@ import './styles/index.css'  // 引入全局样式
 
 // 添加这一行导入
 import '@fortawesome/fontawesome-free/css/all.min.css'
+import { installWorkspaceStorageBridge } from './services/workspaceEvents'
+
+installWorkspaceStorageBridge(window)
 
 const app = createApp(App)
 const pinia = createPinia()

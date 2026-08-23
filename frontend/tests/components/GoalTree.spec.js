@@ -7,7 +7,8 @@ const goals = [
   { id: 'g1', parentGoalId: null, title: '年度目标' },
   { id: 'g2', parentGoalId: 'g1', title: '产品发布' },
   { id: 'g4', parentGoalId: 'g1', title: '员工成长' },
-  { id: 'g3', parentGoalId: 'missing', title: '孤立目标' }
+  { id: 'g3', parentGoalId: 'g2', title: '发布2.0' },
+  { id: 'g5', parentGoalId: 'missing', title: '孤立目标' }
 ]
 
 const TreeStub = defineComponent({
@@ -59,6 +60,23 @@ describe('GoalTree', () => {
     expect(wrapper.text()).not.toContain('员工成长')
     expect(wrapper.text()).toContain('待修复')
     expect(wrapper.text()).toContain('孤立目标')
+    wrapper.unmount()
+  })
+
+  it('supports tree keyboard navigation and names every action', async () => {
+    const wrapper = mountTree({ expandedIds: [] })
+    const root = wrapper.get('[data-testid="goal-node-g1"]')
+    await root.trigger('keydown', { key: 'ArrowDown' })
+    expect(wrapper.emitted('select').at(-1)).toEqual(['g2'])
+    const child = wrapper.get('[data-testid="goal-node-g2"]')
+    await child.trigger('keydown', { key: 'ArrowRight' })
+    expect(wrapper.emitted('update:expandedIds').at(-1)).toEqual([['g2']])
+    expect(child.attributes('aria-expanded')).toBe('true')
+    await child.trigger('keydown', { key: 'ArrowLeft' })
+    expect(child.attributes('aria-expanded')).toBe('false')
+    await child.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('select').at(-1)).toEqual(['g2'])
+    expect(wrapper.findAll('button').every(button => button.text().trim() || button.attributes('aria-label'))).toBe(true)
     wrapper.unmount()
   })
 })

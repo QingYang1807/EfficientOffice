@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { buildTree, getAncestorIds, validateMove } from '@/domain/hierarchy'
 import { deriveGoalView } from '@/domain/progress'
-import { loadWorkspace, patchWorkspace } from '@/repositories/workspaceRepository'
+import { exportWorkspace, loadWorkspace, patchWorkspace } from '@/repositories/workspaceRepository'
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -37,13 +37,26 @@ export const useGoalStore = defineStore('goals-v2', {
       return this.goals
     },
 
+    reload() {
+      const workspace = loadWorkspace(localStorage)
+      this.goals = cloneRecords(workspace.goals)
+      this.initialized = true
+      this.lastError = null
+      return this.goals
+    },
+
+    exportData() {
+      exportWorkspace(loadWorkspace(localStorage, { trackRevision: false }))
+    },
+
     persist(snapshot) {
       try {
         patchWorkspace(localStorage, { goals: this.goals })
         this.lastError = null
       } catch (error) {
         this.goals = snapshot
-        this.lastError = '工作区保存失败'
+        this.lastError = ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
+          ? error.message : '工作区保存失败'
         throw error
       }
     },

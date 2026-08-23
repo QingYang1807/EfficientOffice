@@ -12,6 +12,15 @@
       </div>
     </header>
 
+    <div v-if="stale" class="workspace-banner" role="alert" data-testid="stale-workspace">
+      <span>数据已在其他页面更新，请刷新后继续编辑。</span>
+      <el-button link type="primary" @click="refreshWorkspace">刷新数据</el-button>
+    </div>
+    <div v-if="goalStore.lastError || taskStore.lastError" class="workspace-banner error-banner" role="alert">
+      <span>{{ goalStore.lastError || taskStore.lastError }}</span>
+      <el-button link type="primary" @click="exportData">导出数据</el-button>
+    </div>
+
     <div v-if="selectedGoalId && !selectedGoal" class="invalid-filter">
       <span>筛选目标不存在或已删除。</span>
       <el-button link type="primary" data-testid="recover-invalid-goal" @click="clearGoalFilter">查看全部任务</el-button>
@@ -73,7 +82,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
@@ -99,6 +108,7 @@ const editorContext = ref({ goalId: null, parentTaskId: null })
 const quickTitle = ref('')
 const quickPriority = ref('中')
 const quickDeadline = ref(null)
+const stale = ref(false)
 
 const selectedGoalId = computed(() => {
   const value = route.query.goalId
@@ -137,7 +147,17 @@ const statusCount = computed(() => ({
 onMounted(() => {
   goalStore.initialize()
   taskStore.initialize()
+  window.addEventListener('workspace:stale', markStale)
 })
+onBeforeUnmount(() => window.removeEventListener('workspace:stale', markStale))
+
+function markStale() { stale.value = true }
+function refreshWorkspace() {
+  goalStore.reload()
+  taskStore.reload()
+  stale.value = false
+}
+function exportData() { taskStore.exportData() }
 
 function titleOf(task) { return String(task.title || task.text || '') }
 function deadlineOf(task) { return task.deadline ?? task.dueDate ?? null }
@@ -243,6 +263,8 @@ defineExpose({ startPomodoro })
 h1 { margin: 0; font-size: 21px; } .heading p { margin: 2px 0 0; color: #64748b; font-size: 12px; }
 .filters { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 300px) auto 128px 128px 128px; align-items: center; gap: 9px; border-bottom: 1px solid #e5e7eb; padding: 12px 20px; }
 .invalid-filter { display: flex; align-items: center; justify-content: center; gap: 6px; background: #fffbeb; padding: 8px; color: #92400e; font-size: 13px; }
+.workspace-banner { display: flex; align-items: center; justify-content: center; gap: 8px; border-bottom: 1px solid #fde68a; padding: 8px 12px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.error-banner { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
 .table-scroll { min-height: 0; flex: 1; overflow: auto; }
 .quick-create { border-top: 1px solid #e5e7eb; padding: 10px 20px 14px; }
 .context-note { margin-bottom: 8px; color: #64748b; font-size: 12px; }

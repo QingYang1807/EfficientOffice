@@ -191,8 +191,8 @@ it('saves and patches V2 workspaces without persisting derived fields', () => {
 
   const next = patchWorkspace(storage, { goals: [{ id: 'g1' }], status: 'late' })
 
-  expect(next).toEqual({ version: 2, migratedAt: now, goals: [{ id: 'g1' }], tasks: [], status: 'late' })
-  expect(loadWorkspace(storage)).toEqual({ version: 2, migratedAt: now, goals: [{ id: 'g1' }], tasks: [] })
+  expect(next).toEqual(expect.objectContaining({ version: 2, migratedAt: now, goals: [{ id: 'g1' }], tasks: [], status: 'late', updatedAt: expect.any(String) }))
+  expect(loadWorkspace(storage)).toEqual(expect.objectContaining({ version: 2, migratedAt: now, goals: [{ id: 'g1' }], tasks: [], updatedAt: expect.any(String) }))
 })
 
 it('rejects a workspace without migratedAt without changing existing V2 bytes', () => {

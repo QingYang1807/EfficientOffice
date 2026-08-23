@@ -9,6 +9,11 @@ function assertMode(mode) {
   if (mode !== 'cascade' && mode !== 'promote') throw new Error('删除模式不受支持')
 }
 
+function persistenceMessage(error) {
+  return ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
+    ? error.message : '工作区保存失败'
+}
+
 function persistBoth(goalStore, taskStore, previousGoals, previousTasks) {
   try {
     patchWorkspace(localStorage, { goals: goalStore.goals, tasks: taskStore.tasks })
@@ -17,8 +22,8 @@ function persistBoth(goalStore, taskStore, previousGoals, previousTasks) {
   } catch (error) {
     goalStore.goals = previousGoals
     taskStore.tasks = previousTasks
-    goalStore.lastError = '工作区保存失败'
-    taskStore.lastError = '工作区保存失败'
+    goalStore.lastError = persistenceMessage(error)
+    taskStore.lastError = persistenceMessage(error)
     throw error
   }
 }
@@ -71,7 +76,7 @@ export function deleteTask({ taskId, mode, taskStore }) {
     taskStore.lastError = null
   } catch (error) {
     taskStore.tasks = previousTasks
-    taskStore.lastError = '工作区保存失败'
+    taskStore.lastError = persistenceMessage(error)
     throw error
   }
 }

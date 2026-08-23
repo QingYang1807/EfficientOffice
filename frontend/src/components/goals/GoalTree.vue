@@ -25,8 +25,11 @@
           v-else
           class="goal-node"
           tabindex="0"
+          role="treeitem"
+          :aria-selected="String(selectedId) === String(data.id)"
+          :aria-expanded="data.children?.length ? localExpandedIds.has(String(data.id)) : undefined"
           :data-testid="`goal-node-${data.id}`"
-          @keydown.enter="$emit('select', data.id)"
+          @keydown="handleKeydown($event, data)"
         >
           <span class="goal-title" :title="data.title">{{ data.title }}</span>
           <span v-if="data.progress != null" class="goal-progress">{{ data.progress }}%</span>
@@ -66,7 +69,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -80,6 +83,12 @@ const emit = defineEmits([
   'select', 'create-child', 'create-task', 'move', 'delete', 'update:expandedIds'
 ])
 const treeRef = ref(null)
+const localExpandedIds = reactive(new Set(props.expandedIds.map(String)))
+
+watch(() => props.expandedIds, ids => {
+  localExpandedIds.clear()
+  ids.map(String).forEach(id => localExpandedIds.add(id))
+}, { deep: true })
 
 const records = computed(() => props.goals.map(goal => ({
   ...goal,
@@ -170,13 +179,50 @@ function handleSelect(data) {
 
 function updateExpanded(id, expanded) {
   if (id === '__repair__') return
-  const ids = new Set(props.expandedIds.map(String))
+  const ids = new Set(localExpandedIds)
   if (expanded) ids.add(String(id)); else ids.delete(String(id))
+  localExpandedIds.clear()
+  ids.forEach(value => localExpandedIds.add(value))
   emit('update:expandedIds', [...ids])
 }
 
 function handleExpand(data) { updateExpanded(data.id, true) }
 function handleCollapse(data) { updateExpanded(data.id, false) }
+
+function flattenedNodes(nodes = treeData.value, result = []) {
+  for (const node of nodes) {
+    if (!node.repairGroup) result.push(node)
+    flattenedNodes(node.children || [], result)
+  }
+  return result
+}
+
+function handleKeydown(event, data) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    emit('select', data.id)
+    return
+  }
+  if (event.key === 'ArrowRight' && data.children?.length) {
+    event.preventDefault()
+    updateExpanded(data.id, true)
+    return
+  }
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    if (localExpandedIds.has(String(data.id))) updateExpanded(data.id, false)
+    else if (data.parentGoalId != null) emit('select', String(data.parentGoalId))
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const nodes = flattenedNodes()
+    const index = nodes.findIndex(node => String(node.id) === String(data.id))
+    const offset = event.key === 'ArrowDown' ? 1 : -1
+    const target = nodes[index + offset]
+    if (target) emit('select', target.id)
+  }
+}
 </script>
 
 <style scoped>

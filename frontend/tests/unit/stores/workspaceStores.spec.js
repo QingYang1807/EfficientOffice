@@ -105,6 +105,30 @@ it('rolls memory back and exposes a stable error when persistence fails', () => 
   setItem.mockRestore()
 })
 
+it('rolls memory back on quota and optimistic conflicts with recoverable errors', () => {
+  const goals = useGoalStore()
+  goals.createGoal({ title: '已保存' })
+  const before = goals.goals.map(goal => ({ ...goal }))
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new DOMException('quota', 'QuotaExceededError')
+  })
+
+  expect(() => goals.createGoal({ title: '超出容量' }))
+    .toThrow('本地存储空间不足，请先导出或清理数据')
+  expect(goals.goals).toEqual(before)
+  expect(goals.lastError).toBe('本地存储空间不足，请先导出或清理数据')
+  setItem.mockRestore()
+
+  const external = JSON.parse(localStorage.getItem('efficient-office.workspace.v2'))
+  localStorage.setItem('efficient-office.workspace.v2', JSON.stringify({ ...external, updatedAt: 'external-revision' }))
+  expect(() => goals.createGoal({ title: '冲突目标' }))
+    .toThrow('数据已在其他页面更新，请刷新后重试')
+  expect(goals.goals).toEqual(before)
+  expect(() => goals.createGoal({ title: '仍不应覆盖' }))
+    .toThrow('数据已在其他页面更新，请刷新后重试')
+  expect(JSON.parse(localStorage.getItem('efficient-office.workspace.v2')).updatedAt).toBe('external-revision')
+})
+
 it('keeps batch creation atomic when a later task is invalid', () => {
   const goals = useGoalStore()
   const tasks = useTaskStore()

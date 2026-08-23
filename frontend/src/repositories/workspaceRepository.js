@@ -2,6 +2,8 @@ export const WORKSPACE_KEY = 'efficient-office.workspace.v2'
 export const BACKUP_KEY = 'efficient-office.workspace.v1.backup'
 export const DIAGNOSTICS_KEY = 'efficient-office.workspace.v2.diagnostics'
 
+const knownRevisions = new WeakMap()
+
 const priorities = new Set(['高', '中', '低'])
 
 function normalizeLegacyId(record) {
@@ -153,6 +155,25 @@ function validateWorkspace(workspace) {
   validateParentGraph(workspace.tasks, tasksById, 'parentTaskId')
 }
 
+function nextRevision(previous) {
+  const candidate = new Date().toISOString()
+  const previousTime = Date.parse(previous)
+  const candidateTime = Date.parse(candidate)
+  return Number.isFinite(previousTime) && candidateTime <= previousTime
+    ? new Date(previousTime + 1).toISOString()
+    : candidate
+}
+
+function currentRevision(storage) {
+  const raw = storage.getItem(WORKSPACE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw).updatedAt ?? null
+  } catch (error) {
+    throw new Error('工作区保存失败', { cause: error })
+  }
+}
+
 function serializeWorkspace(workspace) {
   try {
     const data = withoutDerivedFields(workspace)
@@ -165,13 +186,26 @@ function serializeWorkspace(workspace) {
   }
 }
 
-export function saveWorkspace(storage, workspace) {
-  const { json } = serializeWorkspace(workspace)
+export function saveWorkspace(storage, workspace, options = {}) {
+  const expectedUpdatedAt = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
+    ? options.expectedUpdatedAt
+    : null
+  const persistedUpdatedAt = currentRevision(storage)
+  if (expectedUpdatedAt != null && persistedUpdatedAt !== expectedUpdatedAt) {
+    throw new Error('数据已在其他页面更新，请刷新后重试')
+  }
+  const next = { ...workspace, updatedAt: nextRevision(persistedUpdatedAt) }
+  const { json } = serializeWorkspace(next)
   try {
     storage.setItem(WORKSPACE_KEY, json)
   } catch (error) {
+    if (error?.name === 'QuotaExceededError') {
+      throw new Error('本地存储空间不足，请先导出或清理数据', { cause: error })
+    }
     throw new Error('工作区保存失败', { cause: error })
   }
+  knownRevisions.set(storage, next.updatedAt)
+  return next
 }
 
 export function migrateLegacyWorkspace(storage, now) {
@@ -186,7 +220,7 @@ export function migrateLegacyWorkspace(storage, now) {
   const orphanTaskIds = legacyTasks
     .filter((task) => task.goalId != null && !validGoalIds.has(String(task.goalId)))
     .map((task) => String(task.id))
-  const workspace = { version: 2, migratedAt: now, goals, tasks }
+  const workspace = { version: 2, migratedAt: now, updatedAt: now, goals, tasks }
 
   let backupJson
   let diagnosticsJson
@@ -229,19 +263,40 @@ export function migrateLegacyWorkspace(storage, now) {
     }
     throw new Error('工作区保存失败', { cause: error })
   }
+  knownRevisions.set(storage, workspace.updatedAt)
   return workspace
 }
 
-export function loadWorkspace(storage) {
+export function loadWorkspace(storage, options = {}) {
   const raw = storage.getItem(WORKSPACE_KEY)
   if (!raw) return migrateLegacyWorkspace(storage, new Date().toISOString())
   const data = JSON.parse(raw)
   if (data.version !== 2) throw new Error('工作区数据版本不受支持')
+  if (options.trackRevision !== false) knownRevisions.set(storage, data.updatedAt ?? null)
   return data
 }
 
-export function patchWorkspace(storage, patch) {
+export function patchWorkspace(storage, patch, options = {}) {
+  const persistedUpdatedAt = currentRevision(storage)
+  const expectedUpdatedAt = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
+    ? options.expectedUpdatedAt
+    : persistedUpdatedAt == null ? null : knownRevisions.get(storage)
+  if (expectedUpdatedAt != null && persistedUpdatedAt !== expectedUpdatedAt) {
+    throw new Error('数据已在其他页面更新，请刷新后重试')
+  }
   const next = { ...loadWorkspace(storage), ...patch, version: 2 }
-  saveWorkspace(storage, next)
-  return next
+  return saveWorkspace(storage, next, {
+    expectedUpdatedAt
+  })
+}
+
+export function exportWorkspace(workspace) {
+  const blob = new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = Object.assign(document.createElement('a'), {
+    href: url,
+    download: 'efficient-office-workspace-v2.json'
+  })
+  link.click()
+  URL.revokeObjectURL(url)
 }

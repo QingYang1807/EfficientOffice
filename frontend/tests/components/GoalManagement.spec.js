@@ -48,18 +48,25 @@ const GoalWorkspaceStub = defineComponent({
   template: '<button data-testid="view-tasks" @click="$emit(\'view-tasks\', \'g2\')">view tasks</button>'
 })
 
+const GoalKanbanStub = defineComponent({ name: 'GoalKanban', template: '<div data-testid="kanban-view" />' })
+const GoalMindMapStub = defineComponent({ name: 'GoalMindMap', template: '<div data-testid="mindmap-view" />' })
+
 const stubs = {
   GoalTree: GoalTreeStub,
   GoalWorkspace: GoalWorkspaceStub,
   GoalTaskTree: GoalTaskTreeStub,
   GoalEditorDialog: { template: '<div />' },
+  GoalKanban: GoalKanbanStub,
+  GoalMindMap: GoalMindMapStub,
   'el-button': { template: '<button type="button"><slot /></button>' },
   'el-input': { template: '<input />' },
   'el-empty': { template: '<div><slot /></div>' },
   'el-result': { template: '<div><slot name="extra" /></div>' },
   'el-drawer': { template: '<aside><slot /></aside>' },
   'el-tabs': { template: '<div><slot /></div>' },
-  'el-tab-pane': { template: '<section><slot /></section>' }
+  'el-tab-pane': { template: '<section><slot /></section>' },
+  'el-radio-group': { template: '<div><slot /></div>' },
+  'el-radio-button': { template: '<button type="button"><slot /></button>' }
 }
 
 function makeGoalStore() {
@@ -77,7 +84,8 @@ function makeGoalStore() {
     viewFor: vi.fn(() => ({ progress: 0, status: 'not_started' })),
     createGoal: vi.fn(),
     updateGoal: vi.fn(),
-    moveGoal: vi.fn()
+    moveGoal: vi.fn(),
+    reload: vi.fn(), exportData: vi.fn(), lastError: null
   })
   return store
 }
@@ -106,7 +114,8 @@ beforeEach(() => {
     initialize: vi.fn(),
     viewFor: vi.fn(() => ({ progress: 0, completed: false })),
     byId: vi.fn(),
-    toggleTask: vi.fn()
+    toggleTask: vi.fn(),
+    reload: vi.fn(), lastError: null
   })
 })
 
@@ -179,5 +188,27 @@ describe('GoalManagement', () => {
     tree.vm.$emit('delete', 'g1')
     await flushPromises()
     expect(mocks.deleteGoal).toHaveBeenLastCalledWith(expect.objectContaining({ mode: 'cascade' }))
+  })
+
+  it('switches all three derived views and requires an explicit refresh after external updates', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="kanban-view"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="view-kanban"]').trigger('click')
+    expect(wrapper.get('[data-testid="kanban-view"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="view-mindmap"]').trigger('click')
+    expect(wrapper.get('[data-testid="mindmap-view"]').exists()).toBe(true)
+
+    window.dispatchEvent(new CustomEvent('workspace:stale'))
+    await nextTick()
+    const banner = wrapper.get('[data-testid="stale-workspace"]')
+    expect(banner.text()).toContain('刷新数据')
+    expect(banner.find('[aria-label="关闭"]').exists()).toBe(false)
+    await banner.get('button').trigger('click')
+    expect(mocks.goalStore.reload).toHaveBeenCalledOnce()
+    expect(mocks.taskStore.reload).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="stale-workspace"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

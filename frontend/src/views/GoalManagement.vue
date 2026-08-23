@@ -6,10 +6,24 @@
         <p>把结果逐层拆解，并在同一处跟踪执行任务</p>
       </div>
       <div class="header-actions">
+        <el-radio-group v-model="viewMode" aria-label="目标视图">
+          <el-radio-button label="workspace" data-testid="view-workspace" @click="viewMode = 'workspace'">工作台</el-radio-button>
+          <el-radio-button label="kanban" data-testid="view-kanban" @click="viewMode = 'kanban'">看板</el-radio-button>
+          <el-radio-button label="mindmap" data-testid="view-mindmap" @click="viewMode = 'mindmap'">思维导图</el-radio-button>
+        </el-radio-group>
         <el-button class="mobile-tree-button" :icon="Menu" @click="treeDrawerOpen = true">目标树</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreateGoal(null)">新建目标</el-button>
       </div>
     </header>
+
+    <div v-if="stale" class="recovery-banner" role="alert" data-testid="stale-workspace">
+      <span>数据已在其他页面更新，请刷新后继续编辑。</span>
+      <el-button type="primary" link @click="refreshWorkspace">刷新数据</el-button>
+    </div>
+    <div v-if="goalStore.lastError || taskStore.lastError" class="recovery-banner error-banner" role="alert">
+      <span>{{ goalStore.lastError || taskStore.lastError }}</span>
+      <el-button link type="primary" @click="exportData">导出数据</el-button>
+    </div>
 
     <section v-if="!goalStore.goals.length" class="page-state">
       <el-empty description="还没有目标，从一个清晰的结果开始">
@@ -24,6 +38,18 @@
         </template>
       </el-result>
     </section>
+
+    <GoalKanban
+      v-else-if="viewMode === 'kanban'"
+      :goals="goalSummaries"
+      @card-click="goal => selectGoal(goal.id)"
+    />
+
+    <GoalMindMap
+      v-else-if="viewMode === 'mindmap'"
+      :goals="goalTreeWithViews"
+      @node-click="selectGoal"
+    />
 
     <section v-else-if="selectedGoal" class="workspace-shell">
       <aside class="tree-panel panel-card">
@@ -132,7 +158,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Menu, Plus, Search } from '@element-plus/icons-vue'
@@ -140,9 +166,11 @@ import GoalTree from '@/components/goals/GoalTree.vue'
 import GoalWorkspace from '@/components/goals/GoalWorkspace.vue'
 import GoalTaskTree from '@/components/goals/GoalTaskTree.vue'
 import GoalEditorDialog from '@/components/goals/GoalEditorDialog.vue'
+import GoalKanban from '@/components/goals/GoalKanban.vue'
+import GoalMindMap from '@/components/goals/GoalMindMap.vue'
 import { useGoalStore } from '@/stores/goals'
 import { useTaskStore } from '@/stores/tasks'
-import { getDescendantIds } from '@/domain/hierarchy'
+import { buildTree, getDescendantIds } from '@/domain/hierarchy'
 import { deleteGoal } from '@/services/workspaceCommands'
 
 const GOAL_UI_KEY = 'efficient-office.goal-ui.v1'
@@ -160,6 +188,8 @@ const editorParentGoalId = ref(null)
 const editingGoal = ref(null)
 const storedSelectedId = ref(null)
 const expandedIds = ref([])
+const viewMode = ref('workspace')
+const stale = ref(false)
 
 const routeGoalId = computed(() => {
   const value = route.params.goalId
@@ -201,6 +231,13 @@ const goalsWithViews = computed(() => goalStore.goals.map(goal => ({
   ...goal,
   ...goalStore.viewFor(goal.id, taskStore.tasks)
 })))
+const goalTreeWithViews = computed(() => buildTree(goalsWithViews.value, 'parentGoalId'))
+const goalSummaries = computed(() => goalsWithViews.value.map(goal => ({
+  ...goal,
+  parentPath: goalStore.pathFor(goal.id).slice(0, -1).map(item => item.title).join(' / ')
+})))
+
+function markStale() { stale.value = true }
 
 onMounted(() => {
   goalStore.initialize()
@@ -210,7 +247,10 @@ onMounted(() => {
   if (!routeGoalId.value && selectedGoalId.value) {
     router.replace({ name: 'GoalDetail', params: { goalId: selectedGoalId.value } })
   }
+  window.addEventListener('workspace:stale', markStale)
 })
+
+onBeforeUnmount(() => window.removeEventListener('workspace:stale', markStale))
 
 watch(routeGoalId, id => {
   sanitizeAndSaveUiState(id)
@@ -258,6 +298,15 @@ function updateExpandedIds(ids) {
   expandedIds.value = ids.map(String).filter(id => valid.has(id))
   saveUiState()
 }
+
+function refreshWorkspace() {
+  goalStore.reload()
+  taskStore.reload()
+  stale.value = false
+  sanitizeAndSaveUiState(routeGoalId.value)
+}
+
+function exportData() { goalStore.exportData() }
 
 function selectGoal(id) {
   storedSelectedId.value = String(id)
@@ -386,6 +435,8 @@ async function removeGoal(id) {
 .page-header h1 { margin: 0; font-size: 24px; line-height: 1.3; }
 .page-header p { margin: 5px 0 0; color: #64748b; font-size: 13px; }
 .header-actions { display: flex; gap: 8px; }
+.recovery-banner { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 12px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.error-banner { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
 .workspace-shell { display: grid; grid-template-columns: 280px minmax(420px, 1fr) 360px; align-items: start; gap: 14px; }
 .panel-card { min-width: 0; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background: white; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
 .tree-panel { position: sticky; top: 12px; display: grid; gap: 12px; padding: 16px; max-height: calc(100vh - 128px); overflow: auto; }
