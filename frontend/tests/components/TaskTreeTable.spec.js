@@ -63,6 +63,19 @@ describe('TaskTreeTable', () => {
     expect(wrapper.findAll('[role="columnheader"]')).toHaveLength(6)
     expect(wrapper.get('[data-testid="task-row-t1"]').findAll('[role="cell"]')).toHaveLength(6)
   })
+
+  it('counts every hidden descendant in the delete impact', async () => {
+    const nested = [
+      { id: 'a', goalId: null, parentTaskId: null, title: 'A', completed: false },
+      { id: 'b', goalId: null, parentTaskId: 'a', title: 'B', completed: false },
+      { id: 'c', goalId: null, parentTaskId: 'b', title: 'C', completed: false }
+    ]
+    const wrapper = mount(TaskTreeTable, { props: { tasks: [nested[0]], allTasks: nested } })
+
+    expect(wrapper.get('[data-testid="task-row-a"]').text()).toContain('2 个后代任务')
+    await wrapper.get('[data-testid="delete-task-a"]').trigger('click')
+    expect(wrapper.get('[data-testid="delete-mode-a"]').text()).toContain('2 个后代任务')
+  })
 })
 
 describe('GoalBreadcrumb', () => {

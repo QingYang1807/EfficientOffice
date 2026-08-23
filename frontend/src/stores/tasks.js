@@ -19,6 +19,16 @@ function normalizeGoalId(goalId) {
   return goalId == null ? null : String(goalId)
 }
 
+function hasChildTasks(tasks, id) {
+  return tasks.some(task => String(task.parentTaskId) === String(id))
+}
+
+function assertLeafCompletion(tasks, task, patch) {
+  if (Object.prototype.hasOwnProperty.call(patch, 'completed') && hasChildTasks(tasks, task.id)) {
+    throw new Error('父任务完成状态由子任务进度派生')
+  }
+}
+
 function buildTask(input, tasks) {
   const now = timestamp()
   const parentTaskId = input.parentTaskId == null ? null : String(input.parentTaskId)
@@ -135,6 +145,7 @@ export const useTaskStore = defineStore('tasks-v2', {
       this.initialize()
       const task = this.byId(id)
       if (!task) throw new Error('任务不存在')
+      assertLeafCompletion(this.tasks, task, patch)
       if (Object.prototype.hasOwnProperty.call(patch, 'parentTaskId') || Object.prototype.hasOwnProperty.call(patch, 'goalId')) {
         return this.moveTask(id, {
           parentTaskId: Object.prototype.hasOwnProperty.call(patch, 'parentTaskId') ? patch.parentTaskId : task.parentTaskId,
@@ -170,6 +181,7 @@ export const useTaskStore = defineStore('tasks-v2', {
       this.initialize()
       const task = this.byId(id)
       if (!task) throw new Error('任务不存在')
+      if (options.completed) assertLeafCompletion(this.tasks, task, { completed: true })
       const snapshot = cloneRecords(this.tasks)
       const now = options.now ?? timestamp()
       task.pomodoros = Math.max(0, Math.floor(Number(task.pomodoros) || 0)) + 1
@@ -187,6 +199,7 @@ export const useTaskStore = defineStore('tasks-v2', {
       this.initialize()
       const task = this.byId(id)
       if (!task) throw new Error('任务不存在')
+      if (options.patch) assertLeafCompletion(this.tasks, task, options.patch)
       const parentTaskId = options.parentTaskId == null ? null : String(options.parentTaskId)
       const parent = parentTaskId == null ? null : this.byId(parentTaskId)
       if (parentTaskId != null && !parent) throw new Error('父任务不存在')

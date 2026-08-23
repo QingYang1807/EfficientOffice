@@ -161,3 +161,20 @@ it('records and completes pomodoros in V2 with atomic rollback on persistence fa
   expect(tasks.byId(task.id)).toEqual(before)
   setItem.mockRestore()
 })
+
+it('rejects every API path that writes a parent task completed fact', () => {
+  const tasks = useTaskStore()
+  const parent = tasks.createTask({ title: '父任务' })
+  tasks.createTask({ title: '未完成子任务', parentTaskId: parent.id })
+  const before = { ...tasks.byId(parent.id) }
+
+  expect(() => tasks.toggleTask(parent.id, true)).toThrow('父任务完成状态由子任务进度派生')
+  expect(() => tasks.updateTask(parent.id, { completed: true })).toThrow('父任务完成状态由子任务进度派生')
+  expect(() => tasks.moveTask(parent.id, { parentTaskId: null, goalId: null, patch: { completed: true } }))
+    .toThrow('父任务完成状态由子任务进度派生')
+  expect(() => tasks.finishPomodoro(parent.id, { completed: true })).toThrow('父任务完成状态由子任务进度派生')
+  expect(tasks.byId(parent.id)).toEqual(before)
+
+  tasks.finishPomodoro(parent.id)
+  expect(tasks.byId(parent.id).pomodoros).toBe(1)
+})

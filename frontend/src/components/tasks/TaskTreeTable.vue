@@ -11,7 +11,7 @@
         :depth="0"
         :expanded="expanded"
         :goal-paths="goalPaths"
-        :all-tasks="allTasks"
+        :descendant-counts="descendantCounts"
         :delete-prompt-id="deletePromptId"
         @expand="toggleExpanded"
         @toggle="id => $emit('toggle', id)"
@@ -40,14 +40,14 @@ const TaskRows = defineComponent({
     depth: { type: Number, default: 0 },
     expanded: { type: Object, required: true },
     goalPaths: { type: Object, required: true },
-    allTasks: { type: Array, required: true },
+    descendantCounts: { type: Object, required: true },
     deletePromptId: { type: String, default: null }
   },
   emits: ['expand', 'toggle', 'edit', 'create-child', 'move', 'start', 'request-delete', 'delete', 'navigate-goal'],
   computed: {
     children() { return this.task.children || [] },
-    childCount() { return this.allTasks.filter(item => String(item.parentTaskId) === String(this.task.id)).length },
-    hasChildren() { return this.childCount > 0 },
+    descendantCount() { return this.descendantCounts[String(this.task.id)] || 0 },
+    hasChildren() { return this.descendantCount > 0 },
     isExpanded() { return this.expanded.has(String(this.task.id)) },
     path() { return this.task.goalId == null ? [] : (this.goalPaths[String(this.task.goalId)] || []) },
     title() { return this.task.title || this.task.text || '未命名任务' },
@@ -59,7 +59,7 @@ const TaskRows = defineComponent({
         <div role="cell"><button v-if="hasChildren" type="button" class="icon-button expand-button" :aria-label="(isExpanded ? '收起' : '展开') + title" :aria-expanded="isExpanded" :data-testid="'expand-task-' + task.id" @click="$emit('expand', String(task.id))">{{ isExpanded ? '⌄' : '›' }}</button><span v-else class="row-spacer"></span></div>
         <div role="cell" class="task-title-cell" :style="{ paddingLeft: depth * 18 + 'px' }">
           <input type="checkbox" :checked="task.completed" :disabled="hasChildren" :aria-label="'完成' + title" @change="$emit('toggle', String(task.id))" />
-          <div class="task-title-copy"><span :class="{ completed: task.completed }">{{ title }}</span><small v-if="hasChildren">{{ childCount }} 个子任务</small></div>
+          <div class="task-title-copy"><span :class="{ completed: task.completed }">{{ title }}</span><small v-if="hasChildren">{{ descendantCount }} 个后代任务</small></div>
         </div>
         <GoalBreadcrumb role="cell" :path="path" :data-testid="'goal-path-' + task.id" @navigate="$emit('navigate-goal', $event)" />
         <span role="cell" class="priority" :class="'priority-' + (task.priority || '中')">{{ task.priority || '中' }}</span>
@@ -73,11 +73,11 @@ const TaskRows = defineComponent({
         </div>
       </div>
       <div v-if="deletePromptId === String(task.id)" class="delete-prompt" :data-testid="'delete-mode-' + task.id">
-        <span>{{ hasChildren ? '该任务包含子任务，请选择处理方式' : '确认删除该任务？' }}</span>
+        <span>{{ hasChildren ? '该任务包含 ' + descendantCount + ' 个后代任务，请选择处理方式' : '确认删除该任务？' }}</span>
         <button v-if="hasChildren" type="button" :data-testid="'promote-task-' + task.id" @click="$emit('delete', String(task.id), 'promote')">提升子任务并删除</button>
         <button type="button" :data-testid="'cascade-task-' + task.id" @click="$emit('delete', String(task.id), 'cascade')">{{ hasChildren ? '级联删除' : '确认删除' }}</button>
       </div>
-      <TaskRows v-if="isExpanded" v-for="child in children" :key="child.id" :task="child" :depth="depth + 1" :expanded="expanded" :goal-paths="goalPaths" :all-tasks="allTasks" :delete-prompt-id="deletePromptId" @expand="$emit('expand', $event)" @toggle="$emit('toggle', $event)" @edit="$emit('edit', $event)" @create-child="$emit('create-child', $event)" @move="$emit('move', $event)" @start="$emit('start', $event)" @request-delete="$emit('request-delete', $event)" @delete="(...args) => $emit('delete', ...args)" @navigate-goal="$emit('navigate-goal', $event)" />
+      <TaskRows v-if="isExpanded" v-for="child in children" :key="child.id" :task="child" :depth="depth + 1" :expanded="expanded" :goal-paths="goalPaths" :descendant-counts="descendantCounts" :delete-prompt-id="deletePromptId" @expand="$emit('expand', $event)" @toggle="$emit('toggle', $event)" @edit="$emit('edit', $event)" @create-child="$emit('create-child', $event)" @move="$emit('move', $event)" @start="$emit('start', $event)" @request-delete="$emit('request-delete', $event)" @delete="(...args) => $emit('delete', ...args)" @navigate-goal="$emit('navigate-goal', $event)" />
     </div>`
 })
 
@@ -98,6 +98,23 @@ const expanded = reactive(new Set())
 const deletePromptId = ref(null)
 const roots = computed(() => buildTree(props.tasks, 'parentTaskId'))
 const allTasks = computed(() => props.allTasks || props.tasks)
+const descendantCounts = computed(() => {
+  const childrenByParent = new Map()
+  for (const task of allTasks.value) {
+    const parentId = task.parentTaskId == null ? null : String(task.parentTaskId)
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) || []), String(task.id)])
+  }
+  const counts = {}
+  const count = (id, visiting = new Set()) => {
+    if (counts[id] != null) return counts[id]
+    if (visiting.has(id)) return 0
+    const nextVisiting = new Set(visiting).add(id)
+    counts[id] = (childrenByParent.get(id) || []).reduce((total, childId) => total + 1 + count(childId, nextVisiting), 0)
+    return counts[id]
+  }
+  allTasks.value.forEach(task => count(String(task.id)))
+  return counts
+})
 
 function toggleExpanded(id) {
   expanded.has(id) ? expanded.delete(id) : expanded.add(id)

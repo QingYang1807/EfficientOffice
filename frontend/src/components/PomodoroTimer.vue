@@ -43,6 +43,7 @@
           <li
             v-for="task in filteredIncompleteTodos"
             :key="task.id"
+            :data-testid="`pomodoro-incomplete-${task.id}`"
             class="task-item"
             :class="{ 'selected-task': selectedTask && selectedTask.id === task.id }"
             @click="selectTask(task)"
@@ -131,6 +132,7 @@
           <li 
             v-for="task in filteredCompletedTodos" 
             :key="task.id" 
+            :data-testid="`pomodoro-completed-${task.id}`"
             class="task-item"
             @mouseenter="showTaskCard(task)"
             @mouseleave="hideTaskCard"
@@ -197,8 +199,9 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="handleContinuePomodoro">继续专注</el-button>
-          <el-button type="primary" @click="handleTaskComplete">完成任务</el-button>
+          <el-button type="primary" data-testid="complete-selected-task" :disabled="!canCompleteSelectedTask" @click="handleTaskComplete">完成任务</el-button>
         </div>
+        <p v-if="selectedTask && !canCompleteSelectedTask" data-testid="parent-completion-hint" class="parent-completion-hint">父任务完成状态由子任务自动汇总</p>
       </template>
     </el-dialog>
 
@@ -263,12 +266,16 @@ const formattedTime = computed(() => {
 });
 
 const incompleteTodos = computed(() => {
-  return todos.value.filter(task => !task.completed);
+  return todos.value.filter(task => !taskStore.viewFor(task.id).completed);
 });
 
 const completedTodos = computed(() => {
-  return todos.value.filter(task => task.completed);
+  return todos.value.filter(task => taskStore.viewFor(task.id).completed);
 });
+
+const canCompleteSelectedTask = computed(() => selectedTask.value
+  ? !todos.value.some(task => String(task.parentTaskId) === String(selectedTask.value.id))
+  : false)
 
 const filteredIncompleteTodos = computed(() => {
   return incompleteTodos.value.filter(task =>
@@ -434,6 +441,10 @@ const handleCancelPomodoro = () => {
 };
 
 const completeTask = () => {
+  if (!canCompleteSelectedTask.value) {
+    message.warning('父任务完成状态由子任务自动汇总')
+    return
+  }
   if (!commitPomodoro(true)) return
   showFullScreenConfetti();
   setTimeout(() => {
@@ -444,6 +455,10 @@ const completeTask = () => {
 
 const commitPomodoro = (completed = false) => {
   if (!selectedTask.value) return false
+  if (completed && !canCompleteSelectedTask.value) {
+    message.warning('父任务完成状态由子任务自动汇总')
+    return false
+  }
   const id = selectedTask.value.id
   try {
     const task = taskStore.finishPomodoro(id, { completed })
