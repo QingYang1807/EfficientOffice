@@ -40,6 +40,29 @@ describe('TaskTreeTable', () => {
     await wrapper.get('[data-testid="promote-task-t1"]').trigger('click')
     expect(wrapper.emitted('delete')).toEqual([['t1', 'promote']])
   })
+
+  it('keeps hidden descendants in parent semantics while filtering rows', async () => {
+    const wrapper = mount(TaskTreeTable, {
+      props: { tasks: [tasks[0]], allTasks: tasks.slice(0, 2), goalPaths }
+    })
+
+    const row = wrapper.get('[data-testid="task-row-t1"]')
+    expect(row.get('input[type="checkbox"]').element.disabled).toBe(true)
+    expect(row.get('[data-testid="expand-task-t1"]').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('[data-testid="task-row-t2"]').exists()).toBe(false)
+
+    await row.get('[data-testid="delete-task-t1"]').trigger('click')
+    expect(wrapper.get('[data-testid="promote-task-t1"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="cascade-task-t1"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="promote-task-t1"]').trigger('click')
+    expect(wrapper.emitted('delete')).toEqual([['t1', 'promote']])
+  })
+
+  it('exposes table headers and row cells to assistive technology', () => {
+    const wrapper = mount(TaskTreeTable, { props: { tasks, goalPaths } })
+    expect(wrapper.findAll('[role="columnheader"]')).toHaveLength(6)
+    expect(wrapper.get('[data-testid="task-row-t1"]').findAll('[role="cell"]')).toHaveLength(6)
+  })
 })
 
 describe('GoalBreadcrumb', () => {

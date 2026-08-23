@@ -45,6 +45,9 @@ const normalizeTask = (task, validGoalIds, now) => ({
   weight: normalizeWeight(task.weight),
   priority: priorities.has(task.priority) ? task.priority : '中',
   deadline: task.deadline || task.dueDate || null,
+  pomodoros: Math.max(0, Math.floor(Number(task.pomodoros) || 0)),
+  pomodoroStartedAt: task.pomodoroStartedAt ?? null,
+  completedAt: task.completedAt ?? null,
   createdAt: task.createdAt ?? now,
   updatedAt: task.updatedAt ?? now
 })
@@ -72,8 +75,15 @@ function assertUniqueIds(items) {
 }
 
 function withoutDerivedFields(workspace) {
-  const { progress, status, ...rest } = workspace
-  const strip = ({ progress: ignoredProgress, status: ignoredStatus, ...record }) => record
+  const rest = { ...workspace }
+  delete rest.progress
+  delete rest.status
+  const strip = value => {
+    const record = { ...value }
+    delete record.progress
+    delete record.status
+    return record
+  }
 
   return {
     ...rest,

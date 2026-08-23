@@ -20,9 +20,16 @@ vi.mock('element-plus', () => ({
 
 const TaskTableStub = defineComponent({
   name: 'TaskTreeTable',
-  props: { tasks: Array, goalPaths: Object },
+  props: { tasks: Array, allTasks: Array, goalPaths: Object },
   emits: ['navigate-goal', 'start'],
   template: '<div><button data-testid="navigate-goal" @click="$emit(\'navigate-goal\', \'g2\')" /><button data-testid="start" @click="$emit(\'start\', \'t1\')" /></div>'
+})
+
+const ElInputStub = defineComponent({
+  inheritAttrs: false,
+  props: { modelValue: { type: String, default: '' }, ariaLabel: { type: String, default: '' } },
+  emits: ['update:modelValue'],
+  template: '<input :value="modelValue" :aria-label="ariaLabel" @input="$emit(\'update:modelValue\', $event.target.value)" />'
 })
 
 const stubs = {
@@ -30,7 +37,7 @@ const stubs = {
   TaskEditorDialog: { template: '<div />' },
   'el-tag': { template: '<span><slot /></span>' },
   'el-button': { template: '<button type="button"><slot /></button>' },
-  'el-input': { template: '<input />' },
+  'el-input': ElInputStub,
   'el-select': { template: '<select><slot /></select>' },
   'el-option': { template: '<option />' },
   'el-switch': { template: '<input type="checkbox" />' },
@@ -56,7 +63,8 @@ beforeEach(() => {
   }
   mocks.taskStore = {
     tasks, initialize: vi.fn(), viewFor: id => ({ completed: tasks.find(task => task.id === id).completed }),
-    tasksForGoal: (id, descendants) => tasks.filter(task => task.goalId === id || (descendants && task.goalId === 'g2'))
+    tasksForGoal: (id, descendants) => tasks.filter(task => task.goalId === id || (descendants && task.goalId === 'g2')),
+    createTask: vi.fn()
   }
 })
 
@@ -69,6 +77,11 @@ describe('TodoItems route context', () => {
     await nextTick()
     expect(wrapper.getComponent(TaskTableStub).props('tasks').map(task => task.id)).toEqual(['t1', 't2'])
 
+    await wrapper.get('[aria-label="搜索任务"]').setValue('根目标任务')
+    expect(wrapper.getComponent(TaskTableStub).props('tasks').map(task => task.id)).toEqual(['t1'])
+    expect(wrapper.getComponent(TaskTableStub).props('allTasks').map(task => task.id)).toEqual(['t1', 't2'])
+    await wrapper.get('[aria-label="搜索任务"]').setValue('')
+
     delete mocks.route.query.goalId
     await nextTick()
     expect(wrapper.getComponent(TaskTableStub).props('tasks').map(task => task.id)).toEqual(['t1', 't2', 't3'])
@@ -80,5 +93,16 @@ describe('TodoItems route context', () => {
     await wrapper.get('[data-testid="start"]').trigger('click')
     expect(mocks.router.push).toHaveBeenNthCalledWith(1, { name: 'GoalDetail', params: { goalId: 'g2' } })
     expect(mocks.router.push).toHaveBeenNthCalledWith(2, { path: '/pomodoro-timer', query: { taskId: 't1' } })
+  })
+
+  it('labels filters and blocks creation for an invalid goal URL until recovery', async () => {
+    mocks.route.query.goalId = 'missing'
+    const wrapper = mount(TodoItems, { global: { stubs } })
+
+    expect(wrapper.get('[aria-label="搜索任务"]').exists()).toBe(true)
+    expect(wrapper.get('[aria-label="目标筛选"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="quick-add-task"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="recover-invalid-goal"]').trigger('click')
+    expect(mocks.router.replace).toHaveBeenCalledWith({ name: 'TodoList', query: {} })
   })
 })

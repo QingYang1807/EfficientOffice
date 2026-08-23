@@ -138,3 +138,26 @@ it('rolls both stores back when an atomic goal deletion cannot persist', () => {
   expect(tasks.lastError).toBe('工作区保存失败')
   setItem.mockRestore()
 })
+
+it('records and completes pomodoros in V2 with atomic rollback on persistence failure', () => {
+  const tasks = useTaskStore()
+  const task = tasks.createTask({ title: '专注任务' })
+
+  tasks.startPomodoro(task.id, '2026-08-23T10:00:00.000Z')
+  expect(JSON.parse(localStorage.getItem('efficient-office.workspace.v2')).tasks[0].pomodoroStartedAt)
+    .toBe('2026-08-23T10:00:00.000Z')
+  tasks.finishPomodoro(task.id, { completed: true, now: '2026-08-23T10:25:00.000Z' })
+  expect(tasks.byId(task.id)).toEqual(expect.objectContaining({
+    pomodoros: 1, completed: true, completedAt: '2026-08-23T10:25:00.000Z', pomodoroStartedAt: null
+  }))
+  expect(JSON.parse(localStorage.getItem('efficient-office.workspace.v2')).tasks[0].pomodoros).toBe(1)
+  expect(localStorage.getItem('todos')).toBe(null)
+
+  const before = { ...tasks.byId(task.id) }
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota') })
+  expect(() => tasks.startPomodoro(task.id, '2026-08-23T10:30:00.000Z')).toThrow('工作区保存失败')
+  expect(tasks.byId(task.id)).toEqual(before)
+  expect(() => tasks.finishPomodoro(task.id, { now: '2026-08-23T10:50:00.000Z' })).toThrow('工作区保存失败')
+  expect(tasks.byId(task.id)).toEqual(before)
+  setItem.mockRestore()
+})

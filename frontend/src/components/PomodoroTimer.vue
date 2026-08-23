@@ -50,13 +50,13 @@
             @mouseleave="hideTaskCard"
           >
             <div class="task-content">
-              <span class="task-name">{{ task.text }}</span>
+              <span class="task-name">{{ task.title }}</span>
               <span class="pomodoro-count" v-if="task.pomodoros">🍅 x {{ task.pomodoros }}</span>
             </div>
             
             <!-- 悬浮卡片 -->
             <div v-if="hoveredTask?.id === task.id" class="task-hover-card">
-              <h4 class="task-title">{{ task.text }}</h4>
+              <h4 class="task-title">{{ task.title }}</h4>
               <div class="task-info">
                 <div class="info-item">
                   <span class="info-label">优先级：</span>
@@ -68,10 +68,10 @@
                   <span class="info-label">创建时间：</span>
                   <span>{{ formatDate(task.createdAt) }}</span>
                 </div>
-                <div class="info-item" v-if="task.dueDate">
+                <div class="info-item" v-if="task.deadline">
                   <span class="info-label">截止时间：</span>
-                  <span :class="{ 'text-red-500': isOverdue(task.dueDate) }">
-                    {{ formatDate(task.dueDate) }}
+                  <span :class="{ 'text-red-500': isOverdue(task.deadline) }">
+                    {{ formatDate(task.deadline) }}
                   </span>
                 </div>
                 <div class="info-item">
@@ -136,13 +136,13 @@
             @mouseleave="hideTaskCard"
           >
             <div class="task-content">
-              <span class="task-name completed">{{ task.text }}</span>
+              <span class="task-name completed">{{ task.title }}</span>
               <span class="pomodoro-count">🍅 x {{ task.pomodoros || 0 }}</span>
             </div>
             
             <!-- 已完成任务的悬浮卡片 -->
             <div v-if="hoveredTask?.id === task.id" class="task-hover-card">
-              <h4 class="task-title">{{ task.text }}</h4>
+              <h4 class="task-title">{{ task.title }}</h4>
               <div class="task-info">
                 <div class="info-item">
                   <span class="info-label">优先级：</span>
@@ -154,9 +154,9 @@
                   <span class="info-label">创建时间：</span>
                   <span>{{ formatDate(task.createdAt) }}</span>
                 </div>
-                <div class="info-item" v-if="task.dueDate">
+                <div class="info-item" v-if="task.deadline">
                   <span class="info-label">截止时间：</span>
-                  <span>{{ formatDate(task.dueDate) }}</span>
+                  <span>{{ formatDate(task.deadline) }}</span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">番茄数：</span>
@@ -191,7 +191,7 @@
         <div class="completion-emoji">🎉</div>
         <div class="completion-message">
           太棒了！你完成了一个番茄钟
-          <div class="task-name">{{ selectedTask?.text }}</div>
+          <div class="task-name">{{ selectedTask?.title }}</div>
         </div>
       </div>
       <template #footer>
@@ -230,9 +230,11 @@ import { ref, computed, onUnmounted, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
 import { ArrowDown } from '@element-plus/icons-vue'
+import { useTaskStore } from '@/stores/tasks'
 
 const route = useRoute();
-const todos = ref([]);
+const taskStore = useTaskStore();
+const todos = computed(() => taskStore.tasks);
 const timer = ref(null);
 const time = ref(0);
 const percentage = ref(0);
@@ -248,7 +250,6 @@ const showContinueModal = ref(false);
 const router = useRouter();
 const startTime = ref(null); // 添加开始时间引用
 const lastTickTime = ref(null); // 添加上次计时引用
-const animationFrameId = ref(null); // 添加动画帧ID引用
 const showCompletedTasks = ref(false)
 const sortBy = ref('completedTime-desc')
 const filterPriority = ref('')
@@ -261,17 +262,6 @@ const formattedTime = computed(() => {
   return `${minutes}:${seconds}`;
 });
 
-const loadTodosFromStorage = () => {
-  const stored = localStorage.getItem('todos');
-  if (stored) {
-    todos.value = JSON.parse(stored);
-  }
-};
-
-const saveTodosToStorage = () => {
-  localStorage.setItem('todos', JSON.stringify(todos.value));
-};
-
 const incompleteTodos = computed(() => {
   return todos.value.filter(task => !task.completed);
 });
@@ -282,7 +272,7 @@ const completedTodos = computed(() => {
 
 const filteredIncompleteTodos = computed(() => {
   return incompleteTodos.value.filter(task =>
-    task.text.toLowerCase().includes(searchText.value.toLowerCase())
+    task.title.toLowerCase().includes(searchText.value.toLowerCase())
   );
 });
 
@@ -294,7 +284,7 @@ const filteredCompletedTodos = computed(() => {
   // 搜索过滤
   if (completedSearchText.value) {
     result = result.filter(task =>
-      task.text.toLowerCase().includes(completedSearchText.value.toLowerCase())
+      task.title.toLowerCase().includes(completedSearchText.value.toLowerCase())
     )
   }
 
@@ -363,6 +353,16 @@ const startTimer = () => {
     timer.value = null;
   }
   
+  if (time.value === 0 && selectedTask.value) {
+    try {
+      taskStore.startPomodoro(selectedTask.value.id)
+      selectedTask.value = taskStore.byId(selectedTask.value.id)
+    } catch (error) {
+      selectedTask.value = taskStore.byId(selectedTask.value.id)
+      message.error(error.message || '番茄钟启动失败')
+      return
+    }
+  }
   timerRunning.value = true;
   currentEmoji.value = '🍅';
   const pomodoroTimeInSeconds = pomodoroDuration.value * 60;
@@ -424,7 +424,7 @@ const handleContinuePomodoro = () => {
 
 const handleContinueNextPomodoro = () => {
   showContinueModal.value = false;
-  recordPomodoro();
+  if (!commitPomodoro(false)) return
   resetTimer();
   startTimer();
 };
@@ -434,32 +434,26 @@ const handleCancelPomodoro = () => {
 };
 
 const completeTask = () => {
-  if (selectedTask.value) {
-    const task = todos.value.find(t => t.id === selectedTask.value.id);
-    if (task) {
-      task.completed = true;
-      recordPomodoro();
-      saveTodosToStorage();
-      // 完成任务时全屏撒花
-      showFullScreenConfetti();
-      // 5秒后重置状态
-      setTimeout(() => {
-        selectedTask.value = null;
-        resetTimer();
-      }, 5000);
-    }
-  }
+  if (!commitPomodoro(true)) return
+  showFullScreenConfetti();
+  setTimeout(() => {
+    selectedTask.value = null;
+    resetTimer();
+  }, 5000);
 };
 
-const recordPomodoro = () => {
-  if (selectedTask.value) {
-    const task = todos.value.find(t => t.id === selectedTask.value.id);
-    if (task) {
-      task.pomodoros = (task.pomodoros || 0) + 1;
-      saveTodosToStorage();
-      // 显示番茄钟累计提示
-      message.success(`已累计完成 ${task.pomodoros} 个番茄钟`);
-    }
+const commitPomodoro = (completed = false) => {
+  if (!selectedTask.value) return false
+  const id = selectedTask.value.id
+  try {
+    const task = taskStore.finishPomodoro(id, { completed })
+    selectedTask.value = task
+    message.success(`已累计完成 ${task.pomodoros} 个番茄钟`)
+    return true
+  } catch (error) {
+    selectedTask.value = taskStore.byId(id)
+    message.error(error.message || '番茄钟保存失败')
+    return false
   }
 };
 
@@ -518,18 +512,11 @@ const goToTodoPage = () => {
 const selectTaskFromRoute = () => {
   const taskId = route.query.taskId;
   if (taskId) {
-    const task = todos.value.find(t => t.id === Number(taskId));
+    const task = taskStore.byId(String(Array.isArray(taskId) ? taskId[0] : taskId));
     if (task) {
       selectedTask.value = task;
-      // 将选中的任务移到列表顶部
-      const index = todos.value.findIndex(t => t.id === task.id);
-      if (index > 0) {
-        todos.value.splice(index, 1);
-        todos.value.unshift(task);
-        localStorage.setItem('todos', JSON.stringify(todos.value));
-      }
       // 显示提醒消息
-      message.success(`已选择任务"${task.text}"，准备开始番茄钟`);
+      message.success(`已选择任务"${task.title}"，准备开始番茄钟`);
     }
   }
 };
@@ -673,7 +660,7 @@ const toggleCompletedTasks = () => {
 }
 
 onMounted(() => {
-  loadTodosFromStorage();
+  taskStore.initialize();
   selectTaskFromRoute();
   window.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -687,6 +674,8 @@ onUnmounted(() => {
   window.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
+
+defineExpose({ commitPomodoro })
 </script>
 
 <style scoped>
@@ -1156,4 +1145,3 @@ onUnmounted(() => {
   }
 }
 </style>
-  

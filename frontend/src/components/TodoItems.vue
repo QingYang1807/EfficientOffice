@@ -8,29 +8,29 @@
       <div class="summary-actions">
         <el-tag effect="light">待完成 {{ statusCount.active }}</el-tag>
         <el-tag type="success" effect="light">已完成 {{ statusCount.completed }}</el-tag>
-        <el-button type="primary" :icon="Plus" @click="openCreate(null)">新增任务</el-button>
+        <el-button type="primary" :icon="Plus" :disabled="invalidGoalFilter" @click="openCreate(null)">新增任务</el-button>
       </div>
     </header>
 
     <div v-if="selectedGoalId && !selectedGoal" class="invalid-filter">
       <span>筛选目标不存在或已删除。</span>
-      <el-button link type="primary" @click="clearGoalFilter">查看全部任务</el-button>
+      <el-button link type="primary" data-testid="recover-invalid-goal" @click="clearGoalFilter">查看全部任务</el-button>
     </div>
 
     <div class="filters">
-      <el-input v-model="searchText" :prefix-icon="Search" clearable placeholder="搜索任务、描述或目标…" />
-      <el-select :model-value="selectedGoalId || ''" filterable class="goal-filter" @change="setGoalFilter">
+      <el-input v-model="searchText" aria-label="搜索任务" :prefix-icon="Search" clearable placeholder="搜索任务、描述或目标…" />
+      <el-select aria-label="目标筛选" :model-value="selectedGoalId || ''" filterable class="goal-filter" @change="setGoalFilter">
         <el-option label="全部目标与未归属任务" value="" />
         <el-option v-for="goal in goalStore.goals" :key="goal.id" :label="goalPathText(goal.id)" :value="String(goal.id)" />
       </el-select>
-      <el-switch v-model="includeDescendants" :disabled="!selectedGoal" active-text="包含后代目标" />
-      <el-select v-model="filterStatus" class="short-filter">
+      <el-switch v-model="includeDescendants" aria-label="包含后代目标" :disabled="!selectedGoal" active-text="包含后代目标" />
+      <el-select v-model="filterStatus" aria-label="任务状态" class="short-filter">
         <el-option label="全部状态" value="all" /><el-option label="未完成" value="active" /><el-option label="已完成" value="completed" />
       </el-select>
-      <el-select v-model="priorityFilter" class="short-filter">
+      <el-select v-model="priorityFilter" aria-label="优先级筛选" class="short-filter">
         <el-option label="全部优先级" value="all" /><el-option label="高优先级" value="高" /><el-option label="中优先级" value="中" /><el-option label="低优先级" value="低" />
       </el-select>
-      <el-select v-model="dateFilter" class="short-filter">
+      <el-select v-model="dateFilter" aria-label="截止日期筛选" class="short-filter">
         <el-option label="全部日期" value="all" /><el-option label="今日到期" value="today" /><el-option label="已逾期" value="overdue" /><el-option label="未设置日期" value="unset" />
       </el-select>
     </div>
@@ -38,6 +38,7 @@
     <div class="table-scroll">
       <TaskTreeTable
         :tasks="displayTasks"
+        :all-tasks="scopedTasks"
         :goal-paths="goalPaths"
         @toggle="toggleTask"
         @edit="openEdit"
@@ -53,10 +54,10 @@
       <div v-if="selectedGoal" class="context-note">目标：{{ goalPathText(selectedGoal.id) }} · 新任务将直属该目标</div>
       <div v-else class="context-note">可创建未归属根任务；子任务自动继承所属目标</div>
       <form @submit.prevent="quickCreate">
-        <el-input v-model="quickTitle" placeholder="添加新任务…" clearable />
+        <el-input v-model="quickTitle" aria-label="新任务标题" placeholder="添加新任务…" clearable />
         <el-select v-model="quickPriority" aria-label="新任务优先级"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select>
-        <el-date-picker v-model="quickDeadline" type="date" value-format="YYYY-MM-DD" placeholder="截止日期" />
-        <el-button type="primary" native-type="submit" :icon="Plus">添加</el-button>
+        <el-date-picker v-model="quickDeadline" aria-label="新任务截止日期" type="date" value-format="YYYY-MM-DD" placeholder="截止日期" />
+        <el-button type="primary" native-type="submit" :icon="Plus" :disabled="invalidGoalFilter" data-testid="quick-add-task">添加</el-button>
       </form>
     </footer>
 
@@ -105,6 +106,7 @@ const selectedGoalId = computed(() => {
   return String(Array.isArray(value) ? value[0] : value)
 })
 const selectedGoal = computed(() => selectedGoalId.value ? goalStore.byId(selectedGoalId.value) : null)
+const invalidGoalFilter = computed(() => Boolean(selectedGoalId.value && !selectedGoal.value))
 const includeDescendants = computed({
   get: () => route.query.includeDescendants === '1',
   set: value => updateQuery({ includeDescendants: value ? '1' : '0' })
@@ -195,6 +197,7 @@ function saveTask(input) {
   } catch (error) { ElMessage.error(error.message || '任务保存失败') }
 }
 function quickCreate() {
+  if (invalidGoalFilter.value) return ElMessage.warning('请先清除失效的目标筛选')
   if (!quickTitle.value.trim()) return ElMessage.warning('请输入任务标题')
   try {
     taskStore.createTask({ title: quickTitle.value, goalId: selectedGoalId.value, parentTaskId: null, priority: quickPriority.value, deadline: quickDeadline.value })

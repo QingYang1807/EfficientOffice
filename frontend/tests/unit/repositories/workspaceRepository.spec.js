@@ -29,7 +29,7 @@ function storageWith(items = {}) {
 it('migrates legacy records, preserves their raw backup, and records orphan task IDs', () => {
   const goals = [{ id: 1, title: '目标', progress: 40 }]
   const todos = [
-    { id: 2, text: '有效任务', goalId: 1 },
+    { id: 2, text: '有效任务', goalId: 1, pomodoros: 3 },
     { id: 3, text: '孤儿任务', goalId: 404 }
   ]
   localStorage.setItem('goals', JSON.stringify(goals))
@@ -41,6 +41,7 @@ it('migrates legacy records, preserves their raw backup, and records orphan task
   expect(data.migratedAt).toBe(now)
   expect(data.goals[0]).toMatchObject({ id: '1', parentGoalId: null, manualProgress: 40 })
   expect(data.tasks.map((task) => task.goalId)).toEqual(['1', null])
+  expect(data.tasks[0].pomodoros).toBe(3)
   expect(JSON.parse(localStorage.getItem(BACKUP_KEY))).toEqual({ goals, todos })
   expect(JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY))).toEqual({ orphanTaskIds: ['3'] })
   expect(localStorage.getItem('goals')).toBe(JSON.stringify(goals))

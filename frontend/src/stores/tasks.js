@@ -41,6 +41,9 @@ function buildTask(input, tasks) {
     weight: input.weight == null ? 1 : Number(input.weight),
     priority: ['高', '中', '低'].includes(input.priority) ? input.priority : '中',
     deadline: input.deadline ?? input.dueDate ?? null,
+    pomodoros: Math.max(0, Math.floor(Number(input.pomodoros) || 0)),
+    pomodoroStartedAt: input.pomodoroStartedAt ?? null,
+    completedAt: input.completedAt ?? null,
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now
   }
@@ -150,6 +153,34 @@ export const useTaskStore = defineStore('tasks-v2', {
       if (!task) throw new Error('任务不存在')
       const next = completed == null ? !task.completed : Boolean(completed)
       return this.updateTask(id, { completed: next })
+    },
+
+    startPomodoro(id, now = timestamp()) {
+      this.initialize()
+      const task = this.byId(id)
+      if (!task) throw new Error('任务不存在')
+      const snapshot = cloneRecords(this.tasks)
+      task.pomodoroStartedAt = now
+      task.updatedAt = now
+      this.persist(snapshot)
+      return task
+    },
+
+    finishPomodoro(id, options = {}) {
+      this.initialize()
+      const task = this.byId(id)
+      if (!task) throw new Error('任务不存在')
+      const snapshot = cloneRecords(this.tasks)
+      const now = options.now ?? timestamp()
+      task.pomodoros = Math.max(0, Math.floor(Number(task.pomodoros) || 0)) + 1
+      task.pomodoroStartedAt = null
+      if (options.completed) {
+        task.completed = true
+        task.completedAt = now
+      }
+      task.updatedAt = now
+      this.persist(snapshot)
+      return task
     },
 
     moveTask(id, options = {}) {
