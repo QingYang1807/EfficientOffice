@@ -177,6 +177,8 @@ import dayjs from 'dayjs'
 import { Lunar } from 'lunar-javascript'
 import { useTaskStore } from '@/stores/tasks'
 import {
+  calendarFormFromTask,
+  calendarTaskIsDueOnDate,
   createCalendarTask,
   deleteCalendarTasks,
   getCalendarTasksByDate,
@@ -272,14 +274,8 @@ const handleAddTodo = () => {
 }
 
 const handleEditTodo = (task) => {
-  todoForm.value = {
-    id: String(task.id),
-    title: task.title,
-    description: task.description || '',
-    priority: task.priority || '中',
-    deadline: task.deadline ? dayjs(task.deadline).format('YYYY-MM-DD') : null
-  }
-  selectedDate.value = dayjs(task.deadline)
+  todoForm.value = calendarFormFromTask(task)
+  selectedDate.value = task.deadline == null ? currentDate.value : dayjs(task.deadline)
   dialogVisible.value = true
 }
 
@@ -321,7 +317,7 @@ const saveTodo = () => {
     message.warning('请输入待办事项标题')
     return
   }
-  if (!todoForm.value.deadline) {
+  if (todoForm.value.deadline == null || todoForm.value.deadline === '') {
     message.warning('请选择日期')
     return
   }
@@ -381,8 +377,7 @@ const isHoliday = (date) => {
 
 // 判断是否为截止日期
 const isDueDate = (date, todo) => {
-  if (!todo.deadline) return false
-  return dayjs(todo.deadline).format('YYYY-MM-DD') === dayjs(date).format('YYYY-MM-DD')
+  return calendarTaskIsDueOnDate(todo, date)
 }
 </script>
 

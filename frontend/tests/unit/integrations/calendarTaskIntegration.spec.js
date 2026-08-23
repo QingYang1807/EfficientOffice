@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '@/stores/tasks'
 import { WORKSPACE_KEY } from '@/repositories/workspaceRepository'
 import {
+  calendarFormFromTask,
+  calendarTaskIsDueOnDate,
   createCalendarTask,
   deleteCalendarTasks,
   getCalendarTasksByDate,
@@ -44,6 +46,17 @@ describe('calendar task integration', () => {
     expect(getCalendarTasksByDate(taskStore, '2026-08-23')).toEqual([
       expect.objectContaining({ id: '7', title: '旧日历任务', deadline: '2026-08-23' })
     ])
+  })
+
+  it('keeps an epoch deadline visible when filtering and editing', () => {
+    const task = { id: 'epoch', title: '纪元任务', deadline: 0, completed: false }
+    const taskStore = { tasks: [task], viewFor: vi.fn(() => ({ completed: false })) }
+
+    expect(getCalendarTasksByDate(taskStore, '1970-01-01')).toEqual([
+      expect.objectContaining({ id: 'epoch', deadline: 0 })
+    ])
+    expect(calendarFormFromTask(task)).toMatchObject({ deadline: '1970-01-01' })
+    expect(calendarTaskIsDueOnDate(task, '1970-01-01')).toBe(true)
   })
 
   it('rejects blank create and update titles before mutating the task store', () => {

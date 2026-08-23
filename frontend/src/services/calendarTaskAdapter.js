@@ -15,6 +15,20 @@ function taskInput(form) {
   }
 }
 
+export function calendarFormFromTask(task) {
+  return {
+    id: String(task.id),
+    title: task.title,
+    description: task.description || '',
+    priority: task.priority || '中',
+    deadline: task.deadline == null ? null : dateKey(task.deadline)
+  }
+}
+
+export function calendarTaskIsDueOnDate(task, date) {
+  return task.deadline != null && dateKey(task.deadline) === dateKey(date)
+}
+
 export function getCalendarTasksByDate(taskStore, date) {
   const selected = dateKey(date)
   return taskStore.tasks

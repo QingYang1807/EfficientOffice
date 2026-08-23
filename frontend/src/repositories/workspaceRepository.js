@@ -153,12 +153,21 @@ function validateWorkspace(workspace) {
   validateParentGraph(workspace.tasks, tasksById, 'parentTaskId')
 }
 
-export function saveWorkspace(storage, workspace) {
+function serializeWorkspace(workspace) {
   try {
     const data = withoutDerivedFields(workspace)
     validateWorkspace(data)
     const json = JSON.stringify(data)
     JSON.parse(json)
+    return { data, json }
+  } catch (error) {
+    throw new Error('工作区保存失败', { cause: error })
+  }
+}
+
+export function saveWorkspace(storage, workspace) {
+  const { json } = serializeWorkspace(workspace)
+  try {
     storage.setItem(WORKSPACE_KEY, json)
   } catch (error) {
     throw new Error('工作区保存失败', { cause: error })
@@ -181,18 +190,45 @@ export function migrateLegacyWorkspace(storage, now) {
 
   let backupJson
   let diagnosticsJson
+  let workspaceJson
   try {
     backupJson = JSON.stringify({ goals: legacyGoals, todos: legacyTasks })
     diagnosticsJson = JSON.stringify({ orphanTaskIds })
     JSON.parse(backupJson)
     JSON.parse(diagnosticsJson)
+    workspaceJson = serializeWorkspace(workspace).json
   } catch (error) {
+    if (error.message === '工作区保存失败') throw error
     throw new Error('工作区保存失败', { cause: error })
   }
 
-  storage.setItem(BACKUP_KEY, backupJson)
-  storage.setItem(DIAGNOSTICS_KEY, diagnosticsJson)
-  saveWorkspace(storage, workspace)
+  const writes = [
+    [BACKUP_KEY, backupJson],
+    [DIAGNOSTICS_KEY, diagnosticsJson],
+    [WORKSPACE_KEY, workspaceJson]
+  ]
+  let originals
+  const touched = []
+  try {
+    originals = new Map(writes.map(([key]) => [key, storage.getItem(key)]))
+    for (const [key, value] of writes) {
+      touched.push(key)
+      storage.setItem(key, value)
+    }
+  } catch (error) {
+    if (originals) {
+      for (const key of [...touched].reverse()) {
+        try {
+          const original = originals.get(key)
+          if (original == null) storage.removeItem(key)
+          else storage.setItem(key, original)
+        } catch {
+          // Continue restoring the remaining keys.
+        }
+      }
+    }
+    throw new Error('工作区保存失败', { cause: error })
+  }
   return workspace
 }
 

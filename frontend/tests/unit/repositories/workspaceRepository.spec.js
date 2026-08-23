@@ -26,6 +26,24 @@ function storageWith(items = {}) {
   }
 }
 
+function storageFailingOnSet(failAt, items = {}) {
+  const values = new Map(Object.entries(items))
+  let calls = 0
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null
+    },
+    setItem(key, value) {
+      calls += 1
+      values.set(key, String(value))
+      if (calls === failAt) throw new Error('injected write failure')
+    },
+    removeItem(key) {
+      values.delete(key)
+    }
+  }
+}
+
 it('migrates legacy records, preserves their raw backup, and records orphan task IDs', () => {
   const goals = [{ id: 1, title: '目标', progress: 40 }]
   const todos = [
@@ -46,6 +64,21 @@ it('migrates legacy records, preserves their raw backup, and records orphan task
   expect(JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY))).toEqual({ orphanTaskIds: ['3'] })
   expect(localStorage.getItem('goals')).toBe(JSON.stringify(goals))
   expect(localStorage.getItem('todos')).toBe(JSON.stringify(todos))
+})
+
+it.each([1, 2, 3])('rolls back every migration key when write %i fails', (failAt) => {
+  const oldWorkspace = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageFailingOnSet(failAt, {
+    goals: JSON.stringify([{ id: 'g1' }]),
+    todos: JSON.stringify([{ id: 't1', goalId: 'g1' }]),
+    [BACKUP_KEY]: 'old-backup',
+    [WORKSPACE_KEY]: oldWorkspace
+  })
+
+  expect(() => migrateLegacyWorkspace(storage, now)).toThrow('工作区保存失败')
+  expect(storage.getItem(BACKUP_KEY)).toBe('old-backup')
+  expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(null)
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(oldWorkspace)
 })
 
 it('preserves zero-valued weights and timestamps while migrating', () => {
