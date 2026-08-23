@@ -5,7 +5,6 @@ import PasswordGenerator from '../components/PasswordGenerator.vue';
 import ReportSummary from '../components/ReportSummary.vue';
 import PomodoroTimer from '../components/PomodoroTimer.vue';
 import TodoList from '../views/TodoList.vue';
-import GoalManager from '../views/GoalManager.vue';
 import LoginView from '@/views/LoginView.vue'
 import ProfileView from '@/views/ProfileView.vue'
 import SettingsView from '@/views/SettingsView.vue'
@@ -35,13 +34,18 @@ export const routes = [
       { path: 'report-summary', name: 'ReportSummary', component: ReportSummary, description: '日报/周报总结', meta: { title: '日报/周报总结 - 高效办公' } },
       { path: 'pomodoro-timer', name: 'PomodoroTimer', component: PomodoroTimer, description: '一个番茄钟', meta: { title: '一个番茄钟 - 高效办公' } },
       {
-        path: 'goals',
-        name: 'GoalManagement',
+        path: 'goals/:goalId?',
+        name: 'GoalDetail',
         component: () => import('@/views/GoalManagement.vue'),
         meta: {
           title: '目标管理',
           icon: 'target'
         }
+      },
+      {
+        path: 'goal-management',
+        name: 'GoalManagement',
+        redirect: { name: 'GoalDetail' }
       },
       { 
         path: 'profile', 
