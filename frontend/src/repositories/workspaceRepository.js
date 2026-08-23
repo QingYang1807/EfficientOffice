@@ -4,6 +4,16 @@ export const DIAGNOSTICS_KEY = 'efficient-office.workspace.v2.diagnostics'
 
 const priorities = new Set(['高', '中', '低'])
 
+function normalizeLegacyId(record) {
+  if (!record || typeof record !== 'object' || (typeof record.id !== 'string' && typeof record.id !== 'number')) {
+    throw new Error('旧数据无法解析')
+  }
+  if ((typeof record.id === 'string' && record.id.trim() === '') || (typeof record.id === 'number' && !Number.isFinite(record.id))) {
+    throw new Error('旧数据无法解析')
+  }
+  return String(record.id)
+}
+
 function normalizeWeight(value) {
   if (value == null) return 1
   if (typeof value !== 'number' && typeof value !== 'string') return 1
@@ -13,7 +23,7 @@ function normalizeWeight(value) {
 }
 
 const normalizeGoal = (goal, now) => ({
-  id: String(goal.id),
+  id: normalizeLegacyId(goal),
   parentGoalId: goal.parentGoalId == null ? null : String(goal.parentGoalId),
   title: String(goal.title || '').trim(),
   description: String(goal.description || ''),
@@ -26,7 +36,7 @@ const normalizeGoal = (goal, now) => ({
 })
 
 const normalizeTask = (task, validGoalIds, now) => ({
-  id: String(task.id),
+  id: normalizeLegacyId(task),
   goalId: task.goalId != null && validGoalIds.has(String(task.goalId)) ? String(task.goalId) : null,
   parentTaskId: task.parentTaskId == null ? null : String(task.parentTaskId),
   title: String(task.title || task.text || '').trim(),
@@ -55,8 +65,7 @@ function parseLegacyArray(storage, key) {
 function assertUniqueIds(items) {
   const ids = new Set()
   for (const item of items) {
-    if (!item || typeof item !== 'object') throw new Error('旧数据无法解析')
-    const id = String(item.id)
+    const id = normalizeLegacyId(item)
     if (ids.has(id)) throw new Error('检测到重复ID')
     ids.add(id)
   }
@@ -111,7 +120,7 @@ function validateParentGraph(records, byId, parentKey) {
 }
 
 function validateWorkspace(workspace) {
-  if (!workspace || workspace.migratedAt == null || !Array.isArray(workspace.goals) || !Array.isArray(workspace.tasks)) {
+  if (!workspace || typeof workspace.migratedAt !== 'string' || workspace.migratedAt.trim() === '' || !Array.isArray(workspace.goals) || !Array.isArray(workspace.tasks)) {
     throw new TypeError('invalid workspace')
   }
 

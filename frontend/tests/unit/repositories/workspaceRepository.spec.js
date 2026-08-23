@@ -99,6 +99,21 @@ it('does not replace V2 data when normalized legacy IDs duplicate', () => {
   expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(null)
 })
 
+it.each([
+  ['a missing goal ID', JSON.stringify([{}]), '[]'],
+  ['an invalid goal ID', JSON.stringify([{ id: ' ' }]), '[]'],
+  ['a missing task ID', JSON.stringify([{ id: 'g1' }]), JSON.stringify([{}])],
+  ['an invalid task ID', JSON.stringify([{ id: 'g1' }]), JSON.stringify([{ id: {} }])]
+])('rejects legacy records with %s before replacing V2 bytes', (_name, goals, todos) => {
+  const existing = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageWith({ [WORKSPACE_KEY]: existing, goals, todos })
+
+  expect(() => migrateLegacyWorkspace(storage, now)).toThrow('旧数据无法解析')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+  expect(storage.getItem(BACKUP_KEY)).toBe(null)
+  expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(null)
+})
+
 it('rejects an unsupported V2 version', () => {
   const storage = storageWith({
     [WORKSPACE_KEY]: JSON.stringify({ version: 3, goals: [], tasks: [] })
@@ -136,6 +151,34 @@ it('rejects a workspace without migratedAt without changing existing V2 bytes', 
   const storage = storageWith({ [WORKSPACE_KEY]: existing })
 
   expect(() => saveWorkspace(storage, { goals: [], tasks: [] })).toThrow('工作区保存失败')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+})
+
+it.each([0, {}, '', '  '])('rejects non-string migratedAt %j without changing existing V2 bytes', (migratedAt) => {
+  const existing = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageWith({ [WORKSPACE_KEY]: existing })
+
+  expect(() => saveWorkspace(storage, { migratedAt, goals: [], tasks: [] })).toThrow('工作区保存失败')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+})
+
+it('keeps existing V2 bytes when a patch makes migratedAt invalid', () => {
+  const existing = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageWith({ [WORKSPACE_KEY]: existing })
+
+  expect(() => patchWorkspace(storage, { migratedAt: 0 })).toThrow('工作区保存失败')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+})
+
+it('keeps existing V2 bytes when migration receives an invalid migratedAt', () => {
+  const existing = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageWith({
+    [WORKSPACE_KEY]: existing,
+    goals: JSON.stringify([{ id: 'g1' }]),
+    todos: '[]'
+  })
+
+  expect(() => migrateLegacyWorkspace(storage, 0)).toThrow('工作区保存失败')
   expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
 })
 
