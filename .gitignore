@@ -35,6 +35,7 @@ python_service/
 .vscode
 python_server/
 .cursorignore
+.worktrees/
 
 venv/
 *.pyc
@@ -44,4 +45,3 @@ venv/
 static/
 data/
 __pycache__/
-
