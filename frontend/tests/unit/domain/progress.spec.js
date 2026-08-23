@@ -37,3 +37,13 @@ it('handles boundaries and cycles', () => {
     { id: 'y', parentTaskId: 'x' }
   ], now)).toThrow('检测到循环任务层级')
 })
+
+it('treats an infinite child weight as zero', () => {
+  const view = deriveTaskView('p', [
+    { id: 'p', completed: false },
+    { id: 'c', parentTaskId: 'p', completed: true, weight: Infinity }
+  ], now)
+
+  expect(view.progress).toBe(0)
+  expect(view.status).toBe('not_started')
+})

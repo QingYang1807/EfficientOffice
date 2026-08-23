@@ -1,11 +1,16 @@
+function validWeight(value) {
+  const weight = Number(value)
+  return Number.isFinite(weight) && weight > 0 ? weight : 0
+}
+
 function weightedAverage(entries) {
   if (!entries.length) return null
 
-  const total = entries.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0)
+  const total = entries.reduce((sum, item) => sum + validWeight(item.weight), 0)
   if (total === 0) return 0
 
   return Math.round(entries.reduce(
-    (sum, item) => sum + item.progress * Math.max(0, Number(item.weight) || 0),
+    (sum, item) => sum + item.progress * validWeight(item.weight),
     0
   ) / total)
 }
