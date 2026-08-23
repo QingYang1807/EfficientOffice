@@ -114,6 +114,8 @@
         @select="selectGoalFromDrawer"
         @create-child="openCreateGoal"
         @create-task="createTaskForGoal"
+        @move="moveGoal"
+        @delete="removeGoal"
         @update:expanded-ids="updateExpandedIds"
       />
     </el-drawer>
@@ -202,20 +204,18 @@ onMounted(() => {
   goalStore.initialize()
   taskStore.initialize()
   restoreUiState()
-  const ids = new Set(goalStore.goals.map(goal => String(goal.id)))
-  expandedIds.value = expandedIds.value.filter(id => ids.has(String(id)))
-  if (storedSelectedId.value && !ids.has(String(storedSelectedId.value))) storedSelectedId.value = null
-  saveUiState()
+  sanitizeAndSaveUiState()
   if (!routeGoalId.value && selectedGoalId.value) {
     router.replace({ name: 'GoalDetail', params: { goalId: selectedGoalId.value } })
   }
 })
 
 watch(routeGoalId, id => {
-  if (id && goalStore.byId(id)) {
-    storedSelectedId.value = id
-    saveUiState()
-  }
+  sanitizeAndSaveUiState(id)
+})
+
+watch(() => goalStore.goals.map(goal => String(goal.id)), () => {
+  sanitizeAndSaveUiState(routeGoalId.value)
 })
 
 function restoreUiState() {
@@ -238,6 +238,17 @@ function saveUiState() {
   } catch {
     // Domain writes remain authoritative when optional UI state cannot persist.
   }
+}
+
+function sanitizeAndSaveUiState(preferredId = routeGoalId.value) {
+  const ids = new Set(goalStore.goals.map(goal => String(goal.id)))
+  expandedIds.value = expandedIds.value.map(String).filter(id => ids.has(id))
+  if (preferredId != null) {
+    storedSelectedId.value = ids.has(String(preferredId)) ? String(preferredId) : null
+  } else if (storedSelectedId.value != null && !ids.has(String(storedSelectedId.value))) {
+    storedSelectedId.value = null
+  }
+  saveUiState()
 }
 
 function updateExpandedIds(ids) {
@@ -317,8 +328,8 @@ async function createChildTask(parentTaskId) {
   }
 }
 
-function toggleTask({ id, completed }) {
-  try { taskStore.toggleTask(id, completed) } catch (error) { ElMessage.error(error.message) }
+function toggleTask(id) {
+  try { taskStore.toggleTask(id) } catch (error) { ElMessage.error(error.message) }
 }
 
 async function moveGoal(id) {
@@ -332,15 +343,33 @@ async function moveGoal(id) {
 }
 
 async function removeGoal(id) {
+  const affectedGoalIds = new Set([String(id), ...getDescendantIds(goalStore.goals, id, 'parentGoalId')])
+  const childGoalCount = affectedGoalIds.size - 1
+  const taskCount = taskStore.tasks.filter(task => task.goalId != null && affectedGoalIds.has(String(task.goalId))).length
+  let mode = 'promote'
   try {
-    await ElMessageBox.confirm('默认提升直属子目标和任务，是否继续？', '删除目标', { type: 'warning' })
-    deleteGoal({ goalId: id, mode: 'promote', goalStore, taskStore })
+    await ElMessageBox.confirm(
+      `将影响 ${childGoalCount} 个子目标、${taskCount} 个任务。请选择处理方式。`,
+      '删除目标',
+      {
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        confirmButtonText: '提升并删除',
+        cancelButtonText: '级联删除'
+      }
+    )
+  } catch (action) {
+    if (action === 'cancel') mode = 'cascade'
+    else return
+  }
+  try {
+    deleteGoal({ goalId: id, mode, goalStore, taskStore })
     storedSelectedId.value = null
     saveUiState()
     router.push('/goals')
     ElMessage.success('目标已删除')
-  } catch (action) {
-    if (action !== 'cancel' && action !== 'close') ElMessage.error(action?.message || '目标删除失败')
+  } catch (error) {
+    ElMessage.error(error?.message || '目标删除失败')
   }
 }
 </script>
@@ -362,7 +391,7 @@ async function removeGoal(id) {
 @media (max-width: 1280px) {
   .workspace-shell { grid-template-columns: 260px minmax(400px, 1fr) 320px; }
 }
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .tree-panel, .detail-panel, .tasks-panel { display: none; }
   .workspace-shell { display: block; }
   .mobile-detail, .mobile-tree-button { display: block; }

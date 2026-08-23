@@ -41,7 +41,8 @@ const TaskBranch = defineComponent({
         <el-checkbox
           :model-value="viewFor(task.id).completed"
           :disabled="Boolean(task.children && task.children.length)"
-          @change="$emit('toggle', { id: task.id, completed: $event })"
+          :aria-label="'完成' + task.title"
+          @change="$emit('toggle', task.id)"
         />
         <span class="task-title">{{ task.title }}</span>
         <span class="task-progress">{{ viewFor(task.id).progress }}%</span>

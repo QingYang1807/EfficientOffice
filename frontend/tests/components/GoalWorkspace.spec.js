@@ -22,7 +22,11 @@ const stubs = {
   'el-progress': { template: '<span />' },
   'el-empty': { template: '<span />' },
   'el-switch': { template: '<button type="button" />' },
-  'el-checkbox': { template: '<input type="checkbox" />' },
+  'el-checkbox': {
+    props: ['ariaLabel'],
+    emits: ['change'],
+    template: '<input type="checkbox" :aria-label="ariaLabel" @change="$emit(\'change\', $event.target.checked)" />'
+  },
   'el-dialog': {
     props: ['modelValue'],
     template: '<section v-if="modelValue"><slot /><slot name="footer" /></section>'
@@ -107,5 +111,20 @@ describe('GoalTaskTree', () => {
     expect(wrapper.text()).not.toContain('后代目标任务')
     await wrapper.setProps({ includeDescendants: true })
     expect(wrapper.text()).toContain('后代目标任务')
+  })
+
+  it('labels completion controls and emits only the selected task ID', async () => {
+    const tasks = [
+      { id: 't1', goalId: 'g1', parentTaskId: null, title: '验收发布', completed: false, weight: 1 }
+    ]
+    const wrapper = mount(GoalTaskTree, {
+      props: { tasks, goalId: 'g1' },
+      global: { stubs }
+    })
+
+    const checkbox = wrapper.get('input[type="checkbox"]')
+    expect(checkbox.attributes('aria-label')).toBe('完成验收发布')
+    await checkbox.setValue(true)
+    expect(wrapper.emitted('toggle')).toEqual([['t1']])
   })
 })

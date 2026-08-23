@@ -46,6 +46,8 @@ describe('GoalTree', () => {
     expect(wrapper.emitted('select')).toEqual([['g2']])
     expect(wrapper.emitted('create-child')).toEqual([['g2']])
     expect(wrapper.emitted('create-task')).toEqual([['g2']])
+    expect(wrapper.get('[data-testid="goal-node-g2"]').attributes('tabindex')).toBe('0')
+    expect(wrapper.get('[data-testid="add-task-g2"]').attributes('aria-label')).toBe('为产品发布新增任务')
     wrapper.unmount()
   })
 

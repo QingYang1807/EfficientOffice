@@ -24,7 +24,9 @@
         <div
           v-else
           class="goal-node"
+          tabindex="0"
           :data-testid="`goal-node-${data.id}`"
+          @keydown.enter="$emit('select', data.id)"
         >
           <span class="goal-title" :title="data.title">{{ data.title }}</span>
           <span v-if="data.progress != null" class="goal-progress">{{ data.progress }}%</span>
@@ -185,8 +187,9 @@ function handleCollapse(data) { updateExpanded(data.id, false) }
 .goal-node { display: flex; align-items: center; width: calc(100% - 8px); min-width: 0; gap: 6px; }
 .goal-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; flex: 1; }
 .goal-progress { font-size: 12px; color: #64748b; }
-.goal-actions { display: none; gap: 2px; }
-.goal-node:hover .goal-actions, .goal-actions:focus-within { display: inline-flex; }
+.goal-actions { display: inline-flex; gap: 2px; opacity: 0; visibility: hidden; }
+.goal-node:hover .goal-actions, .goal-node:focus-within .goal-actions, .goal-actions:focus-within { opacity: 1; visibility: visible; }
+.goal-node:focus-visible { border-radius: 6px; outline: 2px solid #93c5fd; outline-offset: 1px; }
 .node-action { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; color: #475569; background: transparent; cursor: pointer; }
 .node-action:hover, .node-action:focus-visible { color: #2564cf; background: #dbeafe; outline: none; }
 .node-action.danger:hover, .node-action.danger:focus-visible { color: #dc2626; background: #fee2e2; }
