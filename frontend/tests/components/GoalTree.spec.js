@@ -28,8 +28,9 @@ const KeyboardTreeStub = defineComponent({
   emits: ['node-click', 'node-expand', 'node-collapse'],
   setup(props, { slots, emit, expose }) {
     const nodes = new Map()
-    const build = (data, parent = null) => {
-      const node = reactive({ data, parent, expanded: props.defaultExpandedKeys.includes(String(data.id)), childNodes: [] })
+    const virtualRoot = reactive({ data: props.data, parent: null, level: 0, expanded: false, childNodes: [] })
+    const build = (data, parent = virtualRoot) => {
+      const node = reactive({ data, parent, level: parent.level + 1, expanded: props.defaultExpandedKeys.includes(String(data.id)), childNodes: [] })
       node.childNodes = (data.children || []).map(child => build(child, node))
       node.expand = () => { node.expanded = true; emit('node-expand', node.data, node) }
       node.collapse = () => { node.expanded = false; emit('node-collapse', node.data, node) }
@@ -37,6 +38,7 @@ const KeyboardTreeStub = defineComponent({
       return node
     }
     const roots = props.data.map(data => build(data))
+    virtualRoot.childNodes = roots
     expose({ getNode: id => nodes.get(String(id)) })
     const renderNode = node => h('div', [
       slots.default?.({ data: node.data, node }),

@@ -199,7 +199,7 @@ function focusItem(id) {
 function visibleItems() {
   return [...(goalTreeRef.value?.querySelectorAll('.goal-node') || [])].filter(item => {
     let node = treeRef.value?.getNode?.(item.dataset.testid?.slice('goal-node-'.length))
-    while (node?.parent?.data) {
+    while (node?.parent && node.parent.level > 0) {
       if (!node.parent.expanded) return false
       node = node.parent
     }
@@ -223,7 +223,7 @@ function handleKeydown(event, data, slotNode) {
   if (event.key === 'ArrowLeft') {
     event.preventDefault()
     if (node?.expanded && node.childNodes?.length) node.collapse()
-    else if (node?.parent?.data && !node.parent.data.repairGroup) focusItem(node.parent.data.id)
+    else if (node?.parent?.level > 0 && !node.parent.data?.repairGroup) focusItem(node.parent.data.id)
     return
   }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
