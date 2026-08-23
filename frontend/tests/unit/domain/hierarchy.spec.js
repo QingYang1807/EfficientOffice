@@ -28,3 +28,7 @@ it('rejects self-parent and depth overflow', () => {
   const leaf = { id: 'leaf', parentGoalId: 'root' }
   expect(validateMove({ items: [...chain, { id: 'root', parentGoalId: null }, leaf], id: 'root', newParentId: 'n19', parentKey: 'parentGoalId' }).ok).toBe(false)
 })
+
+it('rejects a missing new parent', () => {
+  expect(validateMove({ items: goals, id: 'g3', newParentId: 'missing', parentKey: 'parentGoalId' })).toEqual({ ok: false, reason: '父节点不存在' })
+})

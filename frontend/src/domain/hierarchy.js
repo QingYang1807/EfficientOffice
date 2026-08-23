@@ -53,6 +53,9 @@ export function getDepth(items, id, parentKey) {
 
 export function validateMove({ items, id, newParentId, parentKey, maxDepth = MAX_HIERARCHY_DEPTH }) {
   if (newParentId == null) return { ok: true }
+  if (!items.some(item => String(item.id) === String(newParentId))) {
+    return { ok: false, reason: '父节点不存在' }
+  }
   if (String(id) === String(newParentId)) return { ok: false, reason: '节点不能成为自己的父级' }
   if (getDescendantIds(items, id, parentKey).includes(String(newParentId))) {
     return { ok: false, reason: '不能移动到自身后代节点' }
