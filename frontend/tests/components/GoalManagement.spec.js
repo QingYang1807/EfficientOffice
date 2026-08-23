@@ -42,9 +42,15 @@ const GoalTaskTreeStub = defineComponent({
   template: '<button data-testid="toggle-task" @click="$emit(\'toggle\', \'t1\')">toggle</button>'
 })
 
+const GoalWorkspaceStub = defineComponent({
+  name: 'GoalWorkspace',
+  emits: ['view-tasks'],
+  template: '<button data-testid="view-tasks" @click="$emit(\'view-tasks\', \'g2\')">view tasks</button>'
+})
+
 const stubs = {
   GoalTree: GoalTreeStub,
-  GoalWorkspace: { template: '<div />' },
+  GoalWorkspace: GoalWorkspaceStub,
   GoalTaskTree: GoalTaskTreeStub,
   GoalEditorDialog: { template: '<div />' },
   'el-button': { template: '<button type="button"><slot /></button>' },
@@ -142,6 +148,16 @@ describe('GoalManagement', () => {
 
     wrapper.findAllComponents(GoalTaskTreeStub)[0].vm.$emit('toggle', 't1')
     expect(mocks.taskStore.toggleTask).toHaveBeenCalledWith('t1')
+  })
+
+  it('opens task management with an explicit current-goal-only URL', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    wrapper.findAllComponents(GoalWorkspaceStub)[0].vm.$emit('view-tasks', 'g2')
+    expect(mocks.router.push).toHaveBeenCalledWith({
+      name: 'TodoList', query: { goalId: 'g2', includeDescendants: '0' }
+    })
   })
 
   it('shows impact counts and supports both default promotion and explicit cascade deletion', async () => {

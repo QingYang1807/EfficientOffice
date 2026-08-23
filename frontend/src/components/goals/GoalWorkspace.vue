@@ -22,6 +22,7 @@
     <div class="primary-actions">
       <el-button type="primary" data-testid="create-child-goal" @click="$emit('create-child', goal.id)">新增子目标</el-button>
       <el-button data-testid="create-goal-task" @click="$emit('create-task', goal.id)">新增任务</el-button>
+      <el-button role="link" data-testid="view-goal-tasks" @click="$emit('view-tasks', goal.id)">查看任务管理</el-button>
       <el-button text @click="$emit('edit', goal.id)">编辑目标</el-button>
     </div>
 
@@ -75,7 +76,7 @@ const props = defineProps({
   contributions: { type: Array, default: () => [] }
 })
 
-defineEmits(['create-child', 'create-task', 'edit', 'select'])
+defineEmits(['create-child', 'create-task', 'view-tasks', 'edit', 'select'])
 
 const status = computed(() => props.view.status)
 const statusLabel = computed(() => ({

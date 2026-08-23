@@ -59,8 +59,10 @@ describe('GoalWorkspace', () => {
 
     await wrapper.get('[data-testid="create-child-goal"]').trigger('click')
     await wrapper.get('[data-testid="create-goal-task"]').trigger('click')
+    await wrapper.get('[data-testid="view-goal-tasks"]').trigger('click')
     expect(wrapper.emitted('create-child')).toEqual([['g2']])
     expect(wrapper.emitted('create-task')).toEqual([['g2']])
+    expect(wrapper.emitted('view-tasks')).toEqual([['g2']])
   })
 })
 

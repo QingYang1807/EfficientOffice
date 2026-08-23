@@ -56,6 +56,7 @@
           @select="selectGoal"
           @create-child="openCreateGoal"
           @create-task="createTaskForGoal"
+          @view-tasks="viewTasksForGoal"
           @edit="openEditGoal"
         />
       </section>
@@ -85,6 +86,7 @@
               @select="selectGoal"
               @create-child="openCreateGoal"
               @create-task="createTaskForGoal"
+              @view-tasks="viewTasksForGoal"
               @edit="openEditGoal"
             />
           </el-tab-pane>
@@ -267,6 +269,10 @@ function selectGoal(id) {
 function selectGoalFromDrawer(id) {
   treeDrawerOpen.value = false
   selectGoal(id)
+}
+
+function viewTasksForGoal(goalId) {
+  router.push({ name: 'TodoList', query: { goalId: String(goalId), includeDescendants: '0' } })
 }
 
 function recoverFromInvalidGoal() {
