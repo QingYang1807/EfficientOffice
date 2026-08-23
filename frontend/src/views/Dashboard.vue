@@ -55,9 +55,12 @@
           </template>
           <div class="goal-progress-container">
             <!-- 进度条列表 -->
-            <div v-for="goal in goalProgressData" :key="goal.name" class="goal-item">
+            <div v-for="goal in goalProgressData" :key="goal.id" class="goal-item">
               <div class="goal-info">
-                <div class="goal-name">{{ goal.name }}</div>
+                <div class="goal-name">
+                  {{ goal.name }}
+                  <el-tag size="small" :type="goal.statusType">{{ goal.statusText }}</el-tag>
+                </div>
                 <div class="goal-percentage">{{ goal.value }}%</div>
               </div>
               <div class="progress-bar-container">
@@ -227,16 +230,16 @@
         </div>
       </template>
       <el-table :data="recentTodos" style="width: 100%">
-        <el-table-column prop="text" label="任务内容"></el-table-column>
+        <el-table-column prop="title" label="任务内容"></el-table-column>
         <el-table-column prop="priority" label="优先级" width="100">
           <template #default="{ row }">
             <el-tag :type="getPriorityType(row.priority)">{{ row.priority }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="dueDate" label="截止日期" width="180">
+        <el-table-column prop="deadline" label="截止日期" width="180">
           <template #default="{ row }">
-            <span :class="{ 'text-danger': isOverdue(row.dueDate) }">
-              {{ formatDate(row.dueDate) }}
+            <span :class="{ 'text-danger': isOverdue(row.deadline) }">
+              {{ formatDate(row.deadline) }}
             </span>
           </template>
         </el-table-column>
@@ -341,15 +344,14 @@ import VChart from 'vue-echarts'
 import { ElMessage } from 'element-plus'
 import {
   Plus,
-  Timer,
-  List,
-  Check,
-  Warning,
   InfoFilled,
   ArrowRight,
 } from '@element-plus/icons-vue'
 import { useReviewStore } from '@/stores/review'
 import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
+import { useGoalStore } from '@/stores/goals'
+import { useTaskStore } from '@/stores/tasks'
+import { buildGoalSummaries } from '@/services/dashboardGoalAdapter'
 
 // 注册 ECharts 组件
 use([
@@ -366,35 +368,25 @@ use([
 ])
 
 const router = useRouter()
-const todos = ref([])
 const trendTimeRange = ref('week')
 
 const reviewStore = useReviewStore()
 const knowledgeBaseStore = useKnowledgeBaseStore()
+const goalStore = useGoalStore()
+const taskStore = useTaskStore()
+goalStore.initialize()
+taskStore.initialize()
+const todos = computed(() => taskStore.tasks)
+const goalSummaries = computed(() => buildGoalSummaries({ goalStore, taskStore }))
 
-// 从 localStorage 加载待办事项
-const loadTodos = () => {
-  const stored = localStorage.getItem('todos')
-  if (stored) {
-    todos.value = JSON.parse(stored)
-  }
-}
-
-// 添加保存到 localStorage 的函数
-const saveTodosToStorage = () => {
-  localStorage.setItem('todos', JSON.stringify(todos.value))
-}
-
-// 添加 todos 的 watch
-watch(() => todos.value, () => {
-  saveTodosToStorage()
-}, { deep: true })
+const toTimestamp = value => value == null ? NaN : new Date(value).getTime()
+const taskIsCompleted = task => taskStore.viewFor(task.id).completed
 
 // 修改统计数据计算方式
 const stats = computed(() => [
   {
     title: '待办任务',
-    value: todos.value.filter(t => !t.completed).length,
+    value: todos.value.filter(task => !taskIsCompleted(task)).length,
     description: '个待处理任务',
     class: 'todo-card',
     icon: 'List',
@@ -435,7 +427,7 @@ const getTotalPomodoros = () => {
 const getCompletionRate = () => {
   const total = todos.value.length
   if (total === 0) return '0%'
-  const completed = todos.value.filter(t => t.completed).length
+  const completed = todos.value.filter(task => taskIsCompleted(task)).length
   return Math.round((completed / total) * 100) + '%'
 }
 
@@ -445,8 +437,8 @@ const getCompletionTrend = () => {
   const lastWeek = new Date()
   lastWeek.setDate(lastWeek.getDate() - 7)
   
-  const oldTasks = todos.value.filter(t => t.createdAt < lastWeek.getTime())
-  const oldCompleted = oldTasks.filter(t => t.completed).length
+  const oldTasks = todos.value.filter(task => toTimestamp(task.createdAt) < lastWeek.getTime())
+  const oldCompleted = oldTasks.filter(task => taskIsCompleted(task)).length
   const oldRate = oldTasks.length ? oldCompleted / oldTasks.length : 0
   
   const currentRate = parseFloat(getCompletionRate()) / 100
@@ -458,7 +450,7 @@ const getCompletionTrend = () => {
 
 // 获取逾期任务
 const getOverdueTasks = () => {
-  return todos.value.filter(t => !t.completed && isOverdue(t.dueDate))
+  return todos.value.filter(task => !taskIsCompleted(task) && isOverdue(task.deadline))
 }
 
 // 获取指定日期完成的任务数
@@ -470,18 +462,18 @@ const getCompletedTasksForDate = (date) => {
     const startDate = new Date(year, month, 1)
     const endDate = new Date(year, month + 1, 0)
     return todos.value.filter(task => 
-      task.completed && 
-      task.completedAt >= startDate.getTime() && 
-      task.completedAt <= endDate.getTime()
+      taskIsCompleted(task) &&
+      toTimestamp(task.completedAt || task.updatedAt) >= startDate.getTime() &&
+      toTimestamp(task.completedAt || task.updatedAt) <= endDate.getTime()
     ).length
   } else {
     // 按日统计
     const nextDay = new Date(date)
     nextDay.setDate(date.getDate() + 1)
     return todos.value.filter(task => 
-      task.completed && 
-      task.completedAt >= date.getTime() && 
-      task.completedAt < nextDay.getTime()
+      taskIsCompleted(task) &&
+      toTimestamp(task.completedAt || task.updatedAt) >= date.getTime() &&
+      toTimestamp(task.completedAt || task.updatedAt) < nextDay.getTime()
     ).length
   }
 }
@@ -495,16 +487,16 @@ const getNewTasksForDate = (date) => {
     const startDate = new Date(year, month, 1)
     const endDate = new Date(year, month + 1, 0)
     return todos.value.filter(task => 
-      task.createdAt >= startDate.getTime() && 
-      task.createdAt <= endDate.getTime()
+      toTimestamp(task.createdAt) >= startDate.getTime() &&
+      toTimestamp(task.createdAt) <= endDate.getTime()
     ).length
   } else {
     // 按日统计
     const nextDay = new Date(date)
     nextDay.setDate(date.getDate() + 1)
     return todos.value.filter(task => 
-      task.createdAt >= date.getTime() && 
-      task.createdAt < nextDay.getTime()
+      toTimestamp(task.createdAt) >= date.getTime() &&
+      toTimestamp(task.createdAt) < nextDay.getTime()
     ).length
   }
 }
@@ -674,23 +666,23 @@ const updateRecentActivities = () => {
   
   // 添加完成的任务
   todos.value
-    .filter(task => task.completed && task.completedAt > threeDaysAgo)
+    .filter(task => taskIsCompleted(task) && toTimestamp(task.completedAt || task.updatedAt) > threeDaysAgo)
     .forEach(task => {
       activities.push({
         id: `complete-${task.id}`,
-        content: `完成了任务 "${task.text}"`,
-        time: formatDate(task.completedAt),
+        content: `完成了任务 "${task.title}"`,
+        time: formatDate(task.completedAt || task.updatedAt),
         type: 'success'
       })
     })
     
   // 添加新建的任务
   todos.value
-    .filter(task => task.createdAt > threeDaysAgo)
+    .filter(task => toTimestamp(task.createdAt) > threeDaysAgo)
     .forEach(task => {
       activities.push({
         id: `create-${task.id}`,
-        content: `创建了新任务 "${task.text}"`,
+        content: `创建了新任务 "${task.title}"`,
         time: formatDate(task.createdAt),
         type: 'primary'
       })
@@ -707,67 +699,26 @@ watch(() => todos.value, () => {
   updateRecentActivities()
 }, { deep: true })
 
-// 修改目标完成进度图表的配置
-const goalProgressOption = computed(() => ({
-  // 删除原有的图表配置
-}))
-
 // 添加目标进度数据计算属性
 const goalProgressData = computed(() => {
-  // 从本地存储加载待办事项
-  const storedTodos = localStorage.getItem('todos')
-  const todos = storedTodos ? JSON.parse(storedTodos) : []
-  
-  // 定义目标类别及其配置
-  const categories = [
-    { 
-      name: '工作目标', 
-      color: '#409EFF', 
-      target: 80,
-      completed: 0,
-      total: 0
-    },
-    { 
-      name: '学习目标', 
-      color: '#67C23A', 
-      target: 70,
-      completed: 0,
-      total: 0
-    },
-    { 
-      name: '生活目标', 
-      color: '#E6A23C', 
-      target: 60,
-      completed: 0,
-      total: 0
-    },
-    { 
-      name: '其他目标', 
-      color: '#909399', 
-      target: 50,
-      completed: 0,
-      total: 0
-    }
-  ]
-  
-  // 统计每个分类的任务数量和完成数量
-  todos.forEach(todo => {
-    const category = todo.category || '其他目标'
-    const categoryData = categories.find(c => c.name === category)
-    
-    if (categoryData) {
-      categoryData.total++
-      if (todo.completed) {
-        categoryData.completed++
-      }
+  const colors = { completed: '#67C23A', overdue: '#F56C6C', in_progress: '#409EFF', not_started: '#909399' }
+  const statusText = { completed: '已完成', overdue: '已逾期', in_progress: '进行中', not_started: '未开始' }
+  const statusType = { completed: 'success', overdue: 'danger', in_progress: 'primary', not_started: 'info' }
+
+  return goalSummaries.value.map(goal => {
+    const tasks = taskStore.tasksForGoal(goal.id)
+    return {
+      id: goal.id,
+      name: goal.title,
+      value: goal.progress,
+      target: 100,
+      color: colors[goal.status],
+      statusText: statusText[goal.status],
+      statusType: statusType[goal.status],
+      completed: tasks.filter(task => taskIsCompleted(task)).length,
+      total: tasks.length
     }
   })
-  
-  // 计算完成百分比并返回数据
-  return categories.map(category => ({
-    ...category,
-    value: category.total ? Math.round((category.completed / category.total) * 100) : 0
-  }))
 })
 
 // 活跃度热力图配置
@@ -830,8 +781,8 @@ const recentActivities = ref([
 // 最近的待办任务（未完成的前5个）
 const recentTodos = computed(() => {
   return todos.value
-    .filter(t => !t.completed)
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .filter(task => !taskIsCompleted(task))
+    .sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt))
     .slice(0, 5)
 })
 
@@ -900,7 +851,6 @@ const handleStatClick = (type) => {
 
 // 初始化
 onMounted(() => {
-  loadTodos()
   updateRecentActivities()
   reviewStore.loadReviews()
   // 加载数据
@@ -931,11 +881,6 @@ const reviewRules = {
   lessons: [{ required: true, message: '请输入经验教训', trigger: 'blur' }],
   plans: [{ required: true, message: '请输入下步计划', trigger: 'blur' }],
 }
-
-// 获取最近的复盘记录
-const recentReviews = computed(() => {
-  return reviewStore.getRecentReviews(5)
-})
 
 // 计算属性：根据类型筛选复盘记录
 const filteredReviews = computed(() => {
@@ -1412,4 +1357,4 @@ const totalRag = computed(() => knowledgeBaseStore.state.stats.totalRag)
   text-decoration: none;
   font-weight: bold;
 }
-</style> 
+</style>

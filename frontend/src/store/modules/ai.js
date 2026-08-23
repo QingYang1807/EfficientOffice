@@ -1,4 +1,28 @@
 import { aiAPI } from '@/api/ai'
+import { useTaskStore } from '@/stores/tasks'
+import { createTasksFromAi } from '@/services/aiTaskAdapter'
+
+function parseTaskSuggestions(response) {
+  const parsed = JSON.parse(response.replace(/```json\s*|\s*```/g, '').trim())
+  if (!parsed.tasks || !Array.isArray(parsed.tasks)) throw new Error('返回数据结构无效')
+
+  const tasks = parsed.tasks.map((task, index) => {
+    if (!task.name || !task.estimatedTime || !task.priority ||
+        !Array.isArray(task.steps) || !task.completionCriteria ||
+        !Array.isArray(task.resources)) {
+      throw new Error(`第 ${index + 1} 个任务数据不完整`)
+    }
+    return {
+      ...task,
+      name: task.name.slice(0, 10),
+      priority: ['高', '中', '低'].includes(task.priority) ? task.priority : '中',
+      steps: task.steps.slice(0, 3),
+      resources: task.resources.filter(resource => resource && typeof resource === 'string')
+    }
+  })
+  if (tasks.length === 0) throw new Error('没有生成有效的任务')
+  return tasks
+}
 
 export default {
   namespaced: true,
@@ -122,41 +146,10 @@ export default {
 请确保生成的是合法的 JSON 格式，不要包含任何其他说明文字。直接返回 JSON 对象。`
 
         const response = await aiAPI.chat(prompt)
+        let suggestions
         
         try {
-          // 首先尝试清理响应文本，移除可能的多余内容
-          const jsonStr = response.replace(/```json\s*|\s*```/g, '').trim()
-          const parsedResponse = JSON.parse(jsonStr)
-          
-          // 验证数据结构
-          if (!parsedResponse.tasks || !Array.isArray(parsedResponse.tasks)) {
-            throw new Error('返回数据结构无效')
-          }
-          
-          // 验证每个任务的数据完整性
-          parsedResponse.tasks = parsedResponse.tasks.map((task, index) => {
-            if (!task.name || !task.estimatedTime || !task.priority || 
-                !Array.isArray(task.steps) || !task.completionCriteria || 
-                !Array.isArray(task.resources)) {
-              throw new Error(`第 ${index + 1} 个任务数据不完整`)
-            }
-            
-            // 规范化数据
-            return {
-              ...task,
-              name: task.name.slice(0, 10), // 限制名称长度
-              priority: ['高', '中', '低'].includes(task.priority) ? task.priority : '中',
-              steps: task.steps.slice(0, 3), // 限制步骤数量
-              resources: task.resources.filter(r => r && typeof r === 'string')
-            }
-          })
-          
-          if (parsedResponse.tasks.length === 0) {
-            throw new Error('没有生成有效的任务')
-          }
-          
-          return parsedResponse
-          
+          suggestions = parseTaskSuggestions(response)
         } catch (error) {
           console.error('解析AI返回数据失败:', error, '\n原始响应:', response)
           // 如果解析失败，重试一次
@@ -175,9 +168,16 @@ export default {
   ]
 }`
           const retryResponse = await aiAPI.chat(retryPrompt)
-          const retryJson = JSON.parse(retryResponse.replace(/```json\s*|\s*```/g, '').trim())
-          return retryJson
+          suggestions = parseTaskSuggestions(retryResponse)
         }
+
+        const createdTasks = createTasksFromAi({
+          suggestions,
+          goalId: goal.id,
+          parentTaskId: goal.parentTaskId ?? null,
+          taskStore: useTaskStore()
+        })
+        return { tasks: createdTasks }
         
       } catch (error) {
         console.error('生成任务失败:', error)
@@ -252,4 +252,4 @@ export default {
       }
     }
   }
-} 
+}
