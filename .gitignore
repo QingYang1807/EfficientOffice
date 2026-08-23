@@ -36,6 +36,7 @@ python_service/
 python_server/
 .cursorignore
 .worktrees/
+.superdesign/tmp/
 
 venv/
 *.pyc

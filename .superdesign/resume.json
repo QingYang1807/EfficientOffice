@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/goals": {
+      "targetKind": "existing-ui",
+      "projectId": "9bbe771b-0c4b-4ff5-a271-19e79cbaf927",
+      "baselineDraftId": "3ce96a54-0c6f-4432-85e6-0e2fc91721dd",
+      "activeDraftId": "4432eb5e-51c9-4c0c-bcaa-2603dc5a5fd7",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": ["frontend-src-assets-logo-full.svg"],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "frontend-src-assets-logo-full.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/9bbe771b-0c4b-4ff5-a271-19e79cbaf927/brand-assets/frontend-src-assets-logo-full.svg/logo-full.svg",
+          "sourcePath": "frontend/src/assets/logo-full.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/assets/tailwind.css",
+        "frontend/src/views/GoalManagement.vue:1:43",
+        "frontend/src/views/GoalManagement.vue:439:450",
+        "frontend/src/views/GoalManagement.vue:912:1020",
+        "frontend/src/layouts/MainLayout.vue",
+        "frontend/src/components/AppMenu.vue",
+        "docs/superpowers/specs/2026-08-23-goal-task-hierarchy-design.md"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9bf25c6173806e3ce5167ccb2d602ea6f48599818f744656b5842eacf47a2aad",
+        "frontend/src/assets/tailwind.css": "f0ce7d766747189057146c07d71b2523e61a45ac5dc45d242ba8f03b521de25c",
+        "frontend/src/views/GoalManagement.vue": "47453cb767843d8601ca0fe95802bd3eac6a2db1e1ab9251264250cc70ab13a3",
+        "frontend/src/layouts/MainLayout.vue": "ebeb91787d59a711198e069d9aaf1455230614a3b9795fa868f123741cc20f4a",
+        "frontend/src/components/AppMenu.vue": "c4eb77df446c32bdb2f93a5a001ea2107a000982ae3b808db25870ebc83568a0",
+        "docs/superpowers/specs/2026-08-23-goal-task-hierarchy-design.md": "3eb807dda052735c5f1412769eb49964d13830d4f1b29a8879bef5f8caf99bc0"
+      },
+      "components": [
+        {
+          "name": "MainLayout",
+          "id": "6a9d67bf-2094-4754-b198-6139f9b51b67",
+          "sourcePath": "frontend/src/layouts/MainLayout.vue",
+          "logoAssetKey": "frontend-src-assets-logo-full.svg"
+        }
+      ],
+      "drafts": {
+        "3ce96a54-0c6f-4432-85e6-0e2fc91721dd": {
+          "title": "现有目标管理基线",
+          "visualDirection": "current card-grid reproduction",
+          "currentVersion": 1
+        },
+        "4432eb5e-51c9-4c0c-bcaa-2603dc5a5fd7": {
+          "title": "EfficientOffice 层级目标工作台",
+          "visualDirection": "dense three-column hierarchical workspace",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-23T15:41:43Z"
+    }
+  }
+}
