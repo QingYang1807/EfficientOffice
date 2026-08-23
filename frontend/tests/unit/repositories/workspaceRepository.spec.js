@@ -81,6 +81,28 @@ it.each([1, 2, 3])('rolls back every migration key when write %i fails', (failAt
   expect(storage.getItem(WORKSPACE_KEY)).toBe(oldWorkspace)
 })
 
+it('maps migration quota failures while restoring every previously written key', () => {
+  const oldWorkspace = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+  const storage = storageFailingOnSet(2, {
+    goals: JSON.stringify([{ id: 'g1' }]),
+    todos: '[]',
+    [BACKUP_KEY]: 'old-backup',
+    [WORKSPACE_KEY]: oldWorkspace
+  })
+  const originalSetItem = storage.setItem
+  storage.setItem = function (key, value) {
+    try { return originalSetItem.call(this, key, value) } catch {
+      throw new DOMException('quota', 'QuotaExceededError')
+    }
+  }
+
+  expect(() => migrateLegacyWorkspace(storage, now))
+    .toThrow('本地存储空间不足，请先导出或清理数据')
+  expect(storage.getItem(BACKUP_KEY)).toBe('old-backup')
+  expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(null)
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(oldWorkspace)
+})
+
 it('preserves zero-valued weights and timestamps while migrating', () => {
   const storage = storageWith({
     goals: JSON.stringify([{ id: 'g1', weight: 0, createdAt: 0, updatedAt: 0 }]),

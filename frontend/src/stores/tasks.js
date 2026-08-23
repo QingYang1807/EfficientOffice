@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { buildTree, getDescendantIds, validateMove } from '@/domain/hierarchy'
 import { deriveTaskView } from '@/domain/progress'
-import { exportWorkspace, loadWorkspace, patchWorkspace } from '@/repositories/workspaceRepository'
+import { exportWorkspace, loadWorkspace, patchWorkspace, workspaceForExport } from '@/repositories/workspaceRepository'
 
 function makeId() {
   return `task-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -13,6 +13,11 @@ function timestamp() {
 
 function cloneRecords(records) {
   return records.map(record => ({ ...record }))
+}
+
+function persistenceMessage(error) {
+  return ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
+    ? error.message : '工作区保存失败'
 }
 
 function normalizeGoalId(goalId) {
@@ -60,7 +65,7 @@ function buildTask(input, tasks) {
 }
 
 export const useTaskStore = defineStore('tasks-v2', {
-  state: () => ({ tasks: [], initialized: false, lastError: null }),
+  state: () => ({ tasks: [], initialized: false, loadFailed: false, lastError: null }),
 
   getters: {
     byId: state => id => state.tasks.find(task => String(task.id) === String(id)) || null,
@@ -80,24 +85,40 @@ export const useTaskStore = defineStore('tasks-v2', {
 
   actions: {
     initialize() {
-      if (this.initialized) return this.tasks
-      const workspace = loadWorkspace(localStorage)
-      this.tasks = cloneRecords(workspace.tasks)
+      if (this.initialized) {
+        if (this.loadFailed) throw new Error(this.lastError)
+        return this.tasks
+      }
+      try {
+        const workspace = loadWorkspace(localStorage)
+        this.tasks = cloneRecords(workspace.tasks)
+        this.loadFailed = false
+        this.lastError = null
+      } catch (error) {
+        this.tasks = []
+        this.loadFailed = true
+        this.lastError = persistenceMessage(error)
+      }
       this.initialized = true
-      this.lastError = null
       return this.tasks
     },
 
     reload() {
-      const workspace = loadWorkspace(localStorage)
-      this.tasks = cloneRecords(workspace.tasks)
+      try {
+        const workspace = loadWorkspace(localStorage)
+        this.tasks = cloneRecords(workspace.tasks)
+        this.loadFailed = false
+        this.lastError = null
+      } catch (error) {
+        this.loadFailed = true
+        this.lastError = persistenceMessage(error)
+      }
       this.initialized = true
-      this.lastError = null
       return this.tasks
     },
 
     exportData() {
-      exportWorkspace(loadWorkspace(localStorage, { trackRevision: false }))
+      exportWorkspace(workspaceForExport(localStorage))
     },
 
     persist(snapshot) {
@@ -106,8 +127,7 @@ export const useTaskStore = defineStore('tasks-v2', {
         this.lastError = null
       } catch (error) {
         this.tasks = snapshot
-        this.lastError = ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
-          ? error.message : '工作区保存失败'
+        this.lastError = persistenceMessage(error)
         throw error
       }
     },

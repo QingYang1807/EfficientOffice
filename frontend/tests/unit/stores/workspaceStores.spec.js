@@ -202,3 +202,24 @@ it('rejects every API path that writes a parent task completed fact', () => {
   tasks.finishPomodoro(parent.id)
   expect(tasks.byId(parent.id).pomodoros).toBe(1)
 })
+
+it('exposes first-migration quota as recoverable state without losing legacy bytes', () => {
+  localStorage.setItem('goals', JSON.stringify([{ id: 'legacy-goal', title: '旧目标' }]))
+  localStorage.setItem('todos', JSON.stringify([{ id: 'legacy-task', text: '旧任务', goalId: 'legacy-goal' }]))
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new DOMException('quota', 'QuotaExceededError')
+  })
+  const goals = useGoalStore()
+
+  expect(() => goals.initialize()).not.toThrow()
+  expect(goals.goals).toEqual([])
+  expect(goals.lastError).toBe('本地存储空间不足，请先导出或清理数据')
+  expect(localStorage.getItem('goals')).toContain('旧目标')
+  expect(localStorage.getItem('todos')).toContain('旧任务')
+  setItem.mockRestore()
+
+  expect(() => goals.createGoal({ title: '不应覆盖旧数据' }))
+    .toThrow('本地存储空间不足，请先导出或清理数据')
+  expect(localStorage.getItem('goals')).toContain('旧目标')
+  expect(localStorage.getItem('efficient-office.workspace.v2')).toBe(null)
+})

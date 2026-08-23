@@ -6,6 +6,12 @@ const knownRevisions = new WeakMap()
 
 const priorities = new Set(['高', '中', '低'])
 
+function storageFailure(error) {
+  return error?.name === 'QuotaExceededError'
+    ? new Error('本地存储空间不足，请先导出或清理数据', { cause: error })
+    : new Error('工作区保存失败', { cause: error })
+}
+
 function normalizeLegacyId(record) {
   if (!record || typeof record !== 'object' || (typeof record.id !== 'string' && typeof record.id !== 'number')) {
     throw new Error('旧数据无法解析')
@@ -170,7 +176,7 @@ function currentRevision(storage) {
   try {
     return JSON.parse(raw).updatedAt ?? null
   } catch (error) {
-    throw new Error('工作区保存失败', { cause: error })
+    throw storageFailure(error)
   }
 }
 
@@ -187,11 +193,10 @@ function serializeWorkspace(workspace) {
 }
 
 export function saveWorkspace(storage, workspace, options = {}) {
-  const expectedUpdatedAt = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
-    ? options.expectedUpdatedAt
-    : null
+  const hasExpectedRevision = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
+  const expectedUpdatedAt = hasExpectedRevision ? options.expectedUpdatedAt : null
   const persistedUpdatedAt = currentRevision(storage)
-  if (expectedUpdatedAt != null && persistedUpdatedAt !== expectedUpdatedAt) {
+  if (hasExpectedRevision && persistedUpdatedAt !== expectedUpdatedAt) {
     throw new Error('数据已在其他页面更新，请刷新后重试')
   }
   const next = { ...workspace, updatedAt: nextRevision(persistedUpdatedAt) }
@@ -199,10 +204,7 @@ export function saveWorkspace(storage, workspace, options = {}) {
   try {
     storage.setItem(WORKSPACE_KEY, json)
   } catch (error) {
-    if (error?.name === 'QuotaExceededError') {
-      throw new Error('本地存储空间不足，请先导出或清理数据', { cause: error })
-    }
-    throw new Error('工作区保存失败', { cause: error })
+    throw storageFailure(error)
   }
   knownRevisions.set(storage, next.updatedAt)
   return next
@@ -233,7 +235,7 @@ export function migrateLegacyWorkspace(storage, now) {
     workspaceJson = serializeWorkspace(workspace).json
   } catch (error) {
     if (error.message === '工作区保存失败') throw error
-    throw new Error('工作区保存失败', { cause: error })
+    throw storageFailure(error)
   }
 
   const writes = [
@@ -261,7 +263,7 @@ export function migrateLegacyWorkspace(storage, now) {
         }
       }
     }
-    throw new Error('工作区保存失败', { cause: error })
+    throw storageFailure(error)
   }
   knownRevisions.set(storage, workspace.updatedAt)
   return workspace
@@ -269,7 +271,10 @@ export function migrateLegacyWorkspace(storage, now) {
 
 export function loadWorkspace(storage, options = {}) {
   const raw = storage.getItem(WORKSPACE_KEY)
-  if (!raw) return migrateLegacyWorkspace(storage, new Date().toISOString())
+  if (!raw) {
+    knownRevisions.delete(storage)
+    return migrateLegacyWorkspace(storage, new Date().toISOString())
+  }
   const data = JSON.parse(raw)
   if (data.version !== 2) throw new Error('工作区数据版本不受支持')
   if (options.trackRevision !== false) knownRevisions.set(storage, data.updatedAt ?? null)
@@ -278,16 +283,29 @@ export function loadWorkspace(storage, options = {}) {
 
 export function patchWorkspace(storage, patch, options = {}) {
   const persistedUpdatedAt = currentRevision(storage)
-  const expectedUpdatedAt = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
+  const hasExplicitRevision = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
+  const hasExpectedRevision = hasExplicitRevision || knownRevisions.has(storage)
+  const expectedUpdatedAt = hasExplicitRevision
     ? options.expectedUpdatedAt
-    : persistedUpdatedAt == null ? null : knownRevisions.get(storage)
-  if (expectedUpdatedAt != null && persistedUpdatedAt !== expectedUpdatedAt) {
+    : knownRevisions.get(storage)
+  if (hasExpectedRevision && persistedUpdatedAt !== expectedUpdatedAt) {
     throw new Error('数据已在其他页面更新，请刷新后重试')
   }
   const next = { ...loadWorkspace(storage), ...patch, version: 2 }
-  return saveWorkspace(storage, next, {
-    expectedUpdatedAt
-  })
+  return hasExpectedRevision
+    ? saveWorkspace(storage, next, { expectedUpdatedAt })
+    : saveWorkspace(storage, next)
+}
+
+export function workspaceForExport(storage) {
+  const current = storage.getItem(WORKSPACE_KEY)
+  if (current) return JSON.parse(current)
+  const readLegacy = key => {
+    const raw = storage.getItem(key)
+    if (!raw) return []
+    try { return JSON.parse(raw) } catch { return raw }
+  }
+  return { version: 1, goals: readLegacy('goals'), todos: readLegacy('todos') }
 }
 
 export function exportWorkspace(workspace) {

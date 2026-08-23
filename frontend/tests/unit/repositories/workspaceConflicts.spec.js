@@ -61,3 +61,29 @@ it('does not acknowledge an external revision during a read-only export load', (
   expect(() => patchWorkspace(localStorage, { goals: [{ id: 'stale' }] }))
     .toThrow('数据已在其他页面更新，请刷新后重试')
 })
+
+it('does not let a second tab overwrite the first upgrade of old V2 data', () => {
+  const values = new Map([[WORKSPACE_KEY, JSON.stringify({
+    version: 2, migratedAt: original.migratedAt, goals: [], tasks: []
+  })]])
+  const tab = () => ({
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key)
+  })
+  const firstTab = tab()
+  const secondTab = tab()
+  loadWorkspace(firstTab)
+  loadWorkspace(secondTab)
+
+  patchWorkspace(firstTab, { goals: [{ id: 'first' }] })
+  const afterFirstSave = values.get(WORKSPACE_KEY)
+  expect(() => patchWorkspace(secondTab, { goals: [{ id: 'second' }] }))
+    .toThrow('数据已在其他页面更新，请刷新后重试')
+  expect(values.get(WORKSPACE_KEY)).toBe(afterFirstSave)
+})
+
+it('treats an explicitly expected null revision as an optimistic assertion', () => {
+  expect(() => saveWorkspace(localStorage, original, { expectedUpdatedAt: null }))
+    .toThrow('数据已在其他页面更新，请刷新后重试')
+})

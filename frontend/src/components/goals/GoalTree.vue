@@ -1,5 +1,5 @@
 <template>
-  <div class="goal-tree" aria-label="目标层级">
+  <div ref="goalTreeRef" class="goal-tree" aria-label="目标层级">
     <el-tree
       ref="treeRef"
       :data="treeData"
@@ -12,7 +12,7 @@
       @node-expand="handleExpand"
       @node-collapse="handleCollapse"
     >
-      <template #default="{ data }">
+      <template #default="{ data, node }">
         <div
           v-if="data.repairGroup"
           class="repair-label"
@@ -27,9 +27,9 @@
           tabindex="0"
           role="treeitem"
           :aria-selected="String(selectedId) === String(data.id)"
-          :aria-expanded="data.children?.length ? localExpandedIds.has(String(data.id)) : undefined"
+          :aria-expanded="data.children?.length ? Boolean(node?.expanded) : undefined"
           :data-testid="`goal-node-${data.id}`"
-          @keydown="handleKeydown($event, data)"
+          @keydown="handleKeydown($event, data, node)"
         >
           <span class="goal-title" :title="data.title">{{ data.title }}</span>
           <span v-if="data.progress != null" class="goal-progress">{{ data.progress }}%</span>
@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -83,6 +83,7 @@ const emit = defineEmits([
   'select', 'create-child', 'create-task', 'move', 'delete', 'update:expandedIds'
 ])
 const treeRef = ref(null)
+const goalTreeRef = ref(null)
 const localExpandedIds = reactive(new Set(props.expandedIds.map(String)))
 
 watch(() => props.expandedIds, ids => {
@@ -189,38 +190,48 @@ function updateExpanded(id, expanded) {
 function handleExpand(data) { updateExpanded(data.id, true) }
 function handleCollapse(data) { updateExpanded(data.id, false) }
 
-function flattenedNodes(nodes = treeData.value, result = []) {
-  for (const node of nodes) {
-    if (!node.repairGroup) result.push(node)
-    flattenedNodes(node.children || [], result)
-  }
-  return result
+function focusItem(id) {
+  nextTick(() => visibleItems()
+    .find(item => item.dataset.testid === `goal-node-${String(id)}`)
+    ?.focus())
 }
 
-function handleKeydown(event, data) {
+function visibleItems() {
+  return [...(goalTreeRef.value?.querySelectorAll('.goal-node') || [])].filter(item => {
+    let node = treeRef.value?.getNode?.(item.dataset.testid?.slice('goal-node-'.length))
+    while (node?.parent?.data) {
+      if (!node.parent.expanded) return false
+      node = node.parent
+    }
+    return true
+  })
+}
+
+function handleKeydown(event, data, slotNode) {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     emit('select', data.id)
     return
   }
-  if (event.key === 'ArrowRight' && data.children?.length) {
+  const node = slotNode || treeRef.value?.getNode?.(data.id)
+  if (event.key === 'ArrowRight' && node?.childNodes?.length) {
     event.preventDefault()
-    updateExpanded(data.id, true)
+    if (!node.expanded) node.expand()
+    else focusItem(node.childNodes[0].data.id)
     return
   }
   if (event.key === 'ArrowLeft') {
     event.preventDefault()
-    if (localExpandedIds.has(String(data.id))) updateExpanded(data.id, false)
-    else if (data.parentGoalId != null) emit('select', String(data.parentGoalId))
+    if (node?.expanded && node.childNodes?.length) node.collapse()
+    else if (node?.parent?.data && !node.parent.data.repairGroup) focusItem(node.parent.data.id)
     return
   }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
-    const nodes = flattenedNodes()
-    const index = nodes.findIndex(node => String(node.id) === String(data.id))
+    const items = visibleItems()
+    const index = items.indexOf(event.currentTarget)
     const offset = event.key === 'ArrowDown' ? 1 : -1
-    const target = nodes[index + offset]
-    if (target) emit('select', target.id)
+    items[index + offset]?.focus()
   }
 }
 </script>

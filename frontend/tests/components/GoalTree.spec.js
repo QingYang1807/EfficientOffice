@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, reactive } from 'vue'
 import { describe, expect, it } from 'vitest'
 import GoalTree from '@/components/goals/GoalTree.vue'
 
@@ -23,6 +23,29 @@ const TreeStub = defineComponent({
   }
 })
 
+const KeyboardTreeStub = defineComponent({
+  props: { data: Array, defaultExpandedKeys: Array },
+  emits: ['node-click', 'node-expand', 'node-collapse'],
+  setup(props, { slots, emit, expose }) {
+    const nodes = new Map()
+    const build = (data, parent = null) => {
+      const node = reactive({ data, parent, expanded: props.defaultExpandedKeys.includes(String(data.id)), childNodes: [] })
+      node.childNodes = (data.children || []).map(child => build(child, node))
+      node.expand = () => { node.expanded = true; emit('node-expand', node.data, node) }
+      node.collapse = () => { node.expanded = false; emit('node-collapse', node.data, node) }
+      nodes.set(String(data.id), node)
+      return node
+    }
+    const roots = props.data.map(data => build(data))
+    expose({ getNode: id => nodes.get(String(id)) })
+    const renderNode = node => h('div', [
+      slots.default?.({ data: node.data, node }),
+      ...(node.expanded ? node.childNodes.map(renderNode) : [])
+    ])
+    return () => h('div', roots.map(renderNode))
+  }
+})
+
 const mountTree = props => mount(GoalTree, {
   props: { goals, selectedId: 'g1', search: '', ...props },
   global: {
@@ -33,6 +56,17 @@ const mountTree = props => mount(GoalTree, {
       Warning: true
     }
   },
+  attachTo: document.body
+})
+
+const mountKeyboardTree = () => mount(GoalTree, {
+  props: { goals, selectedId: 'g1', search: '', expandedIds: [] },
+  global: { stubs: {
+    'el-tree': KeyboardTreeStub,
+    'el-icon': { template: '<span><slot /></span>' },
+    'el-empty': { template: '<span><slot /></span>' },
+    Warning: true
+  } },
   attachTo: document.body
 })
 
@@ -64,14 +98,26 @@ describe('GoalTree', () => {
   })
 
   it('supports tree keyboard navigation and names every action', async () => {
-    const wrapper = mountTree({ expandedIds: [] })
+    const wrapper = mountKeyboardTree()
     const root = wrapper.get('[data-testid="goal-node-g1"]')
-    await root.trigger('keydown', { key: 'ArrowDown' })
-    expect(wrapper.emitted('select').at(-1)).toEqual(['g2'])
+    root.element.focus()
+    await root.trigger('keydown', { key: 'ArrowRight' })
+    expect(root.attributes('aria-expanded')).toBe('true')
+    await root.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="goal-node-g2"]').element)
+
     const child = wrapper.get('[data-testid="goal-node-g2"]')
+    await child.trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="goal-node-g4"]').element)
+    await wrapper.get('[data-testid="goal-node-g4"]').trigger('keydown', { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(child.element)
+
     await child.trigger('keydown', { key: 'ArrowRight' })
-    expect(wrapper.emitted('update:expandedIds').at(-1)).toEqual([['g2']])
     expect(child.attributes('aria-expanded')).toBe('true')
+    await child.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="goal-node-g3"]').element)
+    await wrapper.get('[data-testid="goal-node-g3"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(child.element)
     await child.trigger('keydown', { key: 'ArrowLeft' })
     expect(child.attributes('aria-expanded')).toBe('false')
     await child.trigger('keydown', { key: 'Enter' })

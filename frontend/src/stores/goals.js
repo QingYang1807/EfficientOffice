@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { buildTree, getAncestorIds, validateMove } from '@/domain/hierarchy'
 import { deriveGoalView } from '@/domain/progress'
-import { exportWorkspace, loadWorkspace, patchWorkspace } from '@/repositories/workspaceRepository'
+import { exportWorkspace, loadWorkspace, patchWorkspace, workspaceForExport } from '@/repositories/workspaceRepository'
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -15,8 +15,13 @@ function cloneRecords(records) {
   return records.map(record => ({ ...record }))
 }
 
+function persistenceMessage(error) {
+  return ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
+    ? error.message : '工作区保存失败'
+}
+
 export const useGoalStore = defineStore('goals-v2', {
-  state: () => ({ goals: [], initialized: false, lastError: null }),
+  state: () => ({ goals: [], initialized: false, loadFailed: false, lastError: null }),
 
   getters: {
     tree: state => buildTree(state.goals, 'parentGoalId'),
@@ -29,24 +34,40 @@ export const useGoalStore = defineStore('goals-v2', {
 
   actions: {
     initialize() {
-      if (this.initialized) return this.goals
-      const workspace = loadWorkspace(localStorage)
-      this.goals = cloneRecords(workspace.goals)
+      if (this.initialized) {
+        if (this.loadFailed) throw new Error(this.lastError)
+        return this.goals
+      }
+      try {
+        const workspace = loadWorkspace(localStorage)
+        this.goals = cloneRecords(workspace.goals)
+        this.loadFailed = false
+        this.lastError = null
+      } catch (error) {
+        this.goals = []
+        this.loadFailed = true
+        this.lastError = persistenceMessage(error)
+      }
       this.initialized = true
-      this.lastError = null
       return this.goals
     },
 
     reload() {
-      const workspace = loadWorkspace(localStorage)
-      this.goals = cloneRecords(workspace.goals)
+      try {
+        const workspace = loadWorkspace(localStorage)
+        this.goals = cloneRecords(workspace.goals)
+        this.loadFailed = false
+        this.lastError = null
+      } catch (error) {
+        this.loadFailed = true
+        this.lastError = persistenceMessage(error)
+      }
       this.initialized = true
-      this.lastError = null
       return this.goals
     },
 
     exportData() {
-      exportWorkspace(loadWorkspace(localStorage, { trackRevision: false }))
+      exportWorkspace(workspaceForExport(localStorage))
     },
 
     persist(snapshot) {
@@ -55,8 +76,7 @@ export const useGoalStore = defineStore('goals-v2', {
         this.lastError = null
       } catch (error) {
         this.goals = snapshot
-        this.lastError = ['本地存储空间不足，请先导出或清理数据', '数据已在其他页面更新，请刷新后重试'].includes(error.message)
-          ? error.message : '工作区保存失败'
+        this.lastError = persistenceMessage(error)
         throw error
       }
     },
