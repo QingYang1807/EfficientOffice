@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const WORKSPACE_KEY = 'efficient-office.workspace.v2'
+const BACKUP_KEY = 'efficient-office.workspace.v1.backup'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/goals', { waitUntil: 'domcontentloaded' })
@@ -31,8 +32,13 @@ test('rolls completion to every parent', async ({ page }) => {
   const leafRow = page.locator('.tasks-panel').getByTestId('goal-task-t3')
   await expect(leafRow.getByRole('checkbox', { name: '完成回归测试' })).toBeAttached()
   await leafRow.locator('label').click()
-  await expect(page.locator('.tasks-panel').getByTestId('task-progress-发布')).toHaveText('100%')
-  await expect(page.locator('[data-testid="goal-progress"][data-goal-title="发布2.0"]').first()).toHaveText('100%')
+  for (const taskId of ['t1', 't2', 't3']) {
+    await expect(page.locator('.tasks-panel').getByTestId(`task-progress-${taskId}`)).toHaveText('100%')
+  }
+  for (const goalId of ['g1', 'g2', 'g3']) {
+    await page.goto(`/goals/${goalId}`, { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.detail-panel').getByTestId(`goal-progress-${goalId}`)).toHaveText('100%')
+  }
 })
 
 test('migrates valid and orphan legacy tasks', async ({ page }) => {
@@ -48,19 +54,33 @@ test('migrates valid and orphan legacy tasks', async ({ page }) => {
   await expect(page.getByTestId('task-row-t1')).toContainText('旧目标')
   await expect(page.getByTestId('task-row-t2')).toContainText('未归属目标')
   const persisted = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), WORKSPACE_KEY)
+  expect(persisted.goals).toHaveLength(1)
+  expect(persisted.tasks).toHaveLength(2)
   expect(persisted.tasks.find(task => task.id === 't1').goalId).toBe('g1')
   expect(persisted.tasks.find(task => task.id === 't2').goalId).toBeNull()
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('efficient-office.workspace.v2.diagnostics')))).toEqual({ orphanTaskIds: ['t2'] })
 })
 
-test('preserves malformed and duplicate legacy data for recovery', async ({ page }) => {
-  await page.evaluate(key => {
-    localStorage.setItem(key, '{bad json')
+test('restores a validated backup without manual JSON editing and preserves invalid legacy bytes', async ({ page }) => {
+  await page.evaluate(({ workspaceKey, backupKey }) => {
+    localStorage.setItem(workspaceKey, '{bad json')
     localStorage.setItem('goals', JSON.stringify([{ id: 'g1', title: '旧目标' }]))
-  }, WORKSPACE_KEY)
+    localStorage.setItem(backupKey, JSON.stringify({
+      goals: [{ id: 'restored-goal', title: '备份目标' }],
+      todos: [{ id: 'restored-task', text: '备份任务', goalId: 'restored-goal' }]
+    }))
+  }, { workspaceKey: WORKSPACE_KEY, backupKey: BACKUP_KEY })
   await page.goto('/todos', { waitUntil: 'domcontentloaded' })
   await expect(page.getByRole('alert').filter({ hasText: '工作区保存失败' })).toBeVisible()
   await expect.poll(() => page.evaluate(key => localStorage.getItem(key), WORKSPACE_KEY)).toBe('{bad json')
+
+  await page.goto('/goals', { waitUntil: 'domcontentloaded' })
+  await page.getByTestId('restore-workspace-backup').click()
+  await page.getByRole('dialog', { name: '恢复工作区' }).getByRole('button', { name: '确认恢复' }).click()
+  await expect(page.getByRole('heading', { name: '备份目标' })).toBeVisible()
+  const restored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), WORKSPACE_KEY)
+  expect(restored.goals.map(goal => goal.id)).toEqual(['restored-goal'])
+  expect(restored.tasks.map(task => [task.id, task.goalId])).toEqual([['restored-task', 'restored-goal']])
 
   await page.evaluate(key => {
     localStorage.removeItem(key)
@@ -76,12 +96,22 @@ test('preserves malformed and duplicate legacy data for recovery', async ({ page
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('goals')))).toHaveLength(2)
 })
 
-test('preserves hierarchy and selection after refresh', async ({ page }) => {
+test('preserves expansion, filtering, association path and completion after refresh', async ({ page }) => {
   await seedThreeLevelWorkspace(page)
+  const search = page.getByTestId('goal-search')
+  await search.fill('发布2.0')
+  const leaf = page.locator('.tasks-panel').getByTestId('goal-task-t3')
+  await leaf.locator('label').click()
+  await expect(leaf.getByRole('checkbox', { name: '完成回归测试' })).toBeChecked()
   const before = page.url()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page).toHaveURL(before)
+  await expect(page.getByTestId('goal-search')).toHaveValue('发布2.0')
+  await expect(page.getByTestId('goal-node-g1')).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByTestId('goal-node-g2')).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByTestId('goal-node-g3')).toBeVisible()
   await expect(page.locator('.detail-panel').getByLabel('目标路径')).toContainText('年度目标/产品目标/发布2.0')
+  await expect(page.locator('.tasks-panel').getByTestId('goal-task-t3').getByRole('checkbox', { name: '完成回归测试' })).toBeChecked()
 })
 
 test('supports promote and cascade deletion', async ({ page }) => {
@@ -106,27 +136,60 @@ test('supports promote and cascade deletion', async ({ page }) => {
 
 test('keeps search-expand-toggle below 200ms with 100 goals and 1000 tasks', async ({ page }) => {
   await seedLargeWorkspace(page)
+  await runMeasuredInteraction(page)
+  await resetMeasuredInteraction(page)
 
-  const elapsed = await page.evaluate(async () => {
-    const started = performance.now()
-    const expand = document.querySelector('.el-tree-node__expand-icon')
+  const samples = []
+  for (let index = 0; index < 3; index += 1) {
+    const sample = await runMeasuredInteraction(page)
+    samples.push(sample.elapsed)
+    expect(sample.beforeExpanded).toBe('false')
+    await expect(page.getByTestId('goal-node-g0')).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByTestId('goal-node-g10')).toHaveCount(0)
+    await expect(page.locator('.tasks-panel').getByTestId('goal-task-t0').getByRole('checkbox')).toBeChecked()
+    await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)).tasks[0].completed, WORKSPACE_KEY)).toBe(true)
+    if (index < 2) await resetMeasuredInteraction(page)
+  }
+
+  expect(Math.max(...samples)).toBeLessThan(200)
+  const description = samples.map(value => value.toFixed(1)).join(', ')
+  console.info(`[benchmark] search-expand-toggle samples: ${description}ms (100 goals / 1000 tasks; one warm-up discarded)`)
+  test.info().annotations.push({ type: 'benchmark', description: `${description}ms / 100 goals + 1000 tasks` })
+})
+
+async function runMeasuredInteraction(page) {
+  return page.evaluate(async () => {
+    const root = document.querySelector('[data-testid="goal-node-g0"]')
+    const expand = root?.closest('.el-tree-node')?.querySelector('.el-tree-node__expand-icon')
     const search = document.querySelector('[data-testid="goal-search"]')
     const checkbox = document.querySelector('[data-testid="goal-task-t0"] input[type="checkbox"]')
-    if (!expand || !search || !checkbox) throw new Error('性能旅程控件缺失')
+    if (!root || !expand || !search || !checkbox) throw new Error('性能旅程控件缺失')
+    const beforeExpanded = root.getAttribute('aria-expanded')
+    const started = performance.now()
     expand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    search.value = '目标 0'
-    search.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: '目标 0' }))
+    search.value = '目标 9'
+    search.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: '目标 9' }))
     checkbox.click()
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    return performance.now() - started
+    return {
+      elapsed: performance.now() - started,
+      beforeExpanded
+    }
   })
+}
 
-  expect(elapsed).toBeLessThan(200)
-  console.info(`[benchmark] search-expand-toggle: ${elapsed.toFixed(1)}ms (100 goals / 1000 tasks)`)
-  await expect(page.getByTestId('goal-node-g0')).toBeVisible()
-  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)).tasks[0].completed, WORKSPACE_KEY)).toBe(true)
-  test.info().annotations.push({ type: 'benchmark', description: `${elapsed.toFixed(1)}ms / 100 goals + 1000 tasks` })
-})
+async function resetMeasuredInteraction(page) {
+  await page.getByTestId('goal-search').fill('')
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  const root = page.getByTestId('goal-node-g0')
+  if (await root.getAttribute('aria-expanded') === 'true') {
+    await root.evaluate(element => element.closest('.el-tree-node').querySelector('.el-tree-node__expand-icon').click())
+  }
+  const row = page.locator('.tasks-panel').getByTestId('goal-task-t0')
+  if (await row.getByRole('checkbox').isChecked()) await row.locator('label').click()
+  await expect(root).toHaveAttribute('aria-expanded', 'false')
+  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)).tasks[0].completed, WORKSPACE_KEY)).toBe(false)
+}
 
 async function createGoal(page, title) {
   await page.getByRole('button', { name: '新建目标', exact: true }).click()

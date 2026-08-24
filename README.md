@@ -129,7 +129,20 @@ cd EfficientOffice/backend
 
 目标与任务统一保存在 `efficient-office.workspace.v2`。首次升级会把旧版 `goals`、`todos` 原样备份到 `efficient-office.workspace.v1.backup`，无法匹配目标的任务记录在 `efficient-office.workspace.v2.diagnostics`。
 
-迁移或保存失败时，应用会保留原数据并显示恢复提示。请先使用页面中的“导出数据”保存副本，再联系维护人员从备份恢复；无需手工修改 JSON。
+迁移或保存失败时，应用会保留原数据并显示恢复提示。请先点击“导出数据”保存当前副本；如果存在升级前自动备份，页面会显示“从备份恢复”，确认后即可校验并恢复目标与任务，无需手工修改 JSON。没有可用备份时不会显示恢复按钮。
+
+## 前端端到端测试
+
+新环境使用 Node.js 20 或更高版本，并先安装依赖和项目固定版本的 Chromium：
+
+```bash
+cd frontend
+npm install
+npm run test:e2e:install
+npm run test:e2e
+```
+
+端到端测试固定单个 worker，包含 100 个目标、1000 个任务下的搜索、展开和完成切换性能验收。
 
 ## 技术栈
 

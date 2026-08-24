@@ -23,6 +23,7 @@
     <div v-if="goalStore.lastError || taskStore.lastError" class="recovery-banner error-banner" role="alert">
       <span>{{ goalStore.lastError || taskStore.lastError }}</span>
       <el-button link type="primary" @click="exportData">导出数据</el-button>
+      <el-button v-if="canRestoreBackup" link type="primary" data-testid="restore-workspace-backup" @click="restoreBackup">从备份恢复</el-button>
     </div>
 
     <section v-if="!goalStore.goals.length" class="page-state">
@@ -172,6 +173,7 @@ import { useGoalStore } from '@/stores/goals'
 import { useTaskStore } from '@/stores/tasks'
 import { buildTree, getDescendantIds } from '@/domain/hierarchy'
 import { deriveWorkspaceViews } from '@/domain/progress'
+import { BACKUP_KEY, restoreWorkspaceBackup } from '@/repositories/workspaceRepository'
 import { deleteGoal } from '@/services/workspaceCommands'
 
 const GOAL_UI_KEY = 'efficient-office.goal-ui.v1'
@@ -238,6 +240,14 @@ const goalSummaries = computed(() => goalsWithViews.value.map(goal => ({
   ...goal,
   parentPath: goalStore.pathFor(goal.id).slice(0, -1).map(item => item.title).join(' / ')
 })))
+const canRestoreBackup = computed(() => {
+  if (!goalStore.lastError && !taskStore.lastError) return false
+  try {
+    return Boolean(localStorage.getItem(BACKUP_KEY))
+  } catch {
+    return false
+  }
+})
 
 function markStale() { stale.value = true }
 
@@ -262,14 +272,18 @@ watch(() => goalStore.goals.map(goal => String(goal.id)), () => {
   sanitizeAndSaveUiState(routeGoalId.value)
 })
 
+watch(search, saveUiState)
+
 function restoreUiState() {
   try {
     const state = JSON.parse(localStorage.getItem(GOAL_UI_KEY) || '{}')
     storedSelectedId.value = state.selectedId == null ? null : String(state.selectedId)
     expandedIds.value = Array.isArray(state.expandedIds) ? state.expandedIds.map(String) : []
+    search.value = typeof state.search === 'string' ? state.search : ''
   } catch {
     storedSelectedId.value = null
     expandedIds.value = []
+    search.value = ''
   }
 }
 
@@ -277,7 +291,8 @@ function saveUiState() {
   try {
     localStorage.setItem(GOAL_UI_KEY, JSON.stringify({
       expandedIds: expandedIds.value,
-      selectedId: storedSelectedId.value
+      selectedId: storedSelectedId.value,
+      search: search.value
     }))
   } catch {
     // Domain writes remain authoritative when optional UI state cannot persist.
@@ -309,6 +324,24 @@ function refreshWorkspace() {
 }
 
 function exportData() { goalStore.exportData() }
+
+async function restoreBackup() {
+  try {
+    await ElMessageBox.confirm(
+      '将用升级前自动备份替换当前目标与任务，是否继续？',
+      '恢复工作区',
+      { type: 'warning', confirmButtonText: '确认恢复', cancelButtonText: '取消' }
+    )
+    restoreWorkspaceBackup(localStorage)
+    goalStore.reload()
+    taskStore.reload()
+    stale.value = false
+    sanitizeAndSaveUiState(routeGoalId.value)
+    ElMessage.success('已从备份恢复')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '备份恢复失败')
+  }
+}
 
 function selectGoal(id) {
   storedSelectedId.value = String(id)

@@ -45,7 +45,7 @@ const TaskBranch = defineComponent({
           @change="$emit('toggle', task.id)"
         />
         <span class="task-title">{{ task.title }}</span>
-        <span class="task-progress" :data-testid="'task-progress-' + task.title">{{ viewFor(task.id).progress }}%</span>
+        <span class="task-progress" :data-testid="'task-progress-' + task.id">{{ viewFor(task.id).progress }}%</span>
         <button type="button" class="task-add" :aria-label="'为' + task.title + '新增子任务'" @click="$emit('create-child', task.id)">+</button>
       </div>
       <div v-if="task.children && task.children.length" class="task-children">

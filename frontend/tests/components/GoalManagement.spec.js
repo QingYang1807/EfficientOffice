@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   taskStore: null,
   confirm: vi.fn(),
   prompt: vi.fn(),
-  deleteGoal: vi.fn()
+  deleteGoal: vi.fn(),
+  restoreWorkspaceBackup: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -21,6 +22,10 @@ vi.mock('@/stores/goals', () => ({ useGoalStore: () => mocks.goalStore }))
 vi.mock('@/stores/tasks', () => ({ useTaskStore: () => mocks.taskStore }))
 vi.mock('@/services/workspaceCommands', () => ({
   deleteGoal: (...args) => mocks.deleteGoal(...args)
+}))
+vi.mock('@/repositories/workspaceRepository', () => ({
+  BACKUP_KEY: 'efficient-office.workspace.v1.backup',
+  restoreWorkspaceBackup: (...args) => mocks.restoreWorkspaceBackup(...args)
 }))
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn() },
@@ -104,6 +109,7 @@ beforeEach(() => {
   mocks.confirm.mockReset()
   mocks.prompt.mockReset()
   mocks.deleteGoal.mockReset()
+  mocks.restoreWorkspaceBackup.mockReset()
   mocks.goalStore = makeGoalStore()
   mocks.taskStore = reactive({
     tasks: [
@@ -125,13 +131,27 @@ describe('GoalManagement', () => {
     await flushPromises()
 
     expect(JSON.parse(localStorage.getItem('efficient-office.goal-ui.v1'))).toEqual({
-      expandedIds: ['g1'], selectedId: 'g2'
+      expandedIds: ['g1'], selectedId: 'g2', search: ''
     })
 
     mocks.goalStore.goals.splice(0, 2)
     await nextTick()
     expect(JSON.parse(localStorage.getItem('efficient-office.goal-ui.v1'))).toEqual({
-      expandedIds: [], selectedId: null
+      expandedIds: [], selectedId: null, search: ''
+    })
+  })
+
+  it('restores the saved goal search filter with the hierarchy UI state', async () => {
+    localStorage.setItem('efficient-office.goal-ui.v1', JSON.stringify({
+      expandedIds: ['g1'], selectedId: 'g2', search: '子目标'
+    }))
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="goal-search"]').attributes('modelvalue')).toBe('子目标')
+    expect(JSON.parse(localStorage.getItem('efficient-office.goal-ui.v1'))).toEqual({
+      expandedIds: ['g1'], selectedId: 'g2', search: '子目标'
     })
   })
 
@@ -210,5 +230,36 @@ describe('GoalManagement', () => {
     expect(mocks.taskStore.reload).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="stale-workspace"]').exists()).toBe(false)
     wrapper.unmount()
+  })
+
+  it('restores the validated backup only after confirmation and reloads both stores', async () => {
+    mocks.goalStore.lastError = '工作区保存失败'
+    localStorage.setItem('efficient-office.workspace.v1.backup', JSON.stringify({ goals: [], todos: [] }))
+    mocks.confirm.mockResolvedValue('confirm')
+    mocks.restoreWorkspaceBackup.mockReturnValue({ goals: [], tasks: [] })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="restore-workspace-backup"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('备份'),
+      '恢复工作区',
+      expect.objectContaining({ type: 'warning' })
+    )
+    expect(mocks.restoreWorkspaceBackup).toHaveBeenCalledWith(localStorage)
+    expect(mocks.goalStore.reload).toHaveBeenCalledOnce()
+    expect(mocks.taskStore.reload).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer backup restore when no automatic backup exists', async () => {
+    mocks.goalStore.lastError = '工作区保存失败'
+    localStorage.removeItem('efficient-office.workspace.v1.backup')
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="restore-workspace-backup"]').exists()).toBe(false)
   })
 })

@@ -192,6 +192,21 @@ function serializeWorkspace(workspace) {
   }
 }
 
+function normalizeLegacyWorkspace(legacyGoals, legacyTasks, now) {
+  assertUniqueIds(legacyGoals)
+  assertUniqueIds(legacyTasks)
+  const goals = legacyGoals.map(goal => normalizeGoal(goal, now))
+  const validGoalIds = new Set(goals.map(goal => goal.id))
+  const tasks = legacyTasks.map(task => normalizeTask(task, validGoalIds, now))
+  const orphanTaskIds = legacyTasks
+    .filter(task => task.goalId != null && !validGoalIds.has(String(task.goalId)))
+    .map(task => String(task.id))
+  return {
+    workspace: { version: 2, migratedAt: now, updatedAt: now, goals, tasks },
+    orphanTaskIds
+  }
+}
+
 export function saveWorkspace(storage, workspace, options = {}) {
   const hasExpectedRevision = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
   const expectedUpdatedAt = hasExpectedRevision ? options.expectedUpdatedAt : null
@@ -213,16 +228,7 @@ export function saveWorkspace(storage, workspace, options = {}) {
 export function migrateLegacyWorkspace(storage, now) {
   const legacyGoals = parseLegacyArray(storage, 'goals')
   const legacyTasks = parseLegacyArray(storage, 'todos')
-  assertUniqueIds(legacyGoals)
-  assertUniqueIds(legacyTasks)
-
-  const goals = legacyGoals.map((goal) => normalizeGoal(goal, now))
-  const validGoalIds = new Set(goals.map((goal) => goal.id))
-  const tasks = legacyTasks.map((task) => normalizeTask(task, validGoalIds, now))
-  const orphanTaskIds = legacyTasks
-    .filter((task) => task.goalId != null && !validGoalIds.has(String(task.goalId)))
-    .map((task) => String(task.id))
-  const workspace = { version: 2, migratedAt: now, updatedAt: now, goals, tasks }
+  const { workspace, orphanTaskIds } = normalizeLegacyWorkspace(legacyGoals, legacyTasks, now)
 
   let backupJson
   let diagnosticsJson
@@ -261,6 +267,54 @@ export function migrateLegacyWorkspace(storage, now) {
         } catch {
           // Continue restoring the remaining keys.
         }
+      }
+    }
+    throw storageFailure(error)
+  }
+  knownRevisions.set(storage, workspace.updatedAt)
+  return workspace
+}
+
+export function restoreWorkspaceBackup(storage, now = new Date().toISOString()) {
+  let workspace
+  let orphanTaskIds
+  let workspaceJson
+  let diagnosticsJson
+  try {
+    const raw = storage.getItem(BACKUP_KEY)
+    if (!raw) throw new TypeError('backup is missing')
+    const backup = JSON.parse(raw)
+    if (!backup || !Array.isArray(backup.goals) || !Array.isArray(backup.todos)) {
+      throw new TypeError('backup has invalid shape')
+    }
+    const normalized = normalizeLegacyWorkspace(backup.goals, backup.todos, now)
+    workspace = normalized.workspace
+    orphanTaskIds = normalized.orphanTaskIds
+    workspaceJson = serializeWorkspace(workspace).json
+    diagnosticsJson = JSON.stringify({ orphanTaskIds })
+  } catch (error) {
+    throw new Error('备份数据无法恢复', { cause: error })
+  }
+
+  const writes = [
+    [DIAGNOSTICS_KEY, diagnosticsJson],
+    [WORKSPACE_KEY, workspaceJson]
+  ]
+  const originals = new Map(writes.map(([key]) => [key, storage.getItem(key)]))
+  const touched = []
+  try {
+    for (const [key, value] of writes) {
+      touched.push(key)
+      storage.setItem(key, value)
+    }
+  } catch (error) {
+    for (const key of [...touched].reverse()) {
+      try {
+        const original = originals.get(key)
+        if (original == null) storage.removeItem(key)
+        else storage.setItem(key, original)
+      } catch {
+        // Continue restoring the remaining keys.
       }
     }
     throw storageFailure(error)

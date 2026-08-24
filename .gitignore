@@ -37,6 +37,8 @@ python_server/
 .cursorignore
 .worktrees/
 .superdesign/tmp/
+frontend/test-results/
+frontend/playwright-report/
 
 venv/
 *.pyc

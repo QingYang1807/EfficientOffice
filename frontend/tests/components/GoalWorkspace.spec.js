@@ -51,7 +51,8 @@ describe('GoalWorkspace', () => {
 
     expect(wrapper.text()).toContain('年度目标')
     expect(wrapper.text()).toContain('产品发布')
-    expect(wrapper.get('[data-testid="goal-progress"]').text()).toBe('65%')
+    expect(wrapper.get('[data-testid="goal-progress-g2"]').text()).toBe('65%')
+    expect(wrapper.get('#goal-progress-g2').text()).toBe('65%')
     expect(wrapper.text()).toContain('直属子目标')
     expect(wrapper.text()).toContain('灰度上线')
     expect(wrapper.text()).toContain('进度构成')
@@ -126,6 +127,7 @@ describe('GoalTaskTree', () => {
 
     const checkbox = wrapper.get('input[type="checkbox"]')
     expect(checkbox.attributes('aria-label')).toBe('完成验收发布')
+    expect(wrapper.get('[data-testid="task-progress-t1"]').text()).toBe('0%')
     await checkbox.setValue(true)
     expect(wrapper.emitted('toggle')).toEqual([['t1']])
   })

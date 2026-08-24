@@ -6,6 +6,7 @@ import {
   loadWorkspace,
   migrateLegacyWorkspace,
   patchWorkspace,
+  restoreWorkspaceBackup,
   saveWorkspace
 } from '@/repositories/workspaceRepository'
 
@@ -101,6 +102,58 @@ it('maps migration quota failures while restoring every previously written key',
   expect(storage.getItem(BACKUP_KEY)).toBe('old-backup')
   expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(null)
   expect(storage.getItem(WORKSPACE_KEY)).toBe(oldWorkspace)
+})
+
+it('restores and validates the legacy backup without changing the backup bytes', () => {
+  const backup = JSON.stringify({
+    goals: [{ id: 'g1', title: '恢复目标' }],
+    todos: [
+      { id: 't1', text: '恢复任务', goalId: 'g1' },
+      { id: 't2', text: '孤儿任务', goalId: 'missing' }
+    ]
+  })
+  const storage = storageWith({
+    [BACKUP_KEY]: backup,
+    [WORKSPACE_KEY]: '{bad json',
+    [DIAGNOSTICS_KEY]: '{"old":true}'
+  })
+
+  const restored = restoreWorkspaceBackup(storage, now)
+
+  expect(restored).toMatchObject({
+    version: 2,
+    migratedAt: now,
+    goals: [{ id: 'g1', title: '恢复目标' }]
+  })
+  expect(restored.tasks.map(task => task.goalId)).toEqual(['g1', null])
+  expect(storage.getItem(BACKUP_KEY)).toBe(backup)
+  expect(JSON.parse(storage.getItem(DIAGNOSTICS_KEY))).toEqual({ orphanTaskIds: ['t2'] })
+  expect(JSON.parse(storage.getItem(WORKSPACE_KEY))).toEqual(restored)
+})
+
+it.each([1, 2])('rolls back workspace and diagnostics when backup restore write %i fails', (failAt) => {
+  const originalWorkspace = '{bad json'
+  const originalDiagnostics = '{"old":true}'
+  const storage = storageFailingOnSet(failAt, {
+    [BACKUP_KEY]: JSON.stringify({ goals: [{ id: 'g1' }], todos: [] }),
+    [WORKSPACE_KEY]: originalWorkspace,
+    [DIAGNOSTICS_KEY]: originalDiagnostics
+  })
+
+  expect(() => restoreWorkspaceBackup(storage, now)).toThrow('工作区保存失败')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(originalWorkspace)
+  expect(storage.getItem(DIAGNOSTICS_KEY)).toBe(originalDiagnostics)
+})
+
+it('rejects an invalid backup without changing current workspace bytes', () => {
+  const originalWorkspace = '{"version":2}'
+  const storage = storageWith({
+    [BACKUP_KEY]: JSON.stringify({ goals: [{ id: 'duplicate' }, { id: 'duplicate' }], todos: [] }),
+    [WORKSPACE_KEY]: originalWorkspace
+  })
+
+  expect(() => restoreWorkspaceBackup(storage, now)).toThrow('备份数据无法恢复')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(originalWorkspace)
 })
 
 it('preserves zero-valued weights and timestamps while migrating', () => {
