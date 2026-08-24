@@ -6,6 +6,7 @@ import {
   calendarFormFromTask,
   calendarTaskIsDueOnDate,
   createCalendarTask,
+  getCalendarDeletionImpact,
   deleteCalendarTasks,
   getCalendarTasksByDate,
   toggleCalendarTask,
@@ -89,7 +90,7 @@ describe('calendar task integration', () => {
     expect(taskStore.updateTask).toHaveBeenCalledWith('1', expect.objectContaining({ title: '新标题', deadline: '2026-08-25' }))
     expect(taskStore.toggleTask).toHaveBeenCalledWith('1', true)
     expect(taskStore.deleteBatchTasks).toHaveBeenCalledTimes(1)
-    expect(taskStore.deleteBatchTasks).toHaveBeenCalledWith(['1', '2'])
+    expect(taskStore.deleteBatchTasks).toHaveBeenCalledWith(['1', '2'], { mode: 'promote' })
   })
 
   it('deletes all dated task trees in one persisted mutation', () => {
@@ -101,9 +102,61 @@ describe('calendar task integration', () => {
       { id: 'keep', title: '保留', deadline: '2026-08-24' }
     ])
 
-    deleteCalendarTasks('2026-08-23', taskStore)
+    deleteCalendarTasks('2026-08-23', taskStore, 'cascade')
 
     expect(taskStore.tasks.map(task => task.id)).toEqual(['keep'])
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_KEY)).tasks.map(task => task.id)).toEqual(['keep'])
+  })
+
+  it('previews cross-date descendants and promotes them in one atomic date deletion by default', () => {
+    setActivePinia(createPinia())
+    const taskStore = useTaskStore()
+    taskStore.createBatchTasks([
+      { id: 'parent', title: '当日父任务', deadline: '2026-08-23' },
+      { id: 'same-day-child', title: '当日子任务', parentTaskId: 'parent', deadline: '2026-08-23' },
+      { id: 'other-day', title: '其他日期后代', parentTaskId: 'same-day-child', deadline: '2026-08-24' },
+      { id: 'no-date', title: '无日期后代', parentTaskId: 'parent', deadline: null },
+      { id: 'keep', title: '无关任务', deadline: '2026-08-25' }
+    ])
+    const persist = vi.spyOn(taskStore, 'persist')
+
+    const impact = getCalendarDeletionImpact('2026-08-23', taskStore)
+    expect(impact).toEqual({
+      selected: [
+        { id: 'parent', title: '当日父任务', deadline: '2026-08-23' },
+        { id: 'same-day-child', title: '当日子任务', deadline: '2026-08-23' }
+      ],
+      cascadeOnly: [
+        { id: 'other-day', title: '其他日期后代', deadline: '2026-08-24' },
+        { id: 'no-date', title: '无日期后代', deadline: null }
+      ]
+    })
+
+    deleteCalendarTasks('2026-08-23', taskStore)
+
+    expect(taskStore.tasks.map(task => task.id)).toEqual(['other-day', 'no-date', 'keep'])
+    expect(taskStore.byId('other-day').parentTaskId).toBeNull()
+    expect(taskStore.byId('no-date').parentTaskId).toBeNull()
+    expect(persist).toHaveBeenCalledOnce()
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_KEY)).tasks.map(task => task.id))
+      .toEqual(['other-day', 'no-date', 'keep'])
+  })
+
+  it('cascades every previewed descendant in one atomic date deletion only when explicit', () => {
+    setActivePinia(createPinia())
+    const taskStore = useTaskStore()
+    taskStore.createBatchTasks([
+      { id: 'parent', title: '当日父任务', deadline: '2026-08-23' },
+      { id: 'other-day', title: '其他日期后代', parentTaskId: 'parent', deadline: '2026-08-24' },
+      { id: 'no-date', title: '无日期后代', parentTaskId: 'parent', deadline: null },
+      { id: 'keep', title: '无关任务', deadline: '2026-08-25' }
+    ])
+    const persist = vi.spyOn(taskStore, 'persist')
+
+    deleteCalendarTasks('2026-08-23', taskStore, 'cascade')
+
+    expect(taskStore.tasks.map(task => task.id)).toEqual(['keep'])
+    expect(persist).toHaveBeenCalledOnce()
     expect(JSON.parse(localStorage.getItem(WORKSPACE_KEY)).tasks.map(task => task.id)).toEqual(['keep'])
   })
 })

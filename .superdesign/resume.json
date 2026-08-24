@@ -9,11 +9,11 @@
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": ["frontend-src-assets-logo-full.svg"],
       "brandAssets": {"logo": {"assetKey": "frontend-src-assets-logo-full.svg", "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/9bbe771b-0c4b-4ff5-a271-19e79cbaf927/brand-assets/frontend-src-assets-logo-full.svg/logo-full.svg", "sourcePath": "frontend/src/assets/logo-full.svg"}},
-      "contextFiles": [".superdesign/design-system.md", "frontend/src/assets/tailwind.css", "frontend/src/views/GoalManagement.vue:1:43", "frontend/src/views/GoalManagement.vue:439:450", "frontend/src/views/GoalManagement.vue:912:1020", "frontend/src/layouts/MainLayout.vue", "frontend/src/components/AppMenu.vue", "docs/superpowers/specs/2026-08-23-goal-task-hierarchy-design.md"],
+      "contextFiles": [".superdesign/design-system.md", "frontend/src/assets/tailwind.css", "frontend/src/views/GoalManagement.vue", "frontend/src/layouts/MainLayout.vue", "frontend/src/components/AppMenu.vue", "docs/superpowers/specs/2026-08-23-goal-task-hierarchy-design.md"],
       "fingerprints": {
         ".superdesign/design-system.md": "9bf25c6173806e3ce5167ccb2d602ea6f48599818f744656b5842eacf47a2aad",
         "frontend/src/assets/tailwind.css": "f0ce7d766747189057146c07d71b2523e61a45ac5dc45d242ba8f03b521de25c",
-        "frontend/src/views/GoalManagement.vue": "47453cb767843d8601ca0fe95802bd3eac6a2db1e1ab9251264250cc70ab13a3",
+        "frontend/src/views/GoalManagement.vue": "0fbea519ae429563eeb643b7ce6491d51236b4ab13523d0ed9d00a16f88a4f34",
         "frontend/src/layouts/MainLayout.vue": "ebeb91787d59a711198e069d9aaf1455230614a3b9795fa868f123741cc20f4a",
         "frontend/src/components/AppMenu.vue": "c4eb77df446c32bdb2f93a5a001ea2107a000982ae3b808db25870ebc83568a0",
         "docs/superpowers/specs/2026-08-23-goal-task-hierarchy-design.md": "3eb807dda052735c5f1412769eb49964d13830d4f1b29a8879bef5f8caf99bc0"
@@ -23,7 +23,7 @@
         "3ce96a54-0c6f-4432-85e6-0e2fc91721dd": {"title": "现有目标管理基线", "visualDirection": "current card-grid reproduction", "currentVersion": 1},
         "4432eb5e-51c9-4c0c-bcaa-2603dc5a5fd7": {"title": "EfficientOffice 层级目标工作台", "visualDirection": "dense three-column hierarchical workspace", "currentVersion": 2}
       },
-      "updatedAt": "2026-08-23T15:41:43Z"
+      "updatedAt": "2026-08-24T00:00:00Z"
     },
     "/todos": {
       "targetKind": "existing-ui",
@@ -32,19 +32,19 @@
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": ["frontend-src-assets-logo-full.svg"],
       "brandAssets": {"logo": {"assetKey": "frontend-src-assets-logo-full.svg", "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/9bbe771b-0c4b-4ff5-a271-19e79cbaf927/brand-assets/frontend-src-assets-logo-full.svg/logo-full.svg", "sourcePath": "frontend/src/assets/logo-full.svg"}},
-      "contextFiles": [".superdesign/design-system.md", "frontend/src/assets/tailwind.css", "frontend/src/views/TodoList.vue", "frontend/src/components/TodoItems.vue:1:711", "frontend/src/components/TodoItems.vue:1711:2100", "frontend/src/components/FancyInput.vue", "frontend/src/layouts/MainLayout.vue", "frontend/src/components/AppMenu.vue"],
+      "contextFiles": [".superdesign/design-system.md", "frontend/src/assets/tailwind.css", "frontend/src/views/TodoList.vue", "frontend/src/components/TodoItems.vue", "frontend/src/components/FancyInput.vue", "frontend/src/layouts/MainLayout.vue", "frontend/src/components/AppMenu.vue"],
       "fingerprints": {
         ".superdesign/design-system.md": "9bf25c6173806e3ce5167ccb2d602ea6f48599818f744656b5842eacf47a2aad",
         "frontend/src/assets/tailwind.css": "f0ce7d766747189057146c07d71b2523e61a45ac5dc45d242ba8f03b521de25c",
         "frontend/src/views/TodoList.vue": "0c790d3922e229fa82d2c117b87d2bcc26786db4e1851ec9cebab70781c145d2",
-        "frontend/src/components/TodoItems.vue": "f1f301ee773d205fa63d95c9991a86933bcb199ecaf5273a82b8404fc9e5235c",
+        "frontend/src/components/TodoItems.vue": "da249eee2d6f79e931e8058d73eda81ffe2960b9ada37d8941ec662591afda73",
         "frontend/src/components/FancyInput.vue": "330f10b8db68e72fe43d3dd063c4f3fbb3d1e0d793bf5680abbd791894937c1b",
         "frontend/src/layouts/MainLayout.vue": "ebeb91787d59a711198e069d9aaf1455230614a3b9795fa868f123741cc20f4a",
         "frontend/src/components/AppMenu.vue": "c4eb77df446c32bdb2f93a5a001ea2107a000982ae3b808db25870ebc83568a0"
       },
       "components": [{"name": "MainLayout", "id": "6a9d67bf-2094-4754-b198-6139f9b51b67", "sourcePath": "frontend/src/layouts/MainLayout.vue", "logoAssetKey": "frontend-src-assets-logo-full.svg"}],
       "drafts": {"309203eb-6baa-4e6b-8aae-1484e1ef2221": {"title": "EfficientOffice 多层任务与目标导航", "visualDirection": "dense hierarchical task table with full goal paths", "currentVersion": 1}},
-      "updatedAt": "2026-08-23T16:16:39Z"
+      "updatedAt": "2026-08-24T00:00:00Z"
     }
   }
 }

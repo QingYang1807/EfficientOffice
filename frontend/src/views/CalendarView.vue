@@ -161,12 +161,19 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <CalendarTaskDeleteDialog
+      v-model:open="deleteDialogVisible"
+      :date="selectedDateKey"
+      :impact="deleteImpact"
+      @confirm="confirmDeleteTodos"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { 
   PlusOutlined, 
   FileOutlined, 
@@ -176,11 +183,13 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { Lunar } from 'lunar-javascript'
 import { useTaskStore } from '@/stores/tasks'
+import CalendarTaskDeleteDialog from '@/components/tasks/CalendarTaskDeleteDialog.vue'
 import {
   calendarFormFromTask,
   calendarTaskIsDueOnDate,
   createCalendarTask,
   deleteCalendarTasks,
+  getCalendarDeletionImpact,
   getCalendarTasksByDate,
   toggleCalendarTask,
   updateCalendarTask
@@ -196,6 +205,9 @@ const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const selectedDate = ref(null)
 const dragMode = ref(false)
+const deleteDialogVisible = ref(false)
+const deleteImpact = ref({ selected: [], cascadeOnly: [] })
+const selectedDateKey = computed(() => selectedDate.value == null ? '' : dayjs(selectedDate.value).format('YYYY-MM-DD'))
 
 const todoForm = ref({
   id: null,
@@ -295,20 +307,19 @@ const handleViewTodos = () => {
 
 // 删除待办事项
 const handleDeleteTodo = () => {
-  Modal.confirm({
-    title: '确认删除',
-    content: '确定要删除这天的所有待办事项吗？',
-    onOk: () => {
-      try {
-        deleteCalendarTasks(selectedDate.value, taskStore)
-        message.success('删除成功')
-        showContextMenu.value = false
-      } catch (error) {
-        message.error(error.message || '删除失败')
-        throw error
-      }
-    }
-  })
+  deleteImpact.value = getCalendarDeletionImpact(selectedDate.value, taskStore)
+  deleteDialogVisible.value = true
+  showContextMenu.value = false
+}
+
+const confirmDeleteTodos = mode => {
+  try {
+    deleteCalendarTasks(selectedDate.value, taskStore, mode)
+    deleteDialogVisible.value = false
+    message.success('删除成功')
+  } catch (error) {
+    message.error(error.message || '删除失败')
+  }
 }
 
 // 保存待办事项

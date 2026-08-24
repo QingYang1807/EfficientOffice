@@ -22,6 +22,17 @@ it('creates nested goals and tasks while inheriting the parent task goal', () =>
     .toThrow('子任务必须与父任务属于同一目标')
 })
 
+it('preserves manual progress through goal creation, editing and persistence', () => {
+  const goals = useGoalStore()
+  const created = goals.createGoal({ title: '手动跟踪', manualProgress: 35 })
+
+  expect(created.manualProgress).toBe(35)
+  goals.updateGoal(created.id, { manualProgress: 72 })
+
+  expect(goals.byId(created.id).manualProgress).toBe(72)
+  expect(JSON.parse(localStorage.getItem('efficient-office.workspace.v2')).goals[0].manualProgress).toBe(72)
+})
+
 it('rejects a goal cycle without changing the hierarchy', () => {
   const goals = useGoalStore()
   const root = goals.createGoal({ title: '根目标' })

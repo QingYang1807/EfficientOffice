@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import TaskTreeTable from '@/components/tasks/TaskTreeTable.vue'
 import GoalBreadcrumb from '@/components/tasks/GoalBreadcrumb.vue'
 import TaskEditorDialog from '@/components/tasks/TaskEditorDialog.vue'
+import TaskMoveDialog from '@/components/tasks/TaskMoveDialog.vue'
 
 const tasks = [
   { id: 't1', goalId: 'g3', parentTaskId: null, title: '发布', completed: false, priority: '中', deadline: null },
@@ -112,5 +113,29 @@ describe('TaskEditorDialog', () => {
     expect(wrapper.emitted('save')).toEqual([[
       expect.objectContaining({ title: '准备回滚', goalId: 'g3', parentTaskId: 't1' })
     ]])
+  })
+})
+
+describe('TaskMoveDialog', () => {
+  it('submits normalized target IDs and derives the goal from a selected parent task', async () => {
+    const wrapper = mount(TaskMoveDialog, {
+      props: {
+        modelValue: true,
+        task: tasks[2],
+        goals: [{ id: 'g3', title: '发布2.0' }],
+        tasks
+      },
+      global: { stubs: {
+        'el-dialog': { template: '<section><slot /><slot name="footer" /></section>' },
+        'el-button': { template: '<button type="button"><slot /></button>' }
+      } }
+    })
+
+    await wrapper.get('[data-testid="move-parent-task-select"]').setValue('t1')
+    expect(wrapper.get('[data-testid="move-goal-select"]').element.value).toBe('g3')
+    expect(wrapper.get('[data-testid="move-goal-select"]').element.disabled).toBe(true)
+    await wrapper.get('[data-testid="task-move-submit"]').trigger('click')
+
+    expect(wrapper.emitted('move')).toEqual([[{ taskId: 't3', parentTaskId: 't1', goalId: 'g3' }]])
   })
 })

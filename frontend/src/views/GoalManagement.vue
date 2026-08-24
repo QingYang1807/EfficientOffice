@@ -59,10 +59,27 @@
           <span>{{ goalStore.goals.length }}</span>
         </div>
         <el-input v-model="search" data-testid="goal-search" :prefix-icon="Search" clearable placeholder="搜索目标" />
+        <div class="goal-filters">
+          <el-select v-model="statusFilter" data-testid="goal-status-filter" aria-label="按状态筛选" size="small">
+            <el-option label="全部状态" value="all" />
+            <el-option label="未开始" value="not_started" />
+            <el-option label="进行中" value="in_progress" />
+            <el-option label="已逾期" value="overdue" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+          <el-select v-model="deadlineFilter" data-testid="goal-deadline-filter" aria-label="按截止时间筛选" size="small">
+            <el-option label="全部截止时间" value="all" />
+            <el-option label="已逾期" value="overdue" />
+            <el-option label="未来7天" value="next_7_days" />
+            <el-option label="无截止时间" value="no_deadline" />
+          </el-select>
+        </div>
         <GoalTree
           :goals="goalsWithViews"
           :selected-id="selectedGoal.id"
           :search="search"
+          :status-filter="statusFilter"
+          :deadline-filter="deadlineFilter"
           :expanded-ids="expandedIds"
           @select="selectGoal"
           @create-child="openCreateGoal"
@@ -91,6 +108,7 @@
       <aside class="tasks-panel panel-card">
         <GoalTaskTree
           :tasks="taskStore.tasks"
+          :task-views="workspaceViews.tasks"
           :goal-id="selectedGoal.id"
           :descendant-goal-ids="descendantGoalIds"
           :include-descendants="includeDescendants"
@@ -98,6 +116,8 @@
           @create-task="createTaskForGoal"
           @create-child="createChildTask"
           @toggle="toggleTask"
+          @edit="openEditTask"
+          @move="openMoveTask"
         />
       </aside>
 
@@ -120,6 +140,7 @@
           <el-tab-pane label="关联任务" name="tasks">
             <GoalTaskTree
               :tasks="taskStore.tasks"
+              :task-views="workspaceViews.tasks"
               :goal-id="selectedGoal.id"
               :descendant-goal-ids="descendantGoalIds"
               :include-descendants="includeDescendants"
@@ -127,6 +148,8 @@
               @create-task="createTaskForGoal"
               @create-child="createChildTask"
               @toggle="toggleTask"
+              @edit="openEditTask"
+              @move="openMoveTask"
             />
           </el-tab-pane>
         </el-tabs>
@@ -135,10 +158,27 @@
 
     <el-drawer v-model="treeDrawerOpen" title="目标层级" size="min(88vw, 340px)" direction="ltr">
       <el-input v-model="search" :prefix-icon="Search" clearable placeholder="搜索目标" />
+      <div class="goal-filters drawer-filters">
+        <el-select v-model="statusFilter" aria-label="按状态筛选" size="small">
+          <el-option label="全部状态" value="all" />
+          <el-option label="未开始" value="not_started" />
+          <el-option label="进行中" value="in_progress" />
+          <el-option label="已逾期" value="overdue" />
+          <el-option label="已完成" value="completed" />
+        </el-select>
+        <el-select v-model="deadlineFilter" aria-label="按截止时间筛选" size="small">
+          <el-option label="全部截止时间" value="all" />
+          <el-option label="已逾期" value="overdue" />
+          <el-option label="未来7天" value="next_7_days" />
+          <el-option label="无截止时间" value="no_deadline" />
+        </el-select>
+      </div>
       <GoalTree
         :goals="goalsWithViews"
         :selected-id="selectedGoal?.id || null"
         :search="search"
+        :status-filter="statusFilter"
+        :deadline-filter="deadlineFilter"
         :expanded-ids="expandedIds"
         @select="selectGoalFromDrawer"
         @create-child="openCreateGoal"
@@ -153,7 +193,23 @@
       v-model="editorOpen"
       :parent-goal-id="editorParentGoalId"
       :goal="editingGoal"
+      :has-contributions="editingGoalHasContributions"
       @save="saveGoal"
+    />
+    <TaskEditorDialog
+      v-model="taskEditorOpen"
+      :goals="goalStore.goals"
+      :tasks="taskStore.tasks"
+      :task="editingTask"
+      :context="taskEditorContext"
+      @save="saveEditedTask"
+    />
+    <TaskMoveDialog
+      v-model="taskMoveOpen"
+      :goals="goalStore.goals"
+      :tasks="taskStore.tasks"
+      :task="movingTask"
+      @move="moveTask"
     />
   </main>
 </template>
@@ -169,6 +225,8 @@ import GoalTaskTree from '@/components/goals/GoalTaskTree.vue'
 import GoalEditorDialog from '@/components/goals/GoalEditorDialog.vue'
 import GoalKanban from '@/components/goals/GoalKanban.vue'
 import GoalMindMap from '@/components/goals/GoalMindMap.vue'
+import TaskEditorDialog from '@/components/tasks/TaskEditorDialog.vue'
+import TaskMoveDialog from '@/components/tasks/TaskMoveDialog.vue'
 import { useGoalStore } from '@/stores/goals'
 import { useTaskStore } from '@/stores/tasks'
 import { buildTree, getDescendantIds } from '@/domain/hierarchy'
@@ -183,6 +241,8 @@ const goalStore = useGoalStore()
 const taskStore = useTaskStore()
 
 const search = ref('')
+const statusFilter = ref('all')
+const deadlineFilter = ref('all')
 const includeDescendants = ref(false)
 const treeDrawerOpen = ref(false)
 const mobileTab = ref('detail')
@@ -193,6 +253,20 @@ const storedSelectedId = ref(null)
 const expandedIds = ref([])
 const viewMode = ref('workspace')
 const stale = ref(false)
+const taskEditorOpen = ref(false)
+const editingTask = ref(null)
+const taskMoveOpen = ref(false)
+const movingTask = ref(null)
+const taskEditorContext = computed(() => ({
+  goalId: editingTask.value?.goalId ?? selectedGoal.value?.id ?? null,
+  parentTaskId: editingTask.value?.parentTaskId ?? null
+}))
+const editingGoalHasContributions = computed(() => {
+  if (!editingGoal.value) return false
+  const id = String(editingGoal.value.id)
+  return goalStore.goals.some(goal => String(goal.parentGoalId) === id) ||
+    taskStore.tasks.some(task => String(task.goalId) === id && task.parentTaskId == null)
+})
 
 const routeGoalId = computed(() => {
   const value = route.params.goalId
@@ -323,7 +397,13 @@ function refreshWorkspace() {
   sanitizeAndSaveUiState(routeGoalId.value)
 }
 
-function exportData() { goalStore.exportData() }
+function exportData() {
+  try {
+    goalStore.exportData()
+  } catch (error) {
+    ElMessage.error(error?.message || '数据导出失败')
+  }
+}
 
 async function restoreBackup() {
   try {
@@ -422,6 +502,38 @@ function toggleTask(id) {
   try { taskStore.toggleTask(id) } catch (error) { ElMessage.error(error.message) }
 }
 
+function openEditTask(id) {
+  editingTask.value = taskStore.byId(id)
+  taskEditorOpen.value = Boolean(editingTask.value)
+}
+
+function saveEditedTask(input) {
+  try {
+    const { id, ...patch } = input
+    taskStore.updateTask(id, patch)
+    taskEditorOpen.value = false
+    ElMessage.success('任务已更新')
+  } catch (error) {
+    ElMessage.error(error?.message || '任务更新失败')
+  }
+}
+
+function openMoveTask(id) {
+  movingTask.value = taskStore.byId(id)
+  taskMoveOpen.value = Boolean(movingTask.value)
+}
+
+function moveTask({ taskId, parentTaskId, goalId }) {
+  try {
+    const moved = taskStore.moveTask(taskId, { parentTaskId, goalId })
+    taskMoveOpen.value = false
+    if (moved.goalId != null && String(moved.goalId) !== String(selectedGoal.value?.id)) selectGoal(moved.goalId)
+    ElMessage.success('任务已移动')
+  } catch (error) {
+    ElMessage.error(error?.message || '任务移动失败')
+  }
+}
+
 async function moveGoal(id) {
   try {
     const { value } = await ElMessageBox.prompt('输入新父目标ID；留空移动到根级', '移动目标')
@@ -475,6 +587,8 @@ async function removeGoal(id) {
 .workspace-shell { display: grid; grid-template-columns: 280px minmax(420px, 1fr) 360px; align-items: start; gap: 14px; }
 .panel-card { min-width: 0; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background: white; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
 .tree-panel { position: sticky; top: 12px; display: grid; gap: 12px; padding: 16px; max-height: calc(100vh - 128px); overflow: auto; }
+.goal-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.drawer-filters { margin: 10px 0; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; }
 .panel-heading span { display: grid; place-items: center; min-width: 24px; height: 22px; border-radius: 99px; background: #eff6fc; color: #2564cf; font-size: 12px; }
 .tasks-panel { position: sticky; top: 12px; max-height: calc(100vh - 128px); overflow: auto; }
@@ -491,8 +605,11 @@ async function removeGoal(id) {
 }
 @media (max-width: 640px) {
   .goals-page { padding: 14px; }
-  .page-header { align-items: flex-start; }
+  .page-header { align-items: flex-start; flex-wrap: wrap; }
+  .header-actions { width: 100%; flex-wrap: wrap; }
+  .header-actions :deep(.el-radio-group) { max-width: 100%; }
   .page-header p { display: none; }
   .page-header h1 { font-size: 21px; }
+  .goal-filters { grid-template-columns: 1fr; }
 }
 </style>

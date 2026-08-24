@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   prompt: vi.fn(),
   deleteGoal: vi.fn(),
-  restoreWorkspaceBackup: vi.fn()
+  restoreWorkspaceBackup: vi.fn(),
+  messageError: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/repositories/workspaceRepository', () => ({
   restoreWorkspaceBackup: (...args) => mocks.restoreWorkspaceBackup(...args)
 }))
 vi.mock('element-plus', () => ({
-  ElMessage: { success: vi.fn(), error: vi.fn() },
+  ElMessage: { success: vi.fn(), error: (...args) => mocks.messageError(...args) },
   ElMessageBox: {
     confirm: (...args) => mocks.confirm(...args),
     prompt: (...args) => mocks.prompt(...args)
@@ -43,8 +44,8 @@ const GoalTreeStub = defineComponent({
 
 const GoalTaskTreeStub = defineComponent({
   name: 'GoalTaskTree',
-  emits: ['toggle'],
-  template: '<button data-testid="toggle-task" @click="$emit(\'toggle\', \'t1\')">toggle</button>'
+  emits: ['toggle', 'edit', 'move'],
+  template: '<div><button data-testid="toggle-task" @click="$emit(\'toggle\', \'t1\')">toggle</button><button data-testid="edit-task" @click="$emit(\'edit\', \'t1\')">edit</button><button data-testid="move-task" @click="$emit(\'move\', \'t1\')">move</button></div>'
 })
 
 const GoalWorkspaceStub = defineComponent({
@@ -55,16 +56,22 @@ const GoalWorkspaceStub = defineComponent({
 
 const GoalKanbanStub = defineComponent({ name: 'GoalKanban', template: '<div data-testid="kanban-view" />' })
 const GoalMindMapStub = defineComponent({ name: 'GoalMindMap', template: '<div data-testid="mindmap-view" />' })
+const TaskEditorDialogStub = defineComponent({ name: 'TaskEditorDialog', emits: ['save'], template: '<div />' })
+const TaskMoveDialogStub = defineComponent({ name: 'TaskMoveDialog', emits: ['move'], template: '<div />' })
 
 const stubs = {
   GoalTree: GoalTreeStub,
   GoalWorkspace: GoalWorkspaceStub,
   GoalTaskTree: GoalTaskTreeStub,
   GoalEditorDialog: { template: '<div />' },
+  TaskEditorDialog: TaskEditorDialogStub,
+  TaskMoveDialog: TaskMoveDialogStub,
   GoalKanban: GoalKanbanStub,
   GoalMindMap: GoalMindMapStub,
   'el-button': { template: '<button type="button"><slot /></button>' },
   'el-input': { template: '<input />' },
+  'el-select': { template: '<select><slot /></select>' },
+  'el-option': { props: ['label', 'value'], template: '<option :value="value">{{ label }}</option>' },
   'el-empty': { template: '<div><slot /></div>' },
   'el-result': { template: '<div><slot name="extra" /></div>' },
   'el-drawer': { template: '<aside><slot /></aside>' },
@@ -110,6 +117,7 @@ beforeEach(() => {
   mocks.prompt.mockReset()
   mocks.deleteGoal.mockReset()
   mocks.restoreWorkspaceBackup.mockReset()
+  mocks.messageError.mockReset()
   mocks.goalStore = makeGoalStore()
   mocks.taskStore = reactive({
     tasks: [
@@ -121,6 +129,8 @@ beforeEach(() => {
     viewFor: vi.fn(() => ({ progress: 0, completed: false })),
     byId: vi.fn(),
     toggleTask: vi.fn(),
+    updateTask: vi.fn(),
+    moveTask: vi.fn(),
     reload: vi.fn(), lastError: null
   })
 })
@@ -187,6 +197,25 @@ describe('GoalManagement', () => {
     expect(mocks.router.push).toHaveBeenCalledWith({
       name: 'TodoList', query: { goalId: 'g2', includeDescendants: '0' }
     })
+  })
+
+  it('edits and moves goal-side tasks through Task Store commands and follows the new goal path', async () => {
+    mocks.taskStore.byId.mockImplementation(id => mocks.taskStore.tasks.find(task => task.id === id))
+    mocks.taskStore.moveTask.mockReturnValue({ id: 't1', goalId: 'g3' })
+    const wrapper = mountPage()
+    await flushPromises()
+    const taskTree = wrapper.findAllComponents(GoalTaskTreeStub)[0]
+
+    taskTree.vm.$emit('edit', 't1')
+    await flushPromises()
+    wrapper.getComponent(TaskEditorDialogStub).vm.$emit('save', { id: 't1', title: '已编辑', goalId: 'g1', parentTaskId: null })
+    expect(mocks.taskStore.updateTask).toHaveBeenCalledWith('t1', expect.objectContaining({ title: '已编辑' }))
+
+    taskTree.vm.$emit('move', 't1')
+    await flushPromises()
+    wrapper.getComponent(TaskMoveDialogStub).vm.$emit('move', { taskId: 't1', goalId: 'g3', parentTaskId: null })
+    expect(mocks.taskStore.moveTask).toHaveBeenCalledWith('t1', { goalId: 'g3', parentTaskId: null })
+    expect(mocks.router.push).toHaveBeenCalledWith({ name: 'GoalDetail', params: { goalId: 'g3' } })
   })
 
   it('shows impact counts and supports both default promotion and explicit cascade deletion', async () => {
@@ -261,5 +290,17 @@ describe('GoalManagement', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="restore-workspace-backup"]').exists()).toBe(false)
+  })
+
+  it('reports an export failure without breaking recovery controls', async () => {
+    mocks.goalStore.lastError = '工作区保存失败'
+    mocks.goalStore.exportData.mockImplementation(() => { throw new Error('浏览器阻止下载') })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.get('.error-banner').findAll('button')[0].trigger('click')
+
+    expect(mocks.messageError).toHaveBeenCalledWith('浏览器阻止下载')
+    expect(wrapper.get('.error-banner').text()).toContain('导出数据')
   })
 })

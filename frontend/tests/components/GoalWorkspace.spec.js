@@ -95,7 +95,35 @@ describe('GoalEditorDialog', () => {
     await wrapper.get('[data-testid="goal-title-input"]').setValue('子目标')
     await wrapper.get('[data-testid="goal-editor-submit"]').trigger('click')
 
-    expect(wrapper.emitted('save')).toEqual([[{ parentGoalId: 'g1', title: '子目标', description: '', startDate: null, deadline: null, weight: 1 }]])
+    expect(wrapper.emitted('save')).toEqual([[{
+      parentGoalId: 'g1', title: '子目标', description: '', manualProgress: null,
+      startDate: null, deadline: null, weight: 1
+    }]])
+  })
+
+  it('edits 0-100 manual progress only when the goal has no contributions', async () => {
+    const wrapper = mount(GoalEditorDialog, {
+      props: { modelValue: true, goal: { ...goal, manualProgress: 35 }, hasContributions: false },
+      global: { stubs }
+    })
+    const progress = wrapper.get('[data-testid="goal-manual-progress-input"]')
+    expect(progress.element.disabled).toBe(false)
+    expect(progress.element.value).toBe('35')
+
+    await progress.setValue('72')
+    await wrapper.get('[data-testid="goal-editor-submit"]').trigger('click')
+
+    expect(wrapper.emitted('save')[0][0]).toEqual(expect.objectContaining({ id: 'g2', manualProgress: 72 }))
+  })
+
+  it('disables manual progress with a derived-progress explanation when contributions exist', () => {
+    const wrapper = mount(GoalEditorDialog, {
+      props: { modelValue: true, goal: { ...goal, manualProgress: 35 }, hasContributions: true },
+      global: { stubs }
+    })
+
+    expect(wrapper.get('[data-testid="goal-manual-progress-input"]').element.disabled).toBe(true)
+    expect(wrapper.text()).toContain('已有直属子目标或根任务，进度由贡献项自动汇总')
   })
 })
 
@@ -130,5 +158,23 @@ describe('GoalTaskTree', () => {
     expect(wrapper.get('[data-testid="task-progress-t1"]').text()).toBe('0%')
     await checkbox.setValue(true)
     expect(wrapper.emitted('toggle')).toEqual([['t1']])
+    await wrapper.get('[data-testid="edit-goal-task-t1"]').trigger('click')
+    await wrapper.get('[data-testid="move-goal-task-t1"]').trigger('click')
+    expect(wrapper.emitted('edit')).toEqual([['t1']])
+    expect(wrapper.emitted('move')).toEqual([['t1']])
+  })
+
+  it('reuses a parent-provided task view map instead of deriving the full workspace again', () => {
+    const tasks = [
+      { id: 't1', goalId: 'g1', parentTaskId: null, title: '验收发布', completed: false, weight: 1 }
+    ]
+    const taskViews = new Map([['t1', { progress: 73, completed: false, status: 'in_progress' }]])
+
+    const wrapper = mount(GoalTaskTree, {
+      props: { tasks, goalId: 'g1', taskViews },
+      global: { stubs }
+    })
+
+    expect(wrapper.get('[data-testid="task-progress-t1"]').text()).toBe('73%')
   })
 })

@@ -328,16 +328,18 @@ it.each([
   expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
 })
 
-it('keeps existing V2 bytes when a legacy relationship is invalid', () => {
-  const existing = '{"version":2,"migratedAt":"old","goals":[],"tasks":[]}'
+it('repairs a legacy orphan relationship and records it in diagnostics', () => {
   const storage = storageWith({
-    [WORKSPACE_KEY]: existing,
     goals: JSON.stringify([{ id: 'g1', parentGoalId: 'gone' }]),
     todos: '[]'
   })
 
-  expect(() => migrateLegacyWorkspace(storage, now)).toThrow('工作区保存失败')
-  expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+  const workspace = migrateLegacyWorkspace(storage, now)
+
+  expect(workspace.goals[0].parentGoalId).toBeNull()
+  expect(JSON.parse(storage.getItem(DIAGNOSTICS_KEY))).toEqual({
+    orphanGoalIds: ['g1'], orphanTaskIds: []
+  })
 })
 
 it('keeps existing V2 bytes when a patch violates workspace integrity', () => {
@@ -346,4 +348,61 @@ it('keeps existing V2 bytes when a patch violates workspace integrity', () => {
 
   expect(() => patchWorkspace(storage, { goals: [{ id: 'g1', parentGoalId: 'gone' }] })).toThrow('工作区保存失败')
   expect(storage.getItem(WORKSPACE_KEY)).toBe(existing)
+})
+
+it.each([
+  ['a goal cycle', {
+    goals: [{ id: 'g1', parentGoalId: 'g2' }, { id: 'g2', parentGoalId: 'g1' }], tasks: []
+  }],
+  ['a cross-goal task parent', {
+    goals: [{ id: 'g1' }, { id: 'g2' }],
+    tasks: [{ id: 'parent', goalId: 'g1' }, { id: 'child', goalId: 'g2', parentTaskId: 'parent' }]
+  }],
+  ['a 21-level goal hierarchy', {
+    goals: Array.from({ length: 21 }, (_, index) => ({
+      id: `g${index}`,
+      parentGoalId: index === 0 ? null : `g${index - 1}`
+    })),
+    tasks: []
+  }],
+  ['a 21-level task hierarchy', {
+    goals: [{ id: 'g1' }],
+    tasks: Array.from({ length: 21 }, (_, index) => ({
+      id: `t${index}`,
+      goalId: 'g1',
+      parentTaskId: index === 0 ? null : `t${index - 1}`
+    }))
+  }]
+])('rejects fatal V2 corruption on load: %s, without changing storage', (_name, payload) => {
+  const raw = JSON.stringify({ version: 2, migratedAt: now, ...payload })
+  const storage = storageWith({ [WORKSPACE_KEY]: raw })
+
+  expect(() => loadWorkspace(storage)).toThrow('工作区数据已损坏')
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(raw)
+})
+
+it('repairs missing V2 references in memory while preserving the corrupt source bytes', () => {
+  const raw = JSON.stringify({
+    version: 2,
+    migratedAt: now,
+    goals: [{ id: 'orphan-goal', parentGoalId: 'missing-goal' }],
+    tasks: [
+      { id: 'orphan-goal-task', goalId: 'missing-goal', parentTaskId: null },
+      { id: 'orphan-child-task', goalId: null, parentTaskId: 'missing-task' }
+    ]
+  })
+  const storage = storageWith({ [WORKSPACE_KEY]: raw })
+
+  const workspace = loadWorkspace(storage)
+
+  expect(workspace.goals[0].parentGoalId).toBeNull()
+  expect(workspace.tasks).toEqual([
+    expect.objectContaining({ id: 'orphan-goal-task', goalId: null, parentTaskId: null }),
+    expect.objectContaining({ id: 'orphan-child-task', goalId: null, parentTaskId: null })
+  ])
+  expect(workspace.diagnostics).toEqual({
+    orphanGoalIds: ['orphan-goal'],
+    orphanTaskIds: ['orphan-goal-task', 'orphan-child-task']
+  })
+  expect(storage.getItem(WORKSPACE_KEY)).toBe(raw)
 })

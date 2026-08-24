@@ -15,20 +15,24 @@ const mindMapContainer = ref(null)
 let mindMap = null
 
 const toMindMap = nodes => (nodes || []).map(goal => ({
-  id: String(goal.id),
-  text: goal.title || '未命名目标',
-  progress: Number(goal.progress) || 0,
-  expand: true,
+  data: {
+    id: String(goal.id),
+    text: goal.title || '未命名目标',
+    progress: Number(goal.progress) || 0,
+    expand: true
+  },
   children: toMindMap(goal.children || [])
 }))
 
 function dataFor(nodes) {
   return {
     data: {
-      text: '目标', expand: true,
-      style: { color: '#2564cf', fontSize: '18px', fontWeight: 'bold' },
-      children: toMindMap(nodes)
-    }
+      id: '__goals__',
+      text: '目标',
+      expand: true,
+      style: { color: '#2564cf', fontSize: '18px', fontWeight: 'bold' }
+    },
+    children: toMindMap(nodes)
   }
 }
 
@@ -44,7 +48,7 @@ function initialize() {
     enableAnimation: true
   })
   mindMap.on('node_click', node => {
-    const id = node?.data?.id
+    const id = typeof node?.getData === 'function' ? node.getData('id') : node?.data?.id
     if (id != null) emit('node-click', String(id))
   })
   mindMap.render()

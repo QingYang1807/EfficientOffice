@@ -174,18 +174,42 @@ export const useTaskStore = defineStore('tasks-v2', {
       }
     },
 
-    deleteBatchTasks(ids = []) {
+    deleteBatchTasks(ids = [], options = {}) {
       this.initialize()
       const requestedIds = [...new Set(ids.map(String))]
       const existingIds = new Set(this.tasks.map(task => String(task.id)))
       if (requestedIds.some(id => !existingIds.has(id))) throw new Error('任务不存在')
+      const mode = options.mode ?? 'cascade'
+      if (mode !== 'cascade' && mode !== 'promote') throw new Error('删除模式不受支持')
 
-      const removedIds = new Set(requestedIds)
-      for (const id of requestedIds) {
-        getDescendantIds(this.tasks, id, 'parentTaskId').forEach(childId => removedIds.add(childId))
-      }
       const snapshot = cloneRecords(this.tasks)
-      this.tasks = this.tasks.filter(task => !removedIds.has(String(task.id)))
+      const selectedIds = new Set(requestedIds)
+      const removedIds = new Set(selectedIds)
+      if (mode === 'cascade') {
+        for (const id of requestedIds) {
+          getDescendantIds(this.tasks, id, 'parentTaskId').forEach(childId => removedIds.add(childId))
+        }
+        this.tasks = this.tasks.filter(task => !removedIds.has(String(task.id)))
+      } else {
+        const beforeById = new Map(this.tasks.map(task => [String(task.id), task]))
+        const survivingParentId = task => {
+          let parentId = task.parentTaskId == null ? null : String(task.parentTaskId)
+          const seen = new Set([String(task.id)])
+          while (parentId != null && selectedIds.has(parentId)) {
+            if (seen.has(parentId)) throw new Error('检测到循环层级')
+            seen.add(parentId)
+            const parent = beforeById.get(parentId)
+            parentId = parent?.parentTaskId == null ? null : String(parent.parentTaskId)
+          }
+          return parentId
+        }
+        this.tasks = this.tasks
+          .filter(task => !selectedIds.has(String(task.id)))
+          .map(task => {
+            const parentTaskId = survivingParentId(task)
+            return parentTaskId === task.parentTaskId ? task : { ...task, parentTaskId, updatedAt: timestamp() }
+          })
+      }
       this.persist(snapshot)
       return [...removedIds]
     },

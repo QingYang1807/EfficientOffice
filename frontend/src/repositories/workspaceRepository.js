@@ -1,6 +1,7 @@
 export const WORKSPACE_KEY = 'efficient-office.workspace.v2'
 export const BACKUP_KEY = 'efficient-office.workspace.v1.backup'
 export const DIAGNOSTICS_KEY = 'efficient-office.workspace.v2.diagnostics'
+const MAX_HIERARCHY_DEPTH = 20
 
 const knownRevisions = new WeakMap()
 
@@ -86,6 +87,7 @@ function withoutDerivedFields(workspace) {
   const rest = { ...workspace }
   delete rest.progress
   delete rest.status
+  delete rest.diagnostics
   const strip = value => {
     const record = { ...value }
     delete record.progress
@@ -104,8 +106,11 @@ function withoutDerivedFields(workspace) {
 function indexRecords(records) {
   const byId = new Map()
   for (const record of records) {
-    if (!record || typeof record !== 'object' || record.id == null) {
+    if (!record || typeof record !== 'object' || (typeof record.id !== 'string' && typeof record.id !== 'number')) {
       throw new TypeError('record ID is required')
+    }
+    if ((typeof record.id === 'string' && record.id.trim() === '') || (typeof record.id === 'number' && !Number.isFinite(record.id))) {
+      throw new TypeError('record ID is invalid')
     }
     const id = String(record.id)
     if (byId.has(id)) throw new TypeError('duplicate record ID')
@@ -115,50 +120,80 @@ function indexRecords(records) {
 }
 
 function validateParentGraph(records, byId, parentKey) {
-  for (const record of records) {
-    const parentId = record[parentKey]
-    if (parentId != null && !byId.has(String(parentId))) {
-      throw new TypeError('parent record does not exist')
-    }
-  }
-
   const states = new Map()
+  const depths = new Map()
   const visit = (id) => {
     const state = states.get(id)
     if (state === 'visiting') throw new TypeError('cyclic parent records')
-    if (state === 'visited') return
+    if (state === 'visited') return depths.get(id)
 
     states.set(id, 'visiting')
     const parentId = byId.get(id)[parentKey]
-    if (parentId != null) visit(String(parentId))
+    const depth = parentId == null ? 1 : visit(String(parentId)) + 1
+    if (depth > MAX_HIERARCHY_DEPTH) throw new TypeError('hierarchy is too deep')
+    depths.set(id, depth)
     states.set(id, 'visited')
+    return depth
   }
 
   for (const id of byId.keys()) visit(id)
 }
 
-function validateWorkspace(workspace) {
-  if (!workspace || typeof workspace.migratedAt !== 'string' || workspace.migratedAt.trim() === '' || !Array.isArray(workspace.goals) || !Array.isArray(workspace.tasks)) {
+function validateWorkspace(workspace, options = {}) {
+  if (!workspace || workspace.version !== 2 || typeof workspace.migratedAt !== 'string' || workspace.migratedAt.trim() === '' || !Array.isArray(workspace.goals) || !Array.isArray(workspace.tasks)) {
     throw new TypeError('invalid workspace')
   }
 
-  const goalsById = indexRecords(workspace.goals)
-  const tasksById = indexRecords(workspace.tasks)
-  validateParentGraph(workspace.goals, goalsById, 'parentGoalId')
+  const data = {
+    ...workspace,
+    goals: workspace.goals.map(goal => ({ ...goal })),
+    tasks: workspace.tasks.map(task => ({ ...task }))
+  }
+  const goalsById = indexRecords(data.goals)
+  const tasksById = indexRecords(data.tasks)
+  const orphanGoalIds = []
+  const orphanTaskIds = []
 
-  for (const task of workspace.tasks) {
+  for (const goal of data.goals) {
+    if (goal.parentGoalId != null && !goalsById.has(String(goal.parentGoalId))) {
+      if (!options.repairOrphans) throw new TypeError('parent record does not exist')
+      goal.parentGoalId = null
+      orphanGoalIds.push(String(goal.id))
+    }
+  }
+
+  for (const task of data.tasks) {
     if (task.goalId != null && !goalsById.has(String(task.goalId))) {
-      throw new TypeError('task goal does not exist')
+      if (!options.repairOrphans) throw new TypeError('task goal does not exist')
+      task.goalId = null
+      orphanTaskIds.push(String(task.id))
     }
     if (task.parentTaskId != null) {
       const parent = tasksById.get(String(task.parentTaskId))
-      if (!parent) throw new TypeError('parent task does not exist')
+      if (!parent) {
+        if (!options.repairOrphans) throw new TypeError('parent task does not exist')
+        task.parentTaskId = null
+        if (!orphanTaskIds.includes(String(task.id))) orphanTaskIds.push(String(task.id))
+      }
+    }
+  }
+
+  validateParentGraph(data.goals, goalsById, 'parentGoalId')
+  validateParentGraph(data.tasks, tasksById, 'parentTaskId')
+
+  for (const task of data.tasks) {
+    if (task.parentTaskId != null) {
+      const parent = tasksById.get(String(task.parentTaskId))
       const goalId = task.goalId == null ? null : String(task.goalId)
       const parentGoalId = parent.goalId == null ? null : String(parent.goalId)
       if (goalId !== parentGoalId) throw new TypeError('task parent goal differs')
     }
   }
-  validateParentGraph(workspace.tasks, tasksById, 'parentTaskId')
+
+  if (orphanGoalIds.length || orphanTaskIds.length) {
+    data.diagnostics = { orphanGoalIds, orphanTaskIds }
+  }
+  return data
 }
 
 function nextRevision(previous) {
@@ -183,10 +218,10 @@ function currentRevision(storage) {
 function serializeWorkspace(workspace) {
   try {
     const data = withoutDerivedFields(workspace)
-    validateWorkspace(data)
-    const json = JSON.stringify(data)
+    const validated = validateWorkspace(data)
+    const json = JSON.stringify(validated)
     JSON.parse(json)
-    return { data, json }
+    return { data: validated, json }
   } catch (error) {
     throw new Error('工作区保存失败', { cause: error })
   }
@@ -201,9 +236,17 @@ function normalizeLegacyWorkspace(legacyGoals, legacyTasks, now) {
   const orphanTaskIds = legacyTasks
     .filter(task => task.goalId != null && !validGoalIds.has(String(task.goalId)))
     .map(task => String(task.id))
+  const repaired = validateWorkspace(
+    { version: 2, migratedAt: now, updatedAt: now, goals, tasks },
+    { repairOrphans: true }
+  )
+  const diagnostics = repaired.diagnostics || { orphanGoalIds: [], orphanTaskIds: [] }
+  const repairedWorkspace = { ...repaired }
+  delete repairedWorkspace.diagnostics
   return {
-    workspace: { version: 2, migratedAt: now, updatedAt: now, goals, tasks },
-    orphanTaskIds
+    workspace: repairedWorkspace,
+    orphanGoalIds: diagnostics.orphanGoalIds,
+    orphanTaskIds: [...new Set([...orphanTaskIds, ...diagnostics.orphanTaskIds])]
   }
 }
 
@@ -228,20 +271,25 @@ export function saveWorkspace(storage, workspace, options = {}) {
 export function migrateLegacyWorkspace(storage, now) {
   const legacyGoals = parseLegacyArray(storage, 'goals')
   const legacyTasks = parseLegacyArray(storage, 'todos')
-  const { workspace, orphanTaskIds } = normalizeLegacyWorkspace(legacyGoals, legacyTasks, now)
-
+  let workspace
+  let orphanGoalIds
+  let orphanTaskIds
   let backupJson
   let diagnosticsJson
   let workspaceJson
   try {
+    const normalized = normalizeLegacyWorkspace(legacyGoals, legacyTasks, now)
+    workspace = normalized.workspace
+    orphanGoalIds = normalized.orphanGoalIds
+    orphanTaskIds = normalized.orphanTaskIds
     backupJson = JSON.stringify({ goals: legacyGoals, todos: legacyTasks })
-    diagnosticsJson = JSON.stringify({ orphanTaskIds })
+    diagnosticsJson = JSON.stringify({ ...(orphanGoalIds.length ? { orphanGoalIds } : {}), orphanTaskIds })
     JSON.parse(backupJson)
     JSON.parse(diagnosticsJson)
     workspaceJson = serializeWorkspace(workspace).json
   } catch (error) {
-    if (error.message === '工作区保存失败') throw error
-    throw storageFailure(error)
+    if (['工作区保存失败', '旧数据无法解析', '检测到重复ID'].includes(error.message)) throw error
+    throw new Error('工作区保存失败', { cause: error })
   }
 
   const writes = [
@@ -277,6 +325,7 @@ export function migrateLegacyWorkspace(storage, now) {
 
 export function restoreWorkspaceBackup(storage, now = new Date().toISOString()) {
   let workspace
+  let orphanGoalIds
   let orphanTaskIds
   let workspaceJson
   let diagnosticsJson
@@ -289,9 +338,10 @@ export function restoreWorkspaceBackup(storage, now = new Date().toISOString()) 
     }
     const normalized = normalizeLegacyWorkspace(backup.goals, backup.todos, now)
     workspace = normalized.workspace
+    orphanGoalIds = normalized.orphanGoalIds
     orphanTaskIds = normalized.orphanTaskIds
     workspaceJson = serializeWorkspace(workspace).json
-    diagnosticsJson = JSON.stringify({ orphanTaskIds })
+    diagnosticsJson = JSON.stringify({ ...(orphanGoalIds.length ? { orphanGoalIds } : {}), orphanTaskIds })
   } catch (error) {
     throw new Error('备份数据无法恢复', { cause: error })
   }
@@ -329,31 +379,64 @@ export function loadWorkspace(storage, options = {}) {
     knownRevisions.delete(storage)
     return migrateLegacyWorkspace(storage, new Date().toISOString())
   }
-  const data = JSON.parse(raw)
+  let data
+  try {
+    data = JSON.parse(raw)
+  } catch (error) {
+    throw new Error('工作区数据已损坏', { cause: error })
+  }
   if (data.version !== 2) throw new Error('工作区数据版本不受支持')
-  if (options.trackRevision !== false) knownRevisions.set(storage, data.updatedAt ?? null)
-  return data
+  let validated
+  try {
+    validated = validateWorkspace(data, { repairOrphans: true })
+  } catch (error) {
+    throw new Error('工作区数据已损坏', { cause: error })
+  }
+  if (options.trackRevision !== false) knownRevisions.set(storage, validated.updatedAt ?? null)
+  return validated
 }
 
 export function patchWorkspace(storage, patch, options = {}) {
-  const persistedUpdatedAt = currentRevision(storage)
   const hasExplicitRevision = Object.prototype.hasOwnProperty.call(options, 'expectedUpdatedAt')
   const hasExpectedRevision = hasExplicitRevision || knownRevisions.has(storage)
   const expectedUpdatedAt = hasExplicitRevision
     ? options.expectedUpdatedAt
     : knownRevisions.get(storage)
+  const current = loadWorkspace(storage, { trackRevision: false })
+  const persistedUpdatedAt = current.updatedAt ?? null
   if (hasExpectedRevision && persistedUpdatedAt !== expectedUpdatedAt) {
     throw new Error('数据已在其他页面更新，请刷新后重试')
   }
-  const next = { ...loadWorkspace(storage), ...patch, version: 2 }
-  return hasExpectedRevision
-    ? saveWorkspace(storage, next, { expectedUpdatedAt })
-    : saveWorkspace(storage, next)
+  const next = {
+    ...current,
+    ...patch,
+    version: 2,
+    updatedAt: nextRevision(persistedUpdatedAt)
+  }
+  const { json } = serializeWorkspace(next)
+  try {
+    storage.setItem(WORKSPACE_KEY, json)
+  } catch (error) {
+    throw storageFailure(error)
+  }
+  knownRevisions.set(storage, next.updatedAt)
+  return next
 }
 
 export function workspaceForExport(storage) {
   const current = storage.getItem(WORKSPACE_KEY)
-  if (current) return JSON.parse(current)
+  if (current) {
+    try {
+      return loadWorkspace(storage, { trackRevision: false })
+    } catch (error) {
+      return {
+        exportKind: 'workspace-diagnostic',
+        sourceKey: WORKSPACE_KEY,
+        error: error.message || '工作区数据已损坏',
+        raw: current
+      }
+    }
+  }
   const readLegacy = key => {
     const raw = storage.getItem(key)
     if (!raw) return []
@@ -369,6 +452,9 @@ export function exportWorkspace(workspace) {
     href: url,
     download: 'efficient-office-workspace-v2.json'
   })
-  link.click()
-  URL.revokeObjectURL(url)
+  try {
+    link.click()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }

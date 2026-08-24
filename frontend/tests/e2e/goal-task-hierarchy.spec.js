@@ -151,10 +151,52 @@ test('keeps search-expand-toggle below 200ms with 100 goals and 1000 tasks', asy
     if (index < 2) await resetMeasuredInteraction(page)
   }
 
-  expect(Math.max(...samples)).toBeLessThan(200)
   const description = samples.map(value => value.toFixed(1)).join(', ')
   console.info(`[benchmark] search-expand-toggle samples: ${description}ms (100 goals / 1000 tasks; one warm-up discarded)`)
   test.info().annotations.push({ type: 'benchmark', description: `${description}ms / 100 goals + 1000 tasks` })
+  expect(Math.max(...samples)).toBeLessThan(200)
+})
+
+test('switches workspace, kanban and a rendered mind-map in the browser', async ({ page }) => {
+  await seedThreeLevelWorkspace(page)
+
+  await page.getByTestId('view-kanban').click()
+  await expect(page.getByTestId('goal-card-g3')).toBeVisible()
+  await page.getByTestId('view-mindmap').click()
+  await expect(page.locator('.mind-map svg')).toBeVisible()
+  await page.getByTestId('view-workspace').click()
+  await expect(page.locator('.workspace-shell')).toBeVisible()
+})
+
+test('keeps narrow headers contained and goal-tree touch actions about 40px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seedThreeLevelWorkspace(page)
+
+  const header = await page.locator('.page-header').boundingBox()
+  expect(header.x).toBeGreaterThanOrEqual(0)
+  expect(header.x + header.width).toBeLessThanOrEqual(390)
+  await page.getByRole('button', { name: '目标树' }).click()
+  const action = page.getByRole('button', { name: '为年度目标新增子目标' })
+  await expect(action).toBeVisible()
+  const box = await action.boundingBox()
+  expect(box.width).toBeGreaterThanOrEqual(39)
+  expect(box.height).toBeGreaterThanOrEqual(39)
+})
+
+test('filters 100 goals by derived status and deadline while retaining ancestors', async ({ page }) => {
+  await seedLargeWorkspace(page)
+
+  await page.getByTestId('goal-deadline-filter').click()
+  await page.getByRole('option', { name: '未来7天', exact: true }).click()
+  await expect(page.getByTestId('goal-node-g90')).toBeVisible()
+  await expect(page.getByTestId('goal-node-g0')).toHaveCount(0)
+
+  await page.getByTestId('goal-deadline-filter').click()
+  await page.getByRole('option', { name: '全部截止时间', exact: true }).click()
+  await page.getByTestId('goal-status-filter').click()
+  await page.getByRole('option', { name: '进行中', exact: true }).click()
+  await expect(page.getByTestId('goal-node-g90')).toBeVisible()
+  await expect(page.getByTestId('goal-node-g0')).toHaveCount(0)
 })
 
 async function runMeasuredInteraction(page) {
@@ -260,10 +302,10 @@ async function seedLargeWorkspace(page) {
       parentGoalId: index % 10 === 0 ? null : `g${index - (index % 10)}`,
       title: `目标 ${index}`,
       description: '',
-      manualProgress: 0,
+      manualProgress: index === 99 ? 100 : 0,
       weight: 1,
       startDate: null,
-      deadline: null,
+      deadline: index === 99 ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : null,
       createdAt: now,
       updatedAt: now
     }))
@@ -273,7 +315,7 @@ async function seedLargeWorkspace(page) {
       parentTaskId: null,
       title: `任务 ${index}`,
       description: '',
-      completed: false,
+      completed: index % 100 === 99,
       weight: 1,
       priority: '中',
       deadline: null,

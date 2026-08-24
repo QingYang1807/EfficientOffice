@@ -31,6 +31,13 @@
           :data-testid="`goal-node-${data.id}`"
           @keydown="handleKeydown($event, data, node)"
         >
+          <span
+            class="status-marker"
+            :class="`status-${data.status || 'not_started'}`"
+            :aria-label="`状态：${statusLabel(data.status)}`"
+            :title="statusLabel(data.status)"
+            :data-testid="`goal-status-${data.id}`"
+          ></span>
           <span class="goal-title" :title="data.title">{{ data.title }}</span>
           <span v-if="data.progress != null" class="goal-progress">{{ data.progress }}%</span>
           <span class="goal-actions" @click.stop>
@@ -76,6 +83,9 @@ const props = defineProps({
   goals: { type: Array, default: () => [] },
   selectedId: { type: String, default: null },
   search: { type: String, default: '' },
+  statusFilter: { type: String, default: 'all' },
+  deadlineFilter: { type: String, default: 'all' },
+  now: { type: Number, default: () => Date.now() },
   expandedIds: { type: Array, default: () => [] }
 })
 
@@ -104,12 +114,13 @@ const treeData = computed(() => {
     .filter(item => item.parentGoalId != null && !byId.has(item.parentGoalId))
     .map(item => item.id))
   const query = props.search.trim().toLocaleLowerCase()
+  const hasFilters = Boolean(query) || props.statusFilter !== 'all' || props.deadlineFilter !== 'all'
   const visible = new Set()
 
-  if (!query) items.forEach(item => visible.add(item.id))
+  if (!hasFilters) items.forEach(item => visible.add(item.id))
   else {
     for (const item of items) {
-      if (!String(item.title || '').toLocaleLowerCase().includes(query)) continue
+      if (!matchesFilters(item, query)) continue
       visible.add(item.id)
       let parentId = item.parentGoalId
       const seen = new Set([item.id])
@@ -156,6 +167,25 @@ const treeData = computed(() => {
   }
   return roots
 })
+
+function matchesFilters(item, query) {
+  if (query && !String(item.title || '').toLocaleLowerCase().includes(query)) return false
+  if (props.statusFilter !== 'all' && item.status !== props.statusFilter) return false
+  if (props.deadlineFilter === 'all') return true
+  const deadline = item.deadline == null || item.deadline === '' ? null : new Date(item.deadline).getTime()
+  if (props.deadlineFilter === 'no_deadline') return deadline == null
+  if (props.deadlineFilter === 'overdue') return deadline != null && deadline < props.now && item.status !== 'completed'
+  if (props.deadlineFilter === 'next_7_days') {
+    const start = new Date(props.now)
+    start.setHours(0, 0, 0, 0)
+    return deadline != null && deadline >= start.getTime() && deadline <= props.now + 7 * 24 * 60 * 60 * 1000
+  }
+  return false
+}
+
+function statusLabel(status) {
+  return ({ completed: '已完成', overdue: '已逾期', in_progress: '进行中', not_started: '未开始' })[status] || '未开始'
+}
 
 const defaultExpandedKeys = computed(() => {
   const ids = new Set(props.expandedIds.map(String))
@@ -243,6 +273,10 @@ function handleKeydown(event, data, slotNode) {
 .goal-tree :deep(.is-current > .el-tree-node__content) { background: #e8f1fd; color: #2564cf; }
 .goal-node { display: flex; align-items: center; width: calc(100% - 8px); min-width: 0; gap: 6px; }
 .goal-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; flex: 1; }
+.status-marker { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 999px; background: #94a3b8; }
+.status-marker.status-in_progress { background: #2563eb; }
+.status-marker.status-completed { background: #16a34a; }
+.status-marker.status-overdue { background: #dc2626; }
 .goal-progress { font-size: 12px; color: #64748b; }
 .goal-actions { display: inline-flex; gap: 2px; opacity: 0; visibility: hidden; }
 .goal-node:hover .goal-actions, .goal-node:focus-within .goal-actions, .goal-actions:focus-within { opacity: 1; visibility: visible; }
@@ -251,4 +285,9 @@ function handleKeydown(event, data, slotNode) {
 .node-action:hover, .node-action:focus-visible { color: #2564cf; background: #dbeafe; outline: none; }
 .node-action.danger:hover, .node-action.danger:focus-visible { color: #dc2626; background: #fee2e2; }
 .repair-label { display: flex; align-items: center; gap: 6px; color: #b45309; font-weight: 600; font-size: 13px; }
+@media (max-width: 1279px), (hover: none), (pointer: coarse) {
+  .goal-tree :deep(.el-tree-node__content) { min-height: 48px; height: auto; }
+  .goal-actions { opacity: 1; visibility: visible; }
+  .node-action { width: 40px; height: 40px; flex: 0 0 40px; }
+}
 </style>

@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { getDescendantIds } from '@/domain/hierarchy'
 
 function dateKey(value) {
   return value == null ? null : dayjs(value).format('YYYY-MM-DD')
@@ -59,8 +60,28 @@ export function toggleCalendarTask(id, completed, taskStore) {
   return taskStore.toggleTask(String(id), completed)
 }
 
-export function deleteCalendarTasks(date, taskStore) {
+export function getCalendarDeletionImpact(date, taskStore) {
+  const selected = getCalendarTasksByDate(taskStore, date)
+  const selectedIds = new Set(selected.map(task => String(task.id)))
+  const cascadeIds = new Set()
+  for (const task of selected) {
+    getDescendantIds(taskStore.tasks, task.id, 'parentTaskId').forEach(id => cascadeIds.add(id))
+  }
+  const summary = task => ({
+    id: String(task.id),
+    title: task.title || task.text || '未命名任务',
+    deadline: task.deadline == null ? null : dateKey(task.deadline)
+  })
+  return {
+    selected: selected.map(summary),
+    cascadeOnly: taskStore.tasks
+      .filter(task => cascadeIds.has(String(task.id)) && !selectedIds.has(String(task.id)))
+      .map(summary)
+  }
+}
+
+export function deleteCalendarTasks(date, taskStore, mode = 'promote') {
   const ids = getCalendarTasksByDate(taskStore, date).map(task => task.id)
-  if (ids.length) taskStore.deleteBatchTasks(ids)
+  if (ids.length) taskStore.deleteBatchTasks(ids, { mode })
   return ids
 }

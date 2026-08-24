@@ -34,6 +34,21 @@
       </div>
       <p v-if="errors.deadline" class="field-error" role="alert">{{ errors.deadline }}</p>
       <label>
+        <span>手动进度（0-100）</span>
+        <input
+          v-model="form.manualProgress"
+          data-testid="goal-manual-progress-input"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          :disabled="hasContributions"
+        />
+        <small v-if="hasContributions" class="field-help">已有直属子目标或根任务，进度由贡献项自动汇总。</small>
+        <small v-else class="field-help">无贡献项时可手动维护；留空按 0% 计算。</small>
+      </label>
+      <p v-if="errors.manualProgress" class="field-error" role="alert">{{ errors.manualProgress }}</p>
+      <label>
         <span>同级权重</span>
         <input v-model.number="form.weight" type="number" min="0.01" step="0.01" />
       </label>
@@ -52,16 +67,17 @@ import { reactive, watch } from 'vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   parentGoalId: { type: String, default: null },
-  goal: { type: Object, default: null }
+  goal: { type: Object, default: null },
+  hasContributions: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'save'])
 
 const form = reactive(blankForm())
-const errors = reactive({ title: '', deadline: '', weight: '' })
+const errors = reactive({ title: '', deadline: '', manualProgress: '', weight: '' })
 
 function blankForm() {
   return {
-    title: '', description: '', startDate: '', deadline: '', weight: 1
+    title: '', description: '', startDate: '', deadline: '', manualProgress: '', weight: 1
   }
 }
 
@@ -71,9 +87,10 @@ function reset() {
     description: props.goal.description || '',
     startDate: props.goal.startDate || '',
     deadline: props.goal.deadline || '',
+    manualProgress: props.goal.manualProgress == null ? '' : props.goal.manualProgress,
     weight: props.goal.weight ?? 1
   } : {})
-  Object.assign(errors, { title: '', deadline: '', weight: '' })
+  Object.assign(errors, { title: '', deadline: '', manualProgress: '', weight: '' })
 }
 
 watch(() => props.modelValue, open => { if (open) reset() }, { immediate: true })
@@ -82,9 +99,12 @@ function validate() {
   errors.title = form.title ? '' : '请输入目标标题'
   errors.deadline = form.startDate && form.deadline && form.deadline < form.startDate
     ? '截止日期不能早于开始日期' : ''
+  const manualProgress = form.manualProgress === '' ? null : Number(form.manualProgress)
+  errors.manualProgress = manualProgress == null || (Number.isFinite(manualProgress) && manualProgress >= 0 && manualProgress <= 100)
+    ? '' : '手动进度必须在0到100之间'
   errors.weight = Number.isFinite(Number(form.weight)) && Number(form.weight) > 0
     ? '' : '权重必须大于0'
-  return !errors.title && !errors.deadline && !errors.weight
+  return !errors.title && !errors.deadline && !errors.manualProgress && !errors.weight
 }
 
 function submit() {
@@ -94,6 +114,7 @@ function submit() {
     parentGoalId: props.goal ? props.goal.parentGoalId : props.parentGoalId,
     title: form.title,
     description: form.description,
+    manualProgress: form.manualProgress === '' ? null : Number(form.manualProgress),
     startDate: form.startDate || null,
     deadline: form.deadline || null,
     weight: Number(form.weight)
@@ -111,5 +132,7 @@ function close() { emit('update:modelValue', false) }
 .goal-editor input:focus, .goal-editor textarea:focus { border-color: #2564cf; box-shadow: 0 0 0 2px rgba(37,100,207,.12); }
 .date-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .field-error { margin: -8px 0 0; color: #dc2626; font-size: 12px; }
+.field-help { color: #64748b; font-size: 12px; font-weight: 400; }
+.goal-editor input:disabled { background: #f1f5f9; color: #64748b; cursor: not-allowed; }
 @media (max-width: 520px) { .date-grid { grid-template-columns: 1fr; } }
 </style>

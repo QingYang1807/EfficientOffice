@@ -1,13 +1,15 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import GoalMindMap from '@/components/goals/GoalMindMap.vue'
 import GoalKanban from '@/components/goals/GoalKanban.vue'
 
+const mindMapInstances = vi.hoisted(() => [])
+
 vi.mock('simple-mind-map', () => ({
   default: class {
-    constructor(options) { this.options = options; this.view = {}; this.command = { execute: vi.fn() } }
-    on() {}
+    constructor(options) { this.options = options; this.view = {}; this.command = { execute: vi.fn() }; mindMapInstances.push(this) }
+    on(event, handler) { this.handlers = { ...(this.handlers || {}), [event]: handler } }
     off() {}
     render() {}
     resize() {}
@@ -23,10 +25,27 @@ const goalTree = [{
 }]
 
 describe('goal auxiliary views', () => {
-  it('recursively maps goal children without inventing task nodes', () => {
+  beforeEach(() => mindMapInstances.splice(0))
+
+  it('uses the real simple-mind-map node protocol recursively', () => {
     const wrapper = mount(GoalMindMap, { props: { goals: goalTree } })
     const result = wrapper.vm.toMindMap(goalTree)
-    expect(result[0].children[0].children[0]).toEqual(expect.objectContaining({ id: 'g3', text: '发布2.0' }))
+    expect(result).toEqual([{
+      data: { id: 'g1', text: '年度目标', progress: 50, expand: true },
+      children: [{
+        data: { id: 'g2', text: '产品目标', progress: 50, expand: true },
+        children: [{
+          data: { id: 'g3', text: '发布2.0', progress: 50, expand: true },
+          children: []
+        }]
+      }]
+    }])
+    expect(mindMapInstances[0].options.data).toEqual({
+      data: expect.objectContaining({ id: '__goals__', text: '目标' }),
+      children: result
+    })
+    mindMapInstances[0].handlers.node_click({ getData: key => key === 'id' ? 'g3' : null })
+    expect(wrapper.emitted('node-click')).toEqual([['g3']])
     expect(JSON.stringify(result)).not.toContain('steps')
     wrapper.unmount()
   })

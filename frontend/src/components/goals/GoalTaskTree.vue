@@ -19,6 +19,8 @@
         :view-for="viewFor"
         @create-child="$emit('create-child', $event)"
         @toggle="$emit('toggle', $event)"
+        @edit="$emit('edit', $event)"
+        @move="$emit('move', $event)"
       />
     </div>
     <div v-else class="task-empty">
@@ -34,7 +36,7 @@ import { defineComponent } from 'vue'
 const TaskBranch = defineComponent({
   name: 'TaskBranch',
   props: { task: Object, viewFor: Function },
-  emits: ['create-child', 'toggle'],
+  emits: ['create-child', 'toggle', 'edit', 'move'],
   template: `
     <div class="task-branch">
       <div class="task-row" :data-testid="'goal-task-' + task.id">
@@ -47,6 +49,8 @@ const TaskBranch = defineComponent({
         <span class="task-title">{{ task.title }}</span>
         <span class="task-progress" :data-testid="'task-progress-' + task.id">{{ viewFor(task.id).progress }}%</span>
         <button type="button" class="task-add" :aria-label="'为' + task.title + '新增子任务'" @click="$emit('create-child', task.id)">+</button>
+        <button type="button" class="task-action" :data-testid="'edit-goal-task-' + task.id" :aria-label="'编辑' + task.title" @click="$emit('edit', task.id)">✎</button>
+        <button type="button" class="task-action" :data-testid="'move-goal-task-' + task.id" :aria-label="'移动' + task.title" @click="$emit('move', task.id)">↗</button>
       </div>
       <div v-if="task.children && task.children.length" class="task-children">
         <TaskBranch
@@ -56,6 +60,8 @@ const TaskBranch = defineComponent({
           :view-for="viewFor"
           @create-child="$emit('create-child', $event)"
           @toggle="$emit('toggle', $event)"
+          @edit="$emit('edit', $event)"
+          @move="$emit('move', $event)"
         />
       </div>
     </div>`
@@ -71,12 +77,13 @@ import { deriveWorkspaceViews } from '@/domain/progress'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
+  taskViews: { type: Map, default: null },
   goalId: { type: String, default: null },
   descendantGoalIds: { type: Array, default: () => [] },
   includeDescendants: { type: Boolean, default: false }
 })
 
-defineEmits(['create-task', 'create-child', 'toggle', 'update:includeDescendants'])
+defineEmits(['create-task', 'create-child', 'toggle', 'edit', 'move', 'update:includeDescendants'])
 
 const tree = computed(() => {
   const goalIds = new Set([String(props.goalId)])
@@ -85,8 +92,8 @@ const tree = computed(() => {
   return buildTree(selected, 'parentTaskId')
 })
 
-const taskViews = computed(() => deriveWorkspaceViews([], props.tasks).tasks)
-const viewFor = id => taskViews.value.get(String(id))
+const resolvedTaskViews = computed(() => props.taskViews || deriveWorkspaceViews([], props.tasks).tasks)
+const viewFor = id => resolvedTaskViews.value.get(String(id))
 </script>
 
 <style scoped>
@@ -100,6 +107,8 @@ const viewFor = id => taskViews.value.get(String(id))
 .task-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .task-progress { color: #64748b; font-size: 12px; }
 .task-add { border: 0; background: transparent; color: #2564cf; cursor: pointer; font-size: 18px; }
+.task-action { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; }
+.task-action:hover, .task-action:focus-visible { background: #eff6fc; color: #2564cf; outline: none; }
 .task-children { margin-left: 20px; border-left: 1px solid #dbe4ef; padding-left: 6px; }
 .task-empty { text-align: center; }
 </style>

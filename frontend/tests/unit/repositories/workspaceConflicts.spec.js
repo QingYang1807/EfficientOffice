@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { WORKSPACE_KEY, exportWorkspace, loadWorkspace, patchWorkspace, saveWorkspace } from '@/repositories/workspaceRepository'
+import { WORKSPACE_KEY, exportWorkspace, loadWorkspace, patchWorkspace, saveWorkspace, workspaceForExport } from '@/repositories/workspaceRepository'
 
 const original = {
   version: 2,
@@ -35,10 +35,9 @@ it('maps quota failure to a recoverable message and keeps the previous bytes', (
   expect(storage.getItem(WORKSPACE_KEY)).toBe(before)
 })
 
-it('exports without mutating storage', () => {
+it('exports an actual JSON Blob through a download link and always releases its URL', async () => {
   const before = localStorage.getItem(WORKSPACE_KEY)
-  const click = vi.fn()
-  const createElement = vi.spyOn(document, 'createElement').mockReturnValue({ click })
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   const createObjectURL = vi.fn(() => 'blob:workspace')
   const revokeObjectURL = vi.fn()
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
@@ -47,10 +46,47 @@ it('exports without mutating storage', () => {
   exportWorkspace(original)
 
   expect(click).toHaveBeenCalledOnce()
-  expect(createObjectURL).toHaveBeenCalledOnce()
+  const blob = createObjectURL.mock.calls[0][0]
+  expect(blob).toBeInstanceOf(Blob)
+  expect(blob.type).toBe('application/json')
+  const content = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error)
+    reader.onload = () => resolve(reader.result)
+    reader.readAsText(blob)
+  })
+  expect(JSON.parse(content)).toEqual(original)
+  expect(click.mock.instances[0].href).toBe('blob:workspace')
+  expect(click.mock.instances[0].download).toBe('efficient-office-workspace-v2.json')
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:workspace')
   expect(localStorage.getItem(WORKSPACE_KEY)).toBe(before)
-  createElement.mockRestore()
+  click.mockRestore()
+})
+
+it('exports malformed current V2 bytes in a diagnostic envelope without modifying storage', () => {
+  const raw = '{bad json'
+  localStorage.setItem(WORKSPACE_KEY, raw)
+
+  const payload = workspaceForExport(localStorage)
+
+  expect(payload).toEqual({
+    exportKind: 'workspace-diagnostic',
+    sourceKey: WORKSPACE_KEY,
+    error: '工作区数据已损坏',
+    raw
+  })
+  expect(localStorage.getItem(WORKSPACE_KEY)).toBe(raw)
+})
+
+it('releases the object URL even when the browser download click fails', () => {
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { throw new Error('download blocked') })
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:failed') })
+  const revokeObjectURL = vi.fn()
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+
+  expect(() => exportWorkspace(original)).toThrow('download blocked')
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:failed')
+  click.mockRestore()
 })
 
 it('does not acknowledge an external revision during a read-only export load', () => {

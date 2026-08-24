@@ -127,4 +127,40 @@ describe('GoalTree', () => {
     expect(wrapper.findAll('button').every(button => button.text().trim() || button.attributes('aria-label'))).toBe(true)
     wrapper.unmount()
   })
+
+  it('combines status and deadline filters while retaining matching ancestors', () => {
+    const filteredGoals = [
+      { id: 'root', parentGoalId: null, title: '根目标', status: 'not_started', deadline: null },
+      { id: 'match', parentGoalId: 'root', title: '七日内推进', status: 'in_progress', deadline: '2026-08-28' },
+      { id: 'other', parentGoalId: 'root', title: '已逾期', status: 'overdue', deadline: '2026-08-20' }
+    ]
+    const wrapper = mountTree({
+      goals: filteredGoals,
+      statusFilter: 'in_progress',
+      deadlineFilter: 'next_7_days',
+      now: new Date('2026-08-24T12:00:00.000Z').getTime()
+    })
+
+    expect(wrapper.text()).toContain('根目标')
+    expect(wrapper.text()).toContain('七日内推进')
+    expect(wrapper.text()).not.toContain('已逾期')
+    expect(wrapper.get('[data-testid="goal-status-match"]').attributes('aria-label')).toBe('状态：进行中')
+    wrapper.unmount()
+  })
+
+  it('keeps a 100-goal filtered hierarchy operable', async () => {
+    const largeGoals = Array.from({ length: 100 }, (_, index) => ({
+      id: `large-${index}`,
+      parentGoalId: index % 10 === 0 ? null : `large-${index - 1}`,
+      title: `目标 ${index}`,
+      status: index % 10 === 9 ? 'completed' : 'not_started',
+      deadline: null
+    }))
+    const wrapper = mountTree({ goals: largeGoals, statusFilter: 'completed' })
+
+    expect(wrapper.findAll('[data-testid^="goal-node-large-"]')).toHaveLength(100)
+    await wrapper.get('[data-testid="goal-node-large-99"]').trigger('click')
+    expect(wrapper.emitted('select').at(-1)).toEqual(['large-99'])
+    wrapper.unmount()
+  })
 })
