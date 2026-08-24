@@ -45,7 +45,7 @@ const TaskBranch = defineComponent({
           @change="$emit('toggle', task.id)"
         />
         <span class="task-title">{{ task.title }}</span>
-        <span class="task-progress">{{ viewFor(task.id).progress }}%</span>
+        <span class="task-progress" :data-testid="'task-progress-' + task.title">{{ viewFor(task.id).progress }}%</span>
         <button type="button" class="task-add" :aria-label="'为' + task.title + '新增子任务'" @click="$emit('create-child', task.id)">+</button>
       </div>
       <div v-if="task.children && task.children.length" class="task-children">
@@ -67,7 +67,7 @@ export default { components: { TaskBranch } }
 <script setup>
 import { computed } from 'vue'
 import { buildTree } from '@/domain/hierarchy'
-import { deriveTaskView } from '@/domain/progress'
+import { deriveWorkspaceViews } from '@/domain/progress'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
@@ -85,7 +85,8 @@ const tree = computed(() => {
   return buildTree(selected, 'parentTaskId')
 })
 
-const viewFor = id => deriveTaskView(id, props.tasks)
+const taskViews = computed(() => deriveWorkspaceViews([], props.tasks).tasks)
+const viewFor = id => taskViews.value.get(String(id))
 </script>
 
 <style scoped>

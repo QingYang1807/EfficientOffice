@@ -7,7 +7,9 @@
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
     "test:run": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
@@ -55,6 +57,7 @@
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@babel/plugin-transform-private-methods": "^7.25.9",
     "@babel/preset-env": "^7.26.7",
+    "@playwright/test": "^1.62.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/babel-plugin-jsx": "^1.2.5",
     "@vue/cli-plugin-babel": "~5.0.0",

@@ -57,7 +57,7 @@
           <strong>目标层级</strong>
           <span>{{ goalStore.goals.length }}</span>
         </div>
-        <el-input v-model="search" :prefix-icon="Search" clearable placeholder="搜索目标" />
+        <el-input v-model="search" data-testid="goal-search" :prefix-icon="Search" clearable placeholder="搜索目标" />
         <GoalTree
           :goals="goalsWithViews"
           :selected-id="selectedGoal.id"
@@ -171,6 +171,7 @@ import GoalMindMap from '@/components/goals/GoalMindMap.vue'
 import { useGoalStore } from '@/stores/goals'
 import { useTaskStore } from '@/stores/tasks'
 import { buildTree, getDescendantIds } from '@/domain/hierarchy'
+import { deriveWorkspaceViews } from '@/domain/progress'
 import { deleteGoal } from '@/services/workspaceCommands'
 
 const GOAL_UI_KEY = 'efficient-office.goal-ui.v1'
@@ -199,8 +200,9 @@ const firstGoalId = computed(() => goalStore.tree[0]?.id || goalStore.goals[0]?.
 const selectedGoalId = computed(() => routeGoalId.value || storedSelectedId.value || firstGoalId.value)
 const selectedGoal = computed(() => selectedGoalId.value ? goalStore.byId(selectedGoalId.value) : null)
 const selectedPath = computed(() => selectedGoal.value ? goalStore.pathFor(selectedGoal.value.id) : [])
+const workspaceViews = computed(() => deriveWorkspaceViews(goalStore.goals, taskStore.tasks))
 const selectedView = computed(() => selectedGoal.value
-  ? goalStore.viewFor(selectedGoal.value.id, taskStore.tasks)
+  ? workspaceViews.value.goals.get(String(selectedGoal.value.id))
   : { progress: 0, status: 'not_started' })
 const descendantGoalIds = computed(() => selectedGoal.value
   ? getDescendantIds(goalStore.goals, selectedGoal.value.id, 'parentGoalId')
@@ -209,7 +211,7 @@ const directChildren = computed(() => {
   if (!selectedGoal.value) return []
   return goalStore.goals
     .filter(goal => String(goal.parentGoalId) === String(selectedGoal.value.id))
-    .map(goal => ({ ...goal, ...goalStore.viewFor(goal.id, taskStore.tasks) }))
+    .map(goal => ({ ...goal, ...workspaceViews.value.goals.get(String(goal.id)) }))
 })
 const contributions = computed(() => {
   if (!selectedGoal.value) return []
@@ -222,14 +224,14 @@ const contributions = computed(() => {
       id: task.id,
       type: 'task',
       title: task.title,
-      progress: taskStore.viewFor(task.id).progress,
+      progress: workspaceViews.value.tasks.get(String(task.id)).progress,
       weight: task.weight
     }))
   return [...goalItems, ...taskItems]
 })
 const goalsWithViews = computed(() => goalStore.goals.map(goal => ({
   ...goal,
-  ...goalStore.viewFor(goal.id, taskStore.tasks)
+  ...workspaceViews.value.goals.get(String(goal.id))
 })))
 const goalTreeWithViews = computed(() => buildTree(goalsWithViews.value, 'parentGoalId'))
 const goalSummaries = computed(() => goalsWithViews.value.map(goal => ({

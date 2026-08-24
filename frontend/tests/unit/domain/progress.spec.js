@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { deriveGoalView, deriveStatus, deriveTaskView } from '@/domain/progress'
+import { deriveGoalView, deriveStatus, deriveTaskView, deriveWorkspaceViews } from '@/domain/progress'
 
 const now = new Date('2026-08-23T12:00:00Z').getTime()
 
@@ -46,4 +46,21 @@ it('treats an infinite child weight as zero', () => {
 
   expect(view.progress).toBe(0)
   expect(view.status).toBe('not_started')
+})
+
+it('derives every workspace view without changing recursive progress semantics', () => {
+  const goals = [
+    { id: 'root', parentGoalId: null, manualProgress: 0, weight: 1 },
+    { id: 'leaf', parentGoalId: 'root', manualProgress: 0, weight: 1 }
+  ]
+  const tasks = [
+    { id: 'parent', goalId: 'leaf', parentTaskId: null, completed: false, weight: 1 },
+    { id: 'child', goalId: 'leaf', parentTaskId: 'parent', completed: true, weight: 1 }
+  ]
+
+  const views = deriveWorkspaceViews(goals, tasks, now)
+
+  expect(views.tasks.get('parent')).toEqual({ progress: 100, completed: true, status: 'completed' })
+  expect(views.goals.get('leaf')).toEqual({ progress: 100, status: 'completed' })
+  expect(views.goals.get('root')).toEqual({ progress: 100, status: 'completed' })
 })

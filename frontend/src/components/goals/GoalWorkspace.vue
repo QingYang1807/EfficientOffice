@@ -15,7 +15,7 @@
       </div>
       <div class="progress-ring" :aria-label="`目标进度 ${view.progress}%`">
         <el-progress type="dashboard" :percentage="view.progress" :width="112" :stroke-width="9" />
-        <strong data-testid="goal-progress">{{ view.progress }}%</strong>
+        <strong data-testid="goal-progress" :data-goal-title="goal.title" :id="`goal-progress-${goal.title}`">{{ view.progress }}%</strong>
       </div>
     </header>
 

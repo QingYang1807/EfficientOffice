@@ -125,6 +125,12 @@ cd EfficientOffice/backend
 
 4. 访问前端项目：在浏览器中输入 `http://localhost:8888`。
 
+## 目标任务V2数据恢复
+
+目标与任务统一保存在 `efficient-office.workspace.v2`。首次升级会把旧版 `goals`、`todos` 原样备份到 `efficient-office.workspace.v1.backup`，无法匹配目标的任务记录在 `efficient-office.workspace.v2.diagnostics`。
+
+迁移或保存失败时，应用会保留原数据并显示恢复提示。请先使用页面中的“导出数据”保存副本，再联系维护人员从备份恢复；无需手工修改 JSON。
+
 ## 技术栈
 
 - 前端：Vue.js, Vuex, Vue Router, Vuetify

@@ -47,6 +47,7 @@ module.exports = defineConfig({
     }
   },
   chainWebpack: config => {
+    config.resolve.alias.set('vue$', 'vue/dist/vue.esm-bundler.js')
     config.module
       .rule('vue')
       .use('vue-loader')
@@ -102,4 +103,3 @@ module.exports = defineConfig({
     }
   }
 })
-
